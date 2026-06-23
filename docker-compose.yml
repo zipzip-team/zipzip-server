@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    container_name: alty-postgres
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - alty-postgres-data:/var/lib/postgresql
+
+volumes:
+  alty-postgres-data:
