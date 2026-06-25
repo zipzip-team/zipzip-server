@@ -9,5 +9,4 @@ public class AltyServerApplication {
     public static void main(String[] args) {
         SpringApplication.run(AltyServerApplication.class, args);
     }
-
 }
