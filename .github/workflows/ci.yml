@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI_DB_NAME: alty_server_test
+  CI_DB_USERNAME: test_alty
+  CI_DB_PASSWORD: test_alty_password
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: ${{ env.CI_DB_NAME }}
+          POSTGRES_USER: ${{ env.CI_DB_USERNAME }}
+          POSTGRES_PASSWORD: ${{ env.CI_DB_PASSWORD }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Create CI application secret
+        run: |
+          mkdir -p src/main/resources/config
+          cat > src/main/resources/config/application-secret.yml <<EOF
+          spring:
+            datasource:
+              url: jdbc:postgresql://localhost:5432/${CI_DB_NAME}
+              username: ${CI_DB_USERNAME}
+              password: ${CI_DB_PASSWORD}
+              driver-class-name: org.postgresql.Driver
+          EOF
+
+      - name: Run verification
+        run: ./gradlew --no-daemon check
