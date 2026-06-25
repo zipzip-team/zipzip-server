@@ -1,0 +1,240 @@
+# Git 서브모듈 설정 가이드
+
+이 문서는 `alty-server`에서 민감 설정 파일을 Git 서브모듈로 관리하는 방법을 정리한다.
+
+## 목적
+
+DB 접속 정보, 토큰 시크릿, 외부 서비스 키처럼 공개 저장소에 올리면 안 되는 값은
+메인 서버 저장소와 분리해서 관리한다.
+
+이 프로젝트는 민감 설정을 별도 private 저장소인
+`alty-team/alty-server-config`에 두고, 메인 저장소에서는 해당 저장소를 서브모듈로
+참조한다.
+
+## 현재 구조
+
+```text
+src/main/resources/
+├── application.yaml
+├── config/
+│   └── application-secret.yml
+├── static/
+└── templates/
+```
+
+`application.yaml`은 메인 저장소에서 관리한다.
+
+`src/main/resources/config` 디렉터리는 private 설정 저장소를 가리키는 Git 서브모듈이다.
+이 디렉터리 안의 실제 파일 내용은 메인 저장소에 저장되지 않고, 서브모듈 저장소에서
+관리된다.
+
+서브모듈 설정은 `.gitmodules`에 기록되어 있다.
+
+```ini
+[submodule "src/main/resources/config"]
+    path = src/main/resources/config
+    url = https://github.com/alty-team/alty-server-config.git
+```
+
+## application.yaml과 application-secret.yml의 역할
+
+Spring Boot의 기본 설정 파일은 다음 위치에 둔다.
+
+```text
+src/main/resources/application.yaml
+```
+
+`config` 디렉터리는 Spring Boot 기본 생성 위치가 아니라, 민감 설정을 분리하기 위해
+프로젝트에서 별도로 정한 위치다.
+
+현재 `application.yaml`은 다음 설정을 통해 private 설정 파일을 import한다.
+
+```yaml
+spring:
+    config:
+        import: classpath:config/application-secret.yml
+```
+
+이 설정 때문에 애플리케이션 시작 시 Spring Boot는 다음 파일도 함께 읽는다.
+
+```text
+src/main/resources/config/application-secret.yml
+```
+
+## optional을 사용하지 않는 이유
+
+현재 프로젝트는 다음처럼 `optional:`을 붙이지 않는다.
+
+```yaml
+spring:
+    config:
+        import: classpath:config/application-secret.yml
+```
+
+`optional:`을 붙이지 않으면 `application-secret.yml`이 없을 때 애플리케이션이 실행되지
+않는다.
+
+이 프로젝트는 `.env`나 `.env.example` 없이 private 서브모듈 설정 파일을 기준으로
+실행하는 방향을 사용한다. 따라서 설정 파일이 없는 상태로 애플리케이션이 잘못 실행되는
+것보다, 시작 단계에서 명확히 실패하는 편이 낫다.
+
+반대로 다음처럼 작성하면 설정 파일이 없어도 실행을 시도한다.
+
+```yaml
+spring:
+    config:
+        import: optional:classpath:config/application-secret.yml
+```
+
+이 방식은 환경변수 fallback을 함께 사용할 때 적합하다. 현재 프로젝트 정책과는 맞지
+않으므로 사용하지 않는다.
+
+## 설정 우선순위
+
+`application-secret.yml`에 `application.yaml`과 같은 설정 키가 있으면,
+import된 `application-secret.yml`의 값이 적용된다.
+
+예를 들어 `application.yaml`에 다음 설정이 있고,
+
+```yaml
+spring:
+    datasource:
+        driver-class-name: org.postgresql.Driver
+```
+
+`application-secret.yml`에 다음 설정이 있으면,
+
+```yaml
+spring:
+    datasource:
+        url: jdbc:postgresql://localhost:5432/alty
+        username: alty_user
+        password: secret_password
+```
+
+Spring Boot는 두 파일을 합쳐서 최종 설정을 만든다.
+
+```yaml
+spring:
+    datasource:
+        driver-class-name: org.postgresql.Driver
+        url: jdbc:postgresql://localhost:5432/alty
+        username: alty_user
+        password: secret_password
+```
+
+주의할 점은 값이 비어 있는 설정도 override 대상으로 처리될 수 있다는 점이다.
+
+```yaml
+spring:
+    datasource:
+        username:
+        password:
+```
+
+아직 값을 넣지 않은 설정은 빈 값으로 두지 말고 아예 작성하지 않거나 주석 처리한다.
+
+```yaml
+# spring:
+#     datasource:
+#         username:
+#         password:
+```
+
+## 처음 저장소를 clone하는 경우
+
+메인 저장소를 처음 받을 때는 서브모듈까지 함께 clone한다.
+
+```bash
+git clone --recurse-submodules https://github.com/alty-team/alty-server.git
+```
+
+`--recurse-submodules`를 빼고 clone하면 `src/main/resources/config` 안의 실제 설정
+파일이 내려오지 않는다.
+
+## 이미 clone한 저장소에서 서브모듈 받기
+
+이미 메인 저장소를 clone한 상태라면 다음 명령으로 서브모듈을 초기화하고 파일을 받는다.
+
+```bash
+git submodule update --init --recursive
+```
+
+이 명령을 실행하면 `.gitmodules`에 기록된
+`https://github.com/alty-team/alty-server-config.git` 저장소가
+`src/main/resources/config` 경로에 연결된다.
+
+## 설정 파일 변경하기
+
+`application-secret.yml`을 수정할 때는 서브모듈 디렉터리 안에서 커밋한다.
+
+```bash
+cd src/main/resources/config
+git status
+git add application-secret.yml
+git commit -m ":wrench: settings: 설정 값 수정"
+git push origin main
+```
+
+그 다음 메인 저장소로 돌아와서 서브모듈 포인터 변경을 커밋한다.
+
+```bash
+cd ../../../..
+git status
+git add src/main/resources/config
+git commit -m ":wrench: settings: 설정 서브모듈 포인터 갱신"
+```
+
+서브모듈은 메인 저장소에 파일 내용을 직접 저장하지 않고, 특정 커밋을 가리키는 포인터만
+저장한다. 따라서 private 설정 저장소를 수정한 뒤에는 메인 저장소에서도 포인터 변경을
+커밋해야 다른 팀원이 같은 설정 버전을 받을 수 있다.
+
+## 최신 설정 가져오기
+
+다른 팀원이 설정 저장소를 업데이트했다면 다음 명령으로 최신 커밋을 가져온다.
+
+```bash
+git submodule update --remote
+```
+
+이 명령은 서브모듈의 원격 브랜치 최신 커밋을 가져온다.
+이후 메인 저장소에서 `git status`를 확인했을 때 `src/main/resources/config`가 변경된
+것으로 보이면, 필요한 경우 포인터 변경을 커밋한다.
+
+```bash
+git status
+git add src/main/resources/config
+git commit -m ":wrench: settings: 설정 서브모듈 최신화"
+```
+
+## 자주 쓰는 명령
+
+```bash
+# 서브모듈 상태 확인
+git submodule status
+```
+
+```bash
+# clone 후 서브모듈 초기화
+git submodule update --init --recursive
+```
+
+```bash
+# 원격 저장소 기준으로 서브모듈 최신화
+git submodule update --remote
+```
+
+```bash
+# 서브모듈 내부 변경 확인
+cd src/main/resources/config
+git status
+```
+
+## 주의사항
+
+- `application-secret.yml`의 실제 값은 메인 저장소에 직접 작성하지 않는다.
+- `src/main/resources/config` 안에서 발생한 변경은 서브모듈 저장소의 변경이다.
+- 서브모듈 저장소에서 커밋과 push를 먼저 한 뒤, 메인 저장소에서 포인터 변경을 커밋한다.
+- `application-secret.yml`이 없으면 애플리케이션은 실행되지 않는다.
+- private 설정 저장소 접근 권한이 없는 팀원은 서브모듈을 받을 수 없다.
+- 값이 비어 있는 YAML 키는 의도치 않게 기존 설정을 덮어쓸 수 있으므로 작성하지 않는다.
