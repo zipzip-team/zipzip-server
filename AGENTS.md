@@ -4,6 +4,11 @@
 
 - 모든 문서는 한국어로 작성할 것.
 
+## Gradle 실행 규칙
+
+- Gradle 명령은 JDK 21로 실행할 것.
+- 현재 로컬 기본 JDK가 21이 아닐 수 있으므로, 필요하면 `JAVA_HOME`을 JDK 21 경로로 지정해서 실행할 것.
+
 ## Git Convention
 
 - 🎉 **Start:** Start New Project `:tada:`
