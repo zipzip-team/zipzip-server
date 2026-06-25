@@ -1,0 +1,55 @@
+#!/bin/sh
+
+commit_msg_file="$1"
+first_line="$(sed -n '1p' "$commit_msg_file")"
+
+case "$first_line" in
+  ":tada: start: "* | \
+  ":sparkles: feat: "* | \
+  ":bug: fix: "* | \
+  ":art: design: "* | \
+  ":recycle: refactor: "* | \
+  ":wrench: settings: "* | \
+  ":card_file_box: comment: "* | \
+  ":heavy_plus_sign: dependency: "* | \
+  ":heavy_plus_sign: plugin: "* | \
+  ":memo: docs: "* | \
+  ":twisted_rightwards_arrows: merge: "* | \
+  ":rocket: deploy: "* | \
+  ":truck: rename: "* | \
+  ":fire: remove: "* | \
+  ":rewind: revert: "*)
+    exit 0
+    ;;
+esac
+
+cat >&2 <<'EOF'
+커밋 메시지가 프로젝트 컨벤션과 맞지 않습니다.
+
+형식:
+  :<gitmoji_code>: <type>: <한국어 요약>
+
+예시:
+  :sparkles: feat: 로그인 기능 구현
+  :heavy_plus_sign: dependency: Swagger 의존성 추가
+  :memo: docs: Gradle 실행 규칙 추가
+
+허용 조합:
+  :tada: start:
+  :sparkles: feat:
+  :bug: fix:
+  :art: design:
+  :recycle: refactor:
+  :wrench: settings:
+  :card_file_box: comment:
+  :heavy_plus_sign: dependency:
+  :heavy_plus_sign: plugin:
+  :memo: docs:
+  :twisted_rightwards_arrows: merge:
+  :rocket: deploy:
+  :truck: rename:
+  :fire: remove:
+  :rewind: revert:
+EOF
+
+exit 1

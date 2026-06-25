@@ -30,6 +30,9 @@
 
 - 타입: 커밋 내용
 - 예시: `git commit -m ":sparkles: feat: 로그인 기능 구현"`
+- 커밋을 생성하거나 수정하기 전에는 반드시 이 문서의 Git Convention과 Commit Convention을 확인할 것.
+- 커밋 메시지는 `:<gitmoji_code>: <type>: <한국어 요약>` 형식을 사용할 것.
+- 커밋 메시지 검증은 `.githooks/commit-msg`에서 수행하므로, 로컬 저장소의 `core.hooksPath`는 `.githooks`로 설정할 것.
 
 ## Branch Convention
 
