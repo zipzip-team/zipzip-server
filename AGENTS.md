@@ -38,6 +38,24 @@
 
 ## Branch Convention
 
-- 브랜치의 경우 이슈 번호를 붙여 작성합니다.
-- 형식: 타입/이슈번호-구현할 기능
-- 예시: `feat/2-login`
+- Conventional Branch v1.1.0 명세를 따른다.
+- 형식은 `<type>/<description>`으로 작성한다.
+- 일반 작업 브랜치의 설명은 `<issue-number>-<summary>` 형식으로 작성한다.
+- 브랜치 타입은 다음 중 하나를 사용한다.
+  - `feat`: 새로운 기능
+  - `fix`: 버그 수정
+  - `hotfix`: 긴급 수정
+  - `release`: 릴리스 준비
+  - `chore`: 의존성, 문서, 설정 등 비기능 작업
+- `feature`와 `bugfix`도 명세상 허용되지만, 일관성을 위해 `feat`와 `fix`를 사용한다.
+- `main`, `master`, `develop` 브랜치는 타입 접두사를 사용하지 않는다.
+- 설명에는 영문 소문자, 숫자, 하이픈만 사용한다.
+- 릴리스 버전에는 점을 사용할 수 있다.
+- 연속되거나 설명의 처음 또는 끝에 위치한 하이픈과 점은 허용하지 않는다.
+- 하나의 브랜치는 하나의 이슈 또는 작업만 다룬다.
+- 예시:
+  - `feat/2-user-login`
+  - `fix/15-refresh-token-expiration`
+  - `hotfix/31-security-patch`
+  - `chore/42-update-dependencies`
+  - `release/v1.2.0`
