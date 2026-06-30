@@ -57,9 +57,9 @@ GitHub Actions job 안에서 service container로 PostgreSQL을 새로 띄우고
 CI 내부에서만 쓰는 테스트용 임시 값이다.
 
 ```yaml
-POSTGRES_DB: alty_server_test
-POSTGRES_USER: test_alty
-POSTGRES_PASSWORD: test_alty_password
+POSTGRES_DB: zipzip_server_test
+POSTGRES_USER: test_zipzip
+POSTGRES_PASSWORD: test_zipzip_password
 ```
 
 이런 값은 workflow 파일에 평문으로 둘 수 있다.
@@ -98,9 +98,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CI_DB_NAME: alty_server_test
-  CI_DB_USERNAME: test_alty
-  CI_DB_PASSWORD: test_alty_password
+  CI_DB_NAME: zipzip_server_test
+  CI_DB_USERNAME: test_zipzip
+  CI_DB_PASSWORD: test_zipzip_password
 
 jobs:
   build:

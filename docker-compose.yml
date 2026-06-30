@@ -1,7 +1,7 @@
 services:
   postgres:
     image: ${POSTGRES_IMAGE}
-    container_name: alty-postgres
+    container_name: zipzip-postgres
     restart: unless-stopped
     ports:
       - "${POSTGRES_PORT}:5432"
@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - alty-postgres-data:/var/lib/postgresql
+      - zipzip-postgres-data:/var/lib/postgresql
 
 volumes:
-  alty-postgres-data:
+  zipzip-postgres-data:

@@ -1,4 +1,4 @@
-package org.alty.altyserver.global.jpa;
+package org.zipzip.zipzipserver.global.jpa;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;

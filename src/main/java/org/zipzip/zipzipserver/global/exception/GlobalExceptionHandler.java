@@ -1,4 +1,4 @@
-package org.alty.altyserver.global.exception;
+package org.zipzip.zipzipserver.global.exception;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -6,15 +6,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.alty.altyserver.global.code.ErrorCode;
-import org.alty.altyserver.global.code.GlobalErrorCode;
-import org.alty.altyserver.global.response.BaseResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.zipzip.zipzipserver.global.code.ErrorCode;
+import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
+import org.zipzip.zipzipserver.global.response.BaseResponse;
 
 @Slf4j
 @RestControllerAdvice

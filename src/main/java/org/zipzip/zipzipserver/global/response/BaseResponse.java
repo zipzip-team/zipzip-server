@@ -1,7 +1,7 @@
-package org.alty.altyserver.global.response;
+package org.zipzip.zipzipserver.global.response;
 
-import org.alty.altyserver.global.code.ErrorCode;
-import org.alty.altyserver.global.code.SuccessCode;
+import org.zipzip.zipzipserver.global.code.ErrorCode;
+import org.zipzip.zipzipserver.global.code.SuccessCode;
 
 public record BaseResponse<T>(int status, String code, String message, T data) {
     public static <T> BaseResponse<T> success(SuccessCode successCode, T data) {

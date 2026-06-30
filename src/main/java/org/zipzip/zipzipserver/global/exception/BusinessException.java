@@ -1,7 +1,7 @@
-package org.alty.altyserver.global.exception;
+package org.zipzip.zipzipserver.global.exception;
 
 import lombok.Getter;
-import org.alty.altyserver.global.code.ErrorCode;
+import org.zipzip.zipzipserver.global.code.ErrorCode;
 
 @Getter
 public class BusinessException extends RuntimeException {

@@ -1,6 +1,6 @@
 # Git 서브모듈 설정 가이드
 
-이 문서는 `alty-server`에서 민감 설정 파일을 Git 서브모듈로 관리하는 방법을 정리한다.
+이 문서는 `zipzip-server`에서 민감 설정 파일을 Git 서브모듈로 관리하는 방법을 정리한다.
 
 ## 목적
 
@@ -95,8 +95,8 @@ src/main/resources/config/docker-compose.env
 ```env
 POSTGRES_IMAGE=postgres:18
 POSTGRES_PORT=5432
-POSTGRES_DB=alty_server
-POSTGRES_USER=alty
+POSTGRES_DB=zipzip_server
+POSTGRES_USER=zipzip
 POSTGRES_PASSWORD=secret_password
 ```
 
@@ -193,8 +193,8 @@ spring:
 ```yaml
 spring:
     datasource:
-        url: jdbc:postgresql://localhost:5432/alty
-        username: alty_user
+        url: jdbc:postgresql://localhost:5432/zipzip_server
+        username: zipzip
         password: secret_password
 ```
 
@@ -204,8 +204,8 @@ Spring Boot는 두 파일을 합쳐서 최종 설정을 만든다.
 spring:
     datasource:
         driver-class-name: org.postgresql.Driver
-        url: jdbc:postgresql://localhost:5432/alty
-        username: alty_user
+        url: jdbc:postgresql://localhost:5432/zipzip_server
+        username: zipzip
         password: secret_password
 ```
 

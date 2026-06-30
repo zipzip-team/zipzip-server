@@ -1,4 +1,4 @@
-package org.alty.altyserver.global.config;
+package org.zipzip.zipzipserver.global.config;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
@@ -13,8 +13,8 @@ public class SwaggerConfig {
         return new OpenAPI()
                 .info(
                         new Info()
-                                .title("Alty Server API")
-                                .description("Alty Server API 문서")
+                                .title("Zipzip Server API")
+                                .description("Zipzip Server API 문서")
                                 .version("v1.0.0"));
     }
 }

@@ -13,9 +13,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CI_DB_NAME: alty_server_test
-  CI_DB_USERNAME: test_alty
-  CI_DB_PASSWORD: test_alty_password
+  CI_DB_NAME: zipzip_server_test
+  CI_DB_USERNAME: test_zipzip
+  CI_DB_PASSWORD: test_zipzip_password
 
 jobs:
   build:

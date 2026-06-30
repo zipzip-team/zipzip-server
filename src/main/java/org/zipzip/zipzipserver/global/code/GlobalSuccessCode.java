@@ -1,4 +1,4 @@
-package org.alty.altyserver.global.code;
+package org.zipzip.zipzipserver.global.code;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

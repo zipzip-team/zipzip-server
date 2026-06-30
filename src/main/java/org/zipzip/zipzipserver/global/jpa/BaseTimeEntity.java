@@ -1,4 +1,4 @@
-package org.alty.altyserver.global.jpa;
+package org.zipzip.zipzipserver.global.jpa;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
