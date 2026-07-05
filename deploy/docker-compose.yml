@@ -1,0 +1,44 @@
+# zipzip-be 인스턴스(프로덕션)용 compose 스택.
+# 저장소 루트의 docker-compose.yml(로컬 개발용 postgres 전용)과는 별개.
+# DB는 별도 인스턴스(zipzip-db)에서 이미 운영 중이라 여기 포함하지 않는다.
+services:
+  api:
+    image: ${DOCKERHUB_IMAGE}:latest
+    container_name: zipzip-be
+    restart: unless-stopped
+    env_file:
+      - ./zipzip-be.env
+    expose:
+      - "8080"
+    networks:
+      - zipzip-net
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: zipzip-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      - api
+    networks:
+      - zipzip-net
+
+  certbot:
+    image: certbot/certbot
+    container_name: zipzip-certbot
+    restart: unless-stopped
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: >
+      sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+
+networks:
+  zipzip-net:
+    driver: bridge

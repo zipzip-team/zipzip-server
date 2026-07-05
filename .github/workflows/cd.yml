@@ -101,19 +101,17 @@ jobs:
           ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
 
       # 이미지는 public이라 서버에서도 로그인 없이 pull 가능.
-      # DB 접속정보 등 실제 시크릿은 GitHub Actions를 거치지 않고 서버의 ~/zipzip-be.env 파일에만 존재한다.
+      # 서버의 authorized_keys에 forced command(`~/zipzip-deploy.sh`)가 걸려 있어서
+      # 실제로는 아래 커맨드 문자열('deploy')과 무관하게 그 스크립트만 실행된다.
+      # DB 접속정보는 GitHub Secrets에 개별 등록해두고, stdin으로 흘려보내
+      # 서버 스크립트가 그걸 그대로 zipzip-be.env로 기록한 뒤 배포하게 한다.
+      # (forced command라 인자로 임의 데이터를 못 받으므로 stdin 경로를 씀 — 스크립트는
+      # 서버 ~/zipzip-deploy.sh, 구성 설명은 deploy/README.md 참고)
       - name: Deploy over SSH
         run: |
           ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" '
-              set -e
-              docker pull ${{ env.IMAGE_NAME }}:latest
-              docker stop zipzip-be 2>/dev/null || true
-              docker rm zipzip-be 2>/dev/null || true
-              docker run -d \
-                --name zipzip-be \
-                --restart unless-stopped \
-                --env-file ~/zipzip-be.env \
-                -p 8080:8080 \
-                ${{ env.IMAGE_NAME }}:latest
-            '
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" 'deploy' <<'ENVEOF'
+          SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}
+          SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}
+          SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+          ENVEOF
