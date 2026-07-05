@@ -24,6 +24,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # private 서브모듈(src/main/resources/config)이 체크아웃되지 않은 환경(CI/CD)에서도
+      # non-optional classpath import가 깨지지 않도록 placeholder 값만 채운다.
+      # 실제 프로덕션 DB 접속정보는 컨테이너 실행 시 SPRING_DATASOURCE_* 환경변수로 주입되어
+      # 이 값을 덮어쓰므로(Spring 프로퍼티 우선순위상 env var가 우선), public 이미지에 포함되어도 안전하다.
+      - name: Create build-time placeholder secret
+        run: |
+          mkdir -p src/main/resources/config
+          cat > src/main/resources/config/application-secret.yml <<'YAML'
+          spring:
+            application:
+              name: zipzip-server
+            datasource:
+              url: jdbc:postgresql://localhost:5432/placeholder
+              username: placeholder
+              password: placeholder
+              driver-class-name: org.postgresql.Driver
+          YAML
+
+      # JAR은 러너 네이티브(x86) 아키텍처로 빌드한다. 바이트코드는 아키텍처 무관이라
+      # 여기서 굳이 arm64를 QEMU로 에뮬레이션하며 컴파일할 필요가 없다(느림).
+      - name: Build JAR
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon clean bootJar -x test
+          mkdir -p app
+          cp build/libs/*.jar app/app.jar
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -37,7 +73,8 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # 인스턴스가 ARM64(Ampere A1)뿐이라 arm64 단일 아키텍처만 빌드한다.
-      # JAR 자체는 바이트코드라 아키텍처 무관하고, 여기서 arm64로 굳는 건 베이스 JRE 레이어뿐.
+      # 이 단계는 이미 빌드된 JAR을 arm64 JRE 이미지에 얹기만 하므로(COPY/chown)
+      # QEMU 에뮬레이션이어도 빠르다 — 무거운 컴파일은 위에서 네이티브로 이미 끝남.
       - name: Build and push image (linux/arm64)
         uses: docker/build-push-action@v6
         with:

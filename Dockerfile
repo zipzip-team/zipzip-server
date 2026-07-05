@@ -1,35 +1,12 @@
-# ---- Build stage ----
-FROM eclipse-temurin:21-jdk AS build
-WORKDIR /workspace
-
-COPY gradlew build.gradle settings.gradle ./
-COPY gradle ./gradle
-COPY src ./src
-
-# private 서브모듈(src/main/resources/config)이 체크아웃되지 않은 환경(CI/CD)에서도
-# non-optional classpath import가 깨지지 않도록 placeholder 값만 채운다.
-# 실제 프로덕션 DB 접속정보는 컨테이너 실행 시 SPRING_DATASOURCE_* 환경변수로 주입되어
-# 이 값을 덮어쓰므로(Spring 프로퍼티 우선순위상 env var가 우선), public 이미지에 포함되어도 안전하다.
-RUN mkdir -p src/main/resources/config && cat > src/main/resources/config/application-secret.yml <<'YAML'
-spring:
-  application:
-    name: zipzip-server
-  datasource:
-    url: jdbc:postgresql://localhost:5432/placeholder
-    username: placeholder
-    password: placeholder
-    driver-class-name: org.postgresql.Driver
-YAML
-
-RUN chmod +x gradlew && ./gradlew --no-daemon clean bootJar -x test
-
-# ---- Runtime stage ----
+# JAR은 CD 워크플로우에서 네이티브(x86 러너)로 미리 빌드해서 build/libs에 둔다.
+# 여기서는 arm64 JRE 런타임 이미지에 그 결과물만 얹는다 — QEMU 에뮬레이션 위에서
+# Gradle/JDK 컴파일이 돌아가는 걸 피하기 위함 (에뮬레이션은 느림, 단순 COPY/chown은 빠름).
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 RUN groupadd --system spring && useradd --system --gid spring spring
 
-COPY --from=build /workspace/build/libs/*.jar app.jar
+COPY app/app.jar app.jar
 RUN chown spring:spring app.jar
 
 USER spring
