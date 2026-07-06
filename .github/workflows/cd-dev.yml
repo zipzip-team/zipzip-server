@@ -106,11 +106,14 @@ jobs:
       # 실제로는 아래 커맨드 문자열('deploy')과 무관하게 그 스크립트만 실행된다.
       # dev DB 접속정보는 GitHub Secrets(*_DEV)에 개별 등록해두고, stdin으로 흘려보내
       # 서버 스크립트가 그걸 그대로 .env.dev로 기록한 뒤 배포하게 한다.
+      # .env.dev는 컨테이너 env_file이자 docker-compose.dev.yml의 ${DOCKERHUB_IMAGE} 치환용
+      # 파일을 겸하므로, 매 배포마다 통째로 덮어써도 없어지지 않도록 DOCKERHUB_IMAGE도 함께 보낸다.
       # (prod와 SSH 키, 시크릿, 서버 스크립트, 컨테이너/서비스명 전부 별개)
       - name: Deploy over SSH
         run: |
           ssh -i ~/.ssh/deploy_key_dev -o UserKnownHostsFile=~/.ssh/known_hosts \
             "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" 'deploy' <<'ENVEOF'
+          DOCKERHUB_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/zipzip-be
           SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL_DEV }}
           SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME_DEV }}
           SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD_DEV }}
