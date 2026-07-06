@@ -1,0 +1,120 @@
+name: CD Dev
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-dev-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/zipzip-be
+
+jobs:
+  build-and-push:
+    name: Build & push dev image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # private 서브모듈(src/main/resources/config)이 체크아웃되지 않은 환경(CI/CD)에서도
+      # non-optional classpath import가 깨지지 않도록 placeholder 값만 채운다.
+      # 실제 dev DB 접속정보는 컨테이너 실행 시 SPRING_DATASOURCE_* 환경변수로 주입되어
+      # 이 값을 덮어쓰므로(Spring 프로퍼티 우선순위상 env var가 우선), public 이미지에 포함되어도 안전하다.
+      - name: Create build-time placeholder secret
+        run: |
+          mkdir -p src/main/resources/config
+          cat > src/main/resources/config/application-secret.yml <<'YAML'
+          spring:
+            application:
+              name: zipzip-server
+            datasource:
+              url: jdbc:postgresql://localhost:5432/placeholder
+              username: placeholder
+              password: placeholder
+              driver-class-name: org.postgresql.Driver
+          YAML
+
+      # JAR은 러너 네이티브(x86) 아키텍처로 빌드한다. 바이트코드는 아키텍처 무관이라
+      # 여기서 굳이 arm64를 QEMU로 에뮬레이션하며 컴파일할 필요가 없다(느림).
+      - name: Build JAR
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon clean bootJar -x test
+          mkdir -p app
+          cp build/libs/*.jar app/app.jar
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 인스턴스가 ARM64(Ampere A1)뿐이라 arm64 단일 아키텍처만 빌드한다.
+      # 이 단계는 이미 빌드된 JAR을 arm64 JRE 이미지에 얹기만 하므로(COPY/chown)
+      # QEMU 에뮬레이션이어도 빠르다 — 무거운 컴파일은 위에서 네이티브로 이미 끝남.
+      # 태그는 :dev, :dev-{sha} — prod(:latest, :{sha})와 절대 겹치지 않게 분리.
+      - name: Build and push dev image (linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:dev
+            ${{ env.IMAGE_NAME }}:dev-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to zipzip-be (dev)
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          umask 077
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY_DEV }}" > ~/.ssh/deploy_key_dev
+          chmod 600 ~/.ssh/deploy_key_dev
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      # 이미지는 public이라 서버에서도 로그인 없이 pull 가능.
+      # 서버의 authorized_keys에 dev 전용 forced command(`~/zipzip-deploy-dev.sh`)가 걸려 있어서
+      # 실제로는 아래 커맨드 문자열('deploy')과 무관하게 그 스크립트만 실행된다.
+      # dev DB 접속정보는 GitHub Secrets(*_DEV)에 개별 등록해두고, stdin으로 흘려보내
+      # 서버 스크립트가 그걸 그대로 .env.dev로 기록한 뒤 배포하게 한다.
+      # .env.dev는 컨테이너 env_file이자 docker-compose.dev.yml의 ${DOCKERHUB_IMAGE} 치환용
+      # 파일을 겸하므로, 매 배포마다 통째로 덮어써도 없어지지 않도록 DOCKERHUB_IMAGE도 함께 보낸다.
+      # (prod와 SSH 키, 시크릿, 서버 스크립트, 컨테이너/서비스명 전부 별개)
+      - name: Deploy over SSH
+        run: |
+          ssh -i ~/.ssh/deploy_key_dev -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" 'deploy' <<'ENVEOF'
+          DOCKERHUB_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/zipzip-be
+          SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL_DEV }}
+          SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME_DEV }}
+          SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD_DEV }}
+          ENVEOF
