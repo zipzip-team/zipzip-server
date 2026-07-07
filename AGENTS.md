@@ -11,6 +11,10 @@
 - Gradle 명령은 JDK 21로 실행할 것.
 - 현재 로컬 기본 JDK가 21이 아닐 수 있으므로, 필요하면 `JAVA_HOME`을 JDK 21 경로로 지정해서 실행할 것.
 
+## GitHub CLI 실행 규칙
+
+- GitHub 인증 토큰이 필요한 `gh` 작업은 샌드박스 외부에서 실행할 것.
+
 ## Git Convention
 
 - 🎉 **Start:** Start New Project `:tada:`
@@ -35,6 +39,16 @@
 - 커밋을 생성하거나 수정하기 전에는 반드시 이 문서의 Git Convention과 Commit Convention을 확인할 것.
 - 커밋 메시지는 `:<gitmoji_code>: <type>: <한국어 요약>` 형식을 사용할 것.
 - 커밋 메시지 검증은 `.githooks/commit-msg`에서 수행하므로, 로컬 저장소의 `core.hooksPath`는 `.githooks`로 설정할 것.
+
+## Issue Convention
+
+- 이슈 제목은 `[타입] 작업 내용` 형식으로 작성할 것.
+- 예시: `[Feat] API 구현`
+- 이슈를 생성할 때는 작업 유형에 맞는 `.github/ISSUE_TEMPLATE/`의 템플릿을 사용할 것.
+
+## Pull Request Convention
+
+- PR을 생성할 때는 `.github/PULL_REQUEST_TEMPLATE.md`를 참고하여 제목과 본문을 작성할 것.
 
 ## Branch Convention
 
