@@ -1,0 +1,23 @@
+# zipzip-be 인스턴스의 dev 환경용 compose 스택.
+# prod(docker-compose.yml)와 완전히 분리된 서비스명/컨테이너명을 쓰고,
+# nginx/certbot은 새로 안 띄우고 prod가 쓰는 zipzip-net을 그대로 공유해서 붙는다.
+#
+# 주의: prod 스택의 실제 docker 네트워크 이름은 compose 프로젝트명(디렉토리명)이
+# 접두어로 붙어 "zipzip-deploy_zipzip-net"이 된다(docker network ls로 확인).
+# external 네트워크는 별칭이 아니라 실제 이름을 정확히 지정해야 붙는다.
+services:
+  api-dev:
+    image: ${DOCKERHUB_IMAGE}:dev
+    container_name: zipzip-be-dev
+    restart: unless-stopped
+    env_file:
+      - ./.env.dev
+    expose:
+      - "8080"
+    networks:
+      - zipzip-net
+
+networks:
+  zipzip-net:
+    external: true
+    name: zipzip-deploy_zipzip-net
