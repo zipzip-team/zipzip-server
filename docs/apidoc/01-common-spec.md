@@ -160,7 +160,7 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 앨범 이름 검증 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 |
 | 403 | `NOT_SHARED_ALBUM_CREATOR` | 생성자가 아닌 사용자의 앨범 삭제 |
-| 400 | `INVALID_UPLOAD_METADATA` | 사진 파일과 업로드 메타데이터 매핑 검증 |
+| 400 | `INVALID_UPLOAD_METADATA` | multipart 사진 업로드 요청 검증 |
 | 400 | `TOO_MANY_FILES` | 한 요청의 사진 개수 제한 초과 |
 | 400 | `INVALID_TAKEN_AT` | 촬영일시 UTC ISO-8601 형식 검증 |
 | 400 | `INVALID_PHOTO_IDS` | 사진 일괄 삭제 식별자 배열 검증 |

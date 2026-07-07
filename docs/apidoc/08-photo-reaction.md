@@ -35,11 +35,7 @@
   "message": "사진을 조회했습니다.",
   "data": {
     "id": "385ff765-b20c-49a2-8e62-e1457784aa15",
-    "sharedGroupId": "b8a5f612-25d7-4ec3-9d1d-59684de40664",
-    "sharedAlbum": {
-      "id": "59ce0d18-a53e-4197-9c3c-e82331adc097",
-      "name": "제주도"
-    },
+    "sharedAlbumId": "59ce0d18-a53e-4197-9c3c-e82331adc097",
     "imageUrl": "https://object.example.com/signed/photo.jpg",
     "imageUrlExpiresAt": "2026-07-03T11:15:30Z",
     "originalFileName": "IMG_0001.HEIC",

@@ -240,6 +240,8 @@
 
 ## 8. DEVICE-04 내 기기 삭제
 
+내 활성 기기를 soft delete한다.
+
 ### Request
 
 #### Path
