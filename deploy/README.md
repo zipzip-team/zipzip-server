@@ -23,21 +23,54 @@
 
 CD(`​.github/workflows/cd.yml`)가 이미지를 Docker Hub에 push한 뒤, 서버의 CD 전용 SSH 배포키로 접속합니다.
 이 키는 `authorized_keys`에 forced command로 제한되어 있어 실제로는 클라이언트가 보낸 명령과 무관하게
-`~/zipzip-deploy.sh`만 실행됩니다. DB 접속정보는 GitHub Secrets(`SPRING_DATASOURCE_URL/USERNAME/PASSWORD`)에
-개별 등록해두고, forced command라 인자로 못 넘기니 **stdin으로 흘려보내** 스크립트가 그대로
-`zipzip-be.env`에 기록한 뒤 배포합니다:
+`~/zipzip-deploy.sh`만 실행됩니다.
+
+**DB 접속정보**는 GitHub Secrets(`SPRING_DATASOURCE_URL/USERNAME/PASSWORD`)에 개별 등록해두고, forced
+command라 인자로 못 넘기니 **stdin으로 흘려보내** 스크립트가 `zipzip-be.env`에 기록합니다.
+
+**`docker-compose.yml`/`nginx/conf.d/api.conf`**는 stdin으로 파일 내용을 직접 보내지 않습니다 — 그러면
+배포키가 유출됐을 때 임의 compose 설정(호스트 마운트, `privileged` 등)을 주입당할 위험이 있기 때문입니다.
+대신 CD가 `GIT_SHA`(그 배포를 트리거한 커밋)만 stdin으로 보내고, 서버가 **`raw.githubusercontent.com`에서
+해당 커밋의 파일을 직접 fetch**합니다(레포가 public이라 인증 불필요). 이러면 실제로 리뷰·머지된 커밋의
+내용만 반영될 수 있고, 키만 유출된 공격자는 기존에 존재하는 커밋으로만 되돌릴 수 있을 뿐 임의 내용을
+주입할 수 없습니다.
 
 ```bash
 #!/bin/bash
 set -e
 cd "$HOME/zipzip-deploy"
-cat > zipzip-be.env      # stdin으로 받은 내용을 그대로 기록
+
+REPO_RAW="https://raw.githubusercontent.com/zipzip-team/zipzip-server"
+GIT_SHA=""
+: > zipzip-be.env.tmp
+while IFS= read -r line; do
+  case "$line" in
+    GIT_SHA=*) GIT_SHA="${line#GIT_SHA=}" ;;
+    *) printf '%s\n' "$line" >> zipzip-be.env.tmp ;;
+  esac
+done
+mv zipzip-be.env.tmp zipzip-be.env
+
+curl -fsSL "$REPO_RAW/$GIT_SHA/deploy/docker-compose.yml" -o docker-compose.yml
+curl -fsSL "$REPO_RAW/$GIT_SHA/deploy/nginx/conf.d/api.conf" -o nginx/conf.d/api.conf
+
 docker compose pull api
 docker compose up -d api
+
+if docker compose exec -T nginx nginx -t; then
+  docker compose exec -T nginx nginx -s reload
+else
+  echo "nginx config test failed — not reloading." >&2
+fi
 ```
 
-nginx/certbot은 이미지가 자주 바뀌지 않으므로 배포 때마다 재기동하지 않고, 설정을 바꿀 때만 수동으로
-`docker compose up -d nginx` 등으로 반영합니다.
+nginx는 `nginx -t`(문법 검증)를 통과했을 때만 reload합니다 — 잘못된 설정으로 nginx가 죽는 걸 방지합니다.
+certbot은 이 흐름에서 건드리지 않고, 인증서 갱신 루프만 별도로 계속 돕니다.
+
+### dev 파이프라인도 동일한 방식
+
+`cd-dev.yml` → `~/zipzip-deploy-dev.sh`도 완전히 같은 패턴입니다. 다만 nginx는 prod가 쓰는 것을 그대로
+공유하므로, `dev-api.conf`는 `~/zipzip-deploy-dev`가 아니라 **`~/zipzip-deploy/nginx/conf.d/`에 씀**니다.
 
 ## 인증서 최초 발급 (1회성, 이미 완료됨)
 

@@ -92,26 +92,48 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
+      # 시크릿은 run: 스크립트 문자열에 직접 넣지 않고 env:로만 전달한다.
+      # ${{ secrets.X }}를 스크립트 본문에 직접 넣으면 GitHub Actions가 워크플로우 텍스트
+      # 자체를 치환해버려서, 시크릿 값에 $(...)나 백틱이 섞여 있으면 그대로 셸 구문으로
+      # 실행돼버릴 수 있다(스크립트 인젝션). env:로 넘기고 "$VAR"로 참조하면 값이 단순
+      # 문자열 치환으로만 쓰여서 이 문제가 없다.
       - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
           mkdir -p ~/.ssh
           umask 077
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
       # 이미지는 public이라 서버에서도 로그인 없이 pull 가능.
       # 서버의 authorized_keys에 forced command(`~/zipzip-deploy.sh`)가 걸려 있어서
       # 실제로는 아래 커맨드 문자열('deploy')과 무관하게 그 스크립트만 실행된다.
       # DB 접속정보는 GitHub Secrets에 개별 등록해두고, stdin으로 흘려보내
       # 서버 스크립트가 그걸 그대로 zipzip-be.env로 기록한 뒤 배포하게 한다.
-      # (forced command라 인자로 임의 데이터를 못 받으므로 stdin 경로를 씀 — 스크립트는
-      # 서버 ~/zipzip-deploy.sh, 구성 설명은 deploy/README.md 참고)
+      # (forced command라 인자로 임의 데이터를 못 받으므로 stdin 경로를 씀)
+      #
+      # GIT_SHA도 함께 보내서, 서버가 이 커밋 시점의 deploy/docker-compose.yml,
+      # deploy/nginx/conf.d/api.conf를 raw.githubusercontent.com에서 직접 가져와 반영하게
+      # 한다(레포가 public이라 인증 불필요). 파일 내용을 stdin으로 직접 보내지 않는 이유:
+      # 그러면 배포키가 유출됐을 때 임의 compose 설정(호스트 마운트, privileged 등)을
+      # 주입당할 수 있어 위험이 커진다. GIT_SHA 방식은 실제 리뷰·머지된 커밋만 반영 가능하다.
+      # 스크립트는 서버 ~/zipzip-deploy.sh, 구성 설명은 deploy/README.md 참고.
       - name: Deploy over SSH
+        env:
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          GIT_SHA: ${{ github.sha }}
+          DB_URL: ${{ secrets.SPRING_DATASOURCE_URL }}
+          DB_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME }}
+          DB_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD }}
         run: |
           ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" 'deploy' <<'ENVEOF'
-          SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }}
-          SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }}
-          SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }}
+            "$SSH_USER@$SSH_HOST" 'deploy' <<ENVEOF
+          GIT_SHA=$GIT_SHA
+          SPRING_DATASOURCE_URL=$DB_URL
+          SPRING_DATASOURCE_USERNAME=$DB_USERNAME
+          SPRING_DATASOURCE_PASSWORD=$DB_PASSWORD
           ENVEOF
