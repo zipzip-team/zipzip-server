@@ -12,7 +12,7 @@
 | COMMENT-03 | 사진 반응·댓글 | 사진 댓글 수정 | PATCH | `/api/v1/photo-comments/{commentId}` | 시작 전 | false | false |
 | COMMENT-04 | 사진 반응·댓글 | 사진 댓글 삭제 | DELETE | `/api/v1/photo-comments/{commentId}` | 시작 전 | false | false |
 
-모든 API는 대상 공유 폴더의 활성 멤버십을 요구한다. 댓글은 작성자만 수정·삭제할 수 있다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
+모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다. 댓글은 작성자만 수정·삭제할 수 있다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
 ## 2. REACTION-01 사진 상세 조회
 
@@ -35,13 +35,7 @@
   "message": "사진을 조회했습니다.",
   "data": {
     "id": "385ff765-b20c-49a2-8e62-e1457784aa15",
-    "sharedFolderId": "b8a5f612-25d7-4ec3-9d1d-59684de40664",
-    "sharedAlbums": [
-      {
-        "id": "59ce0d18-a53e-4197-9c3c-e82331adc097",
-        "name": "제주도"
-      }
-    ],
+    "sharedAlbumId": "59ce0d18-a53e-4197-9c3c-e82331adc097",
     "imageUrl": "https://object.example.com/signed/photo.jpg",
     "imageUrlExpiresAt": "2026-07-03T11:15:30Z",
     "originalFileName": "IMG_0001.HEIC",

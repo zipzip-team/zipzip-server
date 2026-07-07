@@ -14,7 +14,7 @@
 | 목록 페이지네이션 | 불투명 cursor 기반 |
 | 삭제 응답 | `200 OK`와 `data: null` |
 
-Apple 로그인과 토큰 갱신을 제외한 모든 API는 인증이 필요하다. 인증된 사용자라도 공유 폴더 내부 리소스에는 해당 공유 폴더의 활성 멤버십이 있어야 한다.
+Apple 로그인과 토큰 갱신을 제외한 모든 API는 인증이 필요하다. 인증된 사용자라도 공유 그룹 내부 리소스에는 해당 공유 그룹의 활성 멤버십이 있어야 한다.
 
 ## 2. Request Header
 
@@ -32,12 +32,13 @@ Apple 로그인과 토큰 갱신을 제외한 모든 API는 인증이 필요하�
 - AUTH-01 Apple 로그인
 - AUTH-02 토큰 갱신
 - DEVICE-02 내 기기 등록
-- FOLDER-02 공유 폴더 생성
+- GROUP-02 공유 그룹 생성
 - INVITE-02 초대 코드로 참여
 - ALBUM-02 앨범 생성
 - PHOTO-02 사진 업로드
 - PHOTO-05 사진 일괄 삭제
 - COMMENT-02 사진 댓글 작성
+- CHAT-02 그룹 채팅 메시지 작성
 
 서버는 인증 사용자 또는 인증 전 요청 주체, HTTP Method, API Path, `Idempotency-Key`를 조합해 요청을 식별한다.
 
@@ -122,7 +123,7 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 401 | `UNAUTHORIZED` | 인증이 필요합니다. | Access Token 누락 또는 서명 불일치 |
 | 401 | `ACCESS_TOKEN_EXPIRED` | Access Token이 만료되었습니다. | Access Token 만료 |
 | 401 | `INVALID_REFRESH_TOKEN` | 유효하지 않은 Refresh Token입니다. | Refresh Token 누락, 해시 불일치 또는 소유자 불일치 |
-| 403 | `FORBIDDEN` | 요청 권한이 없습니다. | 같은 공유 폴더 안에서 역할 또는 소유권 부족 |
+| 403 | `FORBIDDEN` | 요청 권한이 없습니다. | 같은 공유 그룹 안에서 역할 또는 소유권 부족 |
 | 404 | `RESOURCE_NOT_FOUND` | 요청한 리소스를 찾을 수 없습니다. | 존재하지 않거나 접근할 수 없는 리소스 |
 | 409 | `RESOURCE_CONFLICT` | 현재 상태와 충돌하는 요청입니다. | 중복 생성 또는 상태 충돌 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 다른 요청에 사용한 멱등성 키입니다. | 같은 key를 다른 요청 본문에 재사용 |
@@ -132,7 +133,7 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 500 | `INTERNAL_SERVER_ERROR` | 서버 내부 오류가 발생했습니다. | 처리하지 못한 예외 |
 | 502 | `OBJECT_STORAGE_UPLOAD_FAILED` | 사진 저장에 실패했습니다. | OCI Object Storage 업로드 실패 |
 
-보안상 다른 공유 폴더의 리소스 ID를 사용한 경우 존재 여부를 노출하지 않도록 `404 RESOURCE_NOT_FOUND`로 응답한다. 같은 공유 폴더 안에서 소유권만 부족한 경우에는 `403` 도메인 오류를 사용한다.
+보안상 다른 공유 그룹의 리소스 ID를 사용한 경우 존재 여부를 노출하지 않도록 `404 RESOURCE_NOT_FOUND`로 응답한다. 같은 공유 그룹 안에서 소유권만 부족한 경우에는 `403` 도메인 오류를 사용한다.
 
 ## 7. 도메인 오류 코드
 
@@ -148,18 +149,18 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 400 | `INVALID_DEVICE_NAME` | 기기명 검증 |
 | 404 | `DEVICE_NOT_FOUND` | 기기 |
 | 409 | `DEVICE_ALREADY_EXISTS` | 동일 사용자의 활성 기기명 중복 |
-| 400 | `INVALID_SHARED_FOLDER_NAME` | 공유 폴더 이름 검증 |
-| 404 | `SHARED_FOLDER_NOT_FOUND` | 공유 폴더 |
-| 403 | `ONLY_HOST_CAN_UPDATE_SHARED_FOLDER` | 방장이 아닌 사용자의 공유 폴더 수정 |
-| 403 | `ONLY_HOST_CAN_DELETE_SHARED_FOLDER` | 방장이 아닌 사용자의 공유 폴더 삭제 |
-| 403 | `HOST_CANNOT_LEAVE_SHARED_FOLDER` | 방장의 공유 폴더 나가기 |
+| 400 | `INVALID_SHARED_GROUP_NAME` | 공유 그룹 이름 검증 |
+| 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 |
+| 403 | `ONLY_HOST_CAN_UPDATE_SHARED_GROUP` | 방장이 아닌 사용자의 공유 그룹 수정 |
+| 403 | `ONLY_HOST_CAN_DELETE_SHARED_GROUP` | 방장이 아닌 사용자의 공유 그룹 삭제 |
+| 403 | `HOST_CANNOT_LEAVE_SHARED_GROUP` | 방장의 공유 그룹 나가기 |
 | 500 | `INVITE_CODE_GENERATION_FAILED` | 제한된 재시도 안에 고유 코드 예약 실패 |
-| 400 | `INVALID_INVITE_CODE` | 존재하지 않거나 삭제된 공유 폴더의 초대 코드 |
-| 409 | `ALREADY_JOINED_SHARED_FOLDER` | 이미 활성 멤버십이 있는 사용자의 참여 |
+| 400 | `INVALID_INVITE_CODE` | 존재하지 않거나 삭제된 공유 그룹의 초대 코드 |
+| 409 | `ALREADY_JOINED_SHARED_GROUP` | 이미 활성 멤버십이 있는 사용자의 참여 |
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 앨범 이름 검증 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 |
 | 403 | `NOT_SHARED_ALBUM_CREATOR` | 생성자가 아닌 사용자의 앨범 삭제 |
-| 400 | `INVALID_UPLOAD_METADATA` | 사진 파일과 업로드 메타데이터 매핑 검증 |
+| 400 | `INVALID_UPLOAD_METADATA` | multipart 사진 업로드 요청 검증 |
 | 400 | `TOO_MANY_FILES` | 한 요청의 사진 개수 제한 초과 |
 | 400 | `INVALID_TAKEN_AT` | 촬영일시 UTC ISO-8601 형식 검증 |
 | 400 | `INVALID_PHOTO_IDS` | 사진 일괄 삭제 식별자 배열 검증 |
@@ -168,21 +169,22 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 400 | `INVALID_PHOTO_COMMENT_CONTENT` | 사진 댓글 내용 검증 |
 | 404 | `PHOTO_COMMENT_NOT_FOUND` | 사진 댓글 |
 | 403 | `NOT_PHOTO_COMMENT_AUTHOR` | 작성자가 아닌 사용자의 댓글 수정·삭제 |
-| - | `INVALID_EVENT` | WebSocket JSON 또는 필수 event 필드 검증 |
-| - | `TOO_MANY_SUBSCRIPTIONS` | WebSocket 연결당 공유 폴더 구독 수 제한 초과 |
+| 400 | `INVALID_CHAT_MESSAGE_CONTENT` | 그룹 채팅 메시지 내용 검증 |
+| 404 | `CHAT_MESSAGE_NOT_FOUND` | 그룹 채팅 메시지 |
+| 403 | `NOT_CHAT_MESSAGE_AUTHOR` | 작성자가 아닌 사용자의 그룹 채팅 메시지 수정·삭제 |
 
 ## 8. 권한 규칙
 
 | 리소스 | 생성 | 수정 | 삭제 |
 |---|---|---|---|
-| 공유 폴더 | 로그인 사용자 | 활성 방장 | 활성 방장 |
-| 앨범 | 활성 방장·멤버 | 활성 방장·멤버 | 생성자 |
-| 앨범 사진 포함 관계 | 활성 방장·멤버 | 해당 없음 | 활성 방장·멤버 |
-| 사진 | 활성 방장·멤버 | 업로더 | 업로더 |
+| 공유 그룹 | 로그인 사용자 | 활성 방장 | 활성 방장 |
+| 공유집(앨범) | 활성 방장·멤버 | 활성 방장·멤버 | 생성자. 생성자가 탈퇴한 경우 공유 그룹 방장 |
+| 사진 | 활성 방장·멤버 | 업로더 | 업로더. 업로더가 탈퇴한 경우 공유 그룹 방장 |
 | 사진 좋아요 | 활성 방장·멤버 | 해당 없음 | 좋아요를 누른 사용자 |
 | 사진 댓글 | 활성 방장·멤버 | 작성자 | 작성자 |
+| 그룹 채팅 메시지 | 활성 방장·멤버 | 작성자 | 작성자 |
 
-삭제된 공유 폴더의 모든 하위 데이터와 나간 멤버의 접근은 즉시 차단한다. 사진·앨범·공유 폴더는 soft delete 후 30일 뒤 물리 정리하며 사용자 복구 API는 제공하지 않는다. 앨범에서만 사진을 제거하는 경우에는 포함 관계를 즉시 물리 삭제한다.
+삭제된 공유 그룹의 모든 하위 데이터와 나간 멤버의 접근은 즉시 차단한다. 사진·공유집(앨범)·공유 그룹은 soft delete 후 30일 뒤 물리 정리하며 사용자 복구 API는 제공하지 않는다. 사진은 반드시 하나의 공유집(앨범)에 직접 속한다.
 
 ## 9. 이미지 URL 정책
 
