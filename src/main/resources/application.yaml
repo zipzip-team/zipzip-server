@@ -1,3 +1,6 @@
+server:
+    forward-headers-strategy: framework
+
 spring:
     config:
         import: classpath:config/application-secret.yml
