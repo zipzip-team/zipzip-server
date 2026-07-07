@@ -90,7 +90,7 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | PHOTO-02 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos` | 공유집(앨범) 사진 업로드 | [07-photo-management.md](07-photo-management.md) |
 | PHOTO-03 | PATCH | `/api/v1/photos/{photoId}` | 사진 촬영일시 수정 | [07-photo-management.md](07-photo-management.md) |
 | PHOTO-04 | DELETE | `/api/v1/photos/{photoId}` | 사진 삭제 | [07-photo-management.md](07-photo-management.md) |
-| PHOTO-05 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/bulk-delete` | 사진 일괄 삭제 | [07-photo-management.md](07-photo-management.md) |
+| PHOTO-05 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/bulk-delete` | 공유집(앨범) 사진 일괄 삭제 | [07-photo-management.md](07-photo-management.md) |
 
 ### 3.7 사진 반응·댓글
 
