@@ -15,3 +15,7 @@ alter table photo
 
 alter table photo
     alter column thumbnail_status drop default;
+
+alter table photo
+    add constraint chk_photo__thumbnail_status
+    check (thumbnail_status in ('PENDING', 'READY', 'FAILED'));

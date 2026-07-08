@@ -241,6 +241,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 주요 제약:
 
 - `original_object_key` unique
+- `thumbnail_status`는 `PENDING`, `READY`, `FAILED`만 허용(`chk_photo__thumbnail_status`)
 - 원본 수정과 삭제는 원칙적으로 업로더만 가능
 - 업로더가 탈퇴한 경우 삭제는 공유 그룹 방장이 가능
 - 항상 1개 이상의 `shared_album_photo` 매핑을 가져야 한다(서비스 계층에서 강제)

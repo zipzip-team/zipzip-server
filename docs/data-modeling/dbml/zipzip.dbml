@@ -200,6 +200,10 @@ Table photo {
     deleted_at [name: 'idx_photo__deleted_at']
   }
 
+  checks {
+    `thumbnail_status in ('PENDING', 'READY', 'FAILED')` [name: 'chk_photo__thumbnail_status']
+  }
+
   Note: '사진 원본 파일 참조 정보. 공유 그룹에 직접 속하지 않고 shared_album_photo를 통해서만 하나 이상의 공유집(앨범)에 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진이다). 원칙적으로 업로더가 수정·삭제하며, 업로더가 탈퇴한 경우 삭제는 공유 그룹 방장이 할 수 있다. 클라이언트는 presigned PUT URL로 원본을 Object Storage에 직접 업로드하고, 서버는 업로드 완료 등록 시점에 이 행을 생성한다. iOS가 이미지 EXIF에서 촬영일시와 위치정보를 추출해 전달하면 그대로 저장하며, 위치정보가 추론된 값이면 is_inferred를 true로 전달받는다. 썸네일은 등록 직후 서버가 비동기로 생성한다. 촬영일 우선 정렬용 coalesce 표현식 partial index는 postgresql-overrides.sql에 정의한다.'
 }
 
