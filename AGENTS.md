@@ -21,6 +21,15 @@
 - PostgreSQL 전용 기능인 partial index, expression index, check constraint, FK, unique 제약은 H2 대신 PostgreSQL 기반 테스트에서 검증할 것.
 - Repository 테스트는 `@DataJpaTest` 또는 필요한 최소 Spring context를 사용하고, Service 권한 정책은 `@SpringBootTest` 또는 통합 테스트로 검증할 것.
 
+## Flyway 마이그레이션 규칙
+
+- 엔티티 변경으로 테이블, 컬럼, 인덱스, 제약조건 등 DB 스키마가 변경되면 새 Flyway 마이그레이션 스크립트를 추가할 것.
+- Java 코드에서만 의미가 있는 메서드 추가, 비즈니스 로직 변경, `@Transient` 필드 추가처럼 DB 스키마가 바뀌지 않는 변경에는 마이그레이션 스크립트를 추가하지 말 것.
+- 이미 공유 환경에 적용된 마이그레이션 스크립트는 수정하지 말 것.
+- 적용된 마이그레이션의 수정이 필요하면 기존 파일을 변경하지 말고 새 마이그레이션 스크립트를 추가할 것.
+- 병렬 작업 시 버전 충돌을 줄이기 위해 순번 방식(`V2__...`) 대신 timestamp 방식(`VyyyyMMddHHmmss__description.sql`)을 사용할 것.
+- 마이그레이션 파일명은 예를 들어 `V20260708153000__add_photo_deleted_at.sql`처럼 작성할 것.
+
 ## GitHub CLI 실행 규칙
 
 - GitHub 인증 토큰이 필요한 `gh` 작업은 샌드박스 외부에서 실행할 것.
