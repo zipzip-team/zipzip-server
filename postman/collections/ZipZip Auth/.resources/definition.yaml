@@ -1,0 +1,18 @@
+$kind: collection
+name: ZipZip Auth
+variables:
+  - key: baseUrl
+    value: ""
+    secret: false
+  - key: appleIdentityToken
+    secret: true
+  - key: appleAuthorizationCode
+    secret: true
+  - key: appleDisplayName
+    secret: true
+  - key: accessToken
+    value: ""
+    secret: false
+  - key: refreshToken
+    value: ""
+    secret: false
