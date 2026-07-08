@@ -9,9 +9,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
+import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.chat.entity.SharedGroupChatMessage;
 import org.zipzip.zipzipserver.domain.device.entity.Device;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
+import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.reaction.entity.PhotoComment;
 import org.zipzip.zipzipserver.domain.reaction.entity.PhotoLike;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
@@ -39,6 +41,15 @@ class DomainEntityMappingTests {
     }
 
     @Test
+    void sharedAlbumPhotoDeclaresAlbumPhotoUniqueConstraint() {
+        assertUniqueConstraint(
+                SharedAlbumPhoto.class,
+                "uk_shared_album_photo__shared_album_id_photo_id",
+                "shared_album_id",
+                "photo_id");
+    }
+
+    @Test
     void baseTimeEntityUsesInstantAuditFields() throws NoSuchFieldException {
         Field createdAt = BaseTimeEntity.class.getDeclaredField("createdAt");
         Field updatedAt = BaseTimeEntity.class.getDeclaredField("updatedAt");
@@ -56,27 +67,15 @@ class DomainEntityMappingTests {
         InviteCodeReservation inviteCodeReservation = InviteCodeReservation.create("INVITE1");
         SharedGroup sharedGroup = SharedGroup.create(user, "공유 그룹", inviteCodeReservation);
         SharedAlbum sharedAlbum = SharedAlbum.create(sharedGroup, user, "앨범");
-        Photo photo =
-                Photo.create(
-                        sharedAlbum,
-                        user,
-                        "photos/photo.jpg",
-                        "photo.jpg",
-                        "image/jpeg",
-                        1024L,
-                        null);
         Device device = Device.create(user, "iPhone 15");
-        SharedGroupChatMessage chatMessage =
-                SharedGroupChatMessage.create(sharedGroup, user, "안녕하세요");
-        PhotoComment photoComment = PhotoComment.create(photo, user, "좋은 사진이에요");
+        Photo photo = Photo.create(user, device, "photos/385ff765/original.jpg", null, 1080, 1920);
+        SharedAlbumPhoto sharedAlbumPhoto = SharedAlbumPhoto.create(sharedAlbum, photo);
 
         user.withdraw(deletedAt);
         sharedGroup.delete(deletedAt);
         sharedAlbum.delete(deletedAt);
         photo.delete(deletedAt);
         device.delete(deletedAt);
-        chatMessage.delete(deletedAt);
-        photoComment.delete(deletedAt);
 
         assertThat(user.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(user.getDisplayName()).isEqualTo(AppUser.WITHDRAWN_DISPLAY_NAME);
@@ -84,8 +83,33 @@ class DomainEntityMappingTests {
         assertThat(sharedAlbum.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(photo.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(device.getDeletedAt()).isEqualTo(deletedAt);
-        assertThat(chatMessage.getDeletedAt()).isEqualTo(deletedAt);
-        assertThat(photoComment.getDeletedAt()).isEqualTo(deletedAt);
+        assertThat(sharedAlbumPhoto.getSharedAlbum()).isEqualTo(sharedAlbum);
+        assertThat(sharedAlbumPhoto.getPhoto()).isEqualTo(photo);
+    }
+
+    @Test
+    void hardDeletedEntitiesHaveNoDeletedAtField() {
+        assertThat(hasDeclaredField(PhotoComment.class, "deletedAt")).isFalse();
+        assertThat(hasDeclaredField(SharedGroupChatMessage.class, "deletedAt")).isFalse();
+        assertThat(hasDeclaredField(PhotoLike.class, "deletedAt")).isFalse();
+    }
+
+    @Test
+    void photoThumbnailStatusTransitions() {
+        AppUser user = AppUser.create("apple-subject", "사용자");
+        Photo photo = Photo.create(user, null, "photos/385ff765/original.jpg", null, null, null);
+
+        assertThat(photo.getThumbnailStatus()).isEqualTo(PhotoThumbnailStatus.PENDING);
+        assertThat(photo.getThumbnailObjectKey()).isNull();
+
+        photo.markThumbnailReady("photos/385ff765/thumbnail.jpg");
+
+        assertThat(photo.getThumbnailStatus()).isEqualTo(PhotoThumbnailStatus.READY);
+        assertThat(photo.getThumbnailObjectKey()).isEqualTo("photos/385ff765/thumbnail.jpg");
+
+        photo.markThumbnailFailed();
+
+        assertThat(photo.getThumbnailStatus()).isEqualTo(PhotoThumbnailStatus.FAILED);
     }
 
     @Test
@@ -99,6 +123,15 @@ class DomainEntityMappingTests {
         assertThat(membership.getSharedGroup()).isEqualTo(sharedGroup);
         assertThat(membership.getAppUser()).isEqualTo(user);
         assertThat(membership.getRole()).isEqualTo(SharedGroupRole.HOST);
+    }
+
+    private boolean hasDeclaredField(Class<?> entityClass, String fieldName) {
+        try {
+            entityClass.getDeclaredField(fieldName);
+            return true;
+        } catch (NoSuchFieldException e) {
+            return false;
+        }
     }
 
     private void assertUniqueConstraint(
