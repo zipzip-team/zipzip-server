@@ -17,7 +17,8 @@
 | `device` | 기기 | 사용자의 주 사용 촬영 기기 표시용 태그 |
 | `shared_group_chat_message` | 그룹 채팅 메시지 | 공유 그룹 안에서 작성하는 일반 채팅 메시지 |
 | `shared_album` | 공유집(앨범) | 공유 그룹 안에서 사진을 담는 단위 |
-| `photo` | 사진 | 공유집(앨범)에 업로드된 사진 원본의 Object Storage 참조 |
+| `photo` | 사진 | 공유 그룹에 업로드된 사진 원본의 Object Storage 참조 |
+| `shared_album_photo` | 앨범-사진 매핑 | 사진과 공유집(앨범)의 N:M 소속 관계 |
 | `photo_like` | 사진 좋아요 | 사용자가 사진에 좋아요를 누른 상태 |
 | `photo_comment` | 사진 댓글 | 단일 사진에 달리는 댓글 |
 
@@ -163,13 +164,13 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 | `content` | `varchar(1000)` | O | 메시지 본문 |
 | `created_at` | `timestamptz` | O | 작성 시각 |
 | `updated_at` | `timestamptz` | O | 수정 시각 |
-| `deleted_at` | `timestamptz` | X | 삭제 시각 |
 
 주요 제약:
 
 - `content` 공백 불가
 - 메시지 작성과 조회는 활성 공유 그룹 멤버십 필요
 - 메시지 수정과 삭제는 작성자만 가능
+- 삭제는 `deleted_at` 기록 없이 행을 즉시 물리 삭제
 - 폴링 조회는 `created_at`, `id` 커서 기준
 
 ### 3.8 `shared_album`
@@ -195,32 +196,55 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 
 ### 3.9 `photo`
 
-공유집(앨범)에 업로드된 사진 원본의 파일 참조 정보를 저장한다.
+사진 원본의 파일 참조 정보를 저장한다.
+사진은 공유 그룹에 직접 속하지 않고, `shared_album_photo`를 통해서만 하나 이상의 공유집(앨범)에 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진).
 
 | 컬럼 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `id` | `uuid` | O | 사진 식별자 |
-| `shared_album_id` | `uuid` | O | 사진이 속한 공유집(앨범) |
 | `uploaded_by_app_user_id` | `uuid` | O | 업로드 사용자 |
-| `object_key` | `text` | O | OCI Object Storage 객체 키 |
-| `original_file_name` | `varchar(255)` | O | 업로드 당시 원본 파일명 |
-| `content_type` | `varchar(100)` | O | 이미지 MIME type |
-| `file_size` | `bigint` | O | 파일 크기 byte |
-| `taken_at` | `timestamptz` | X | EXIF에서 추출한 촬영일시 |
+| `device_id` | `uuid` | X | 촬영 기기가 식별된 경우의 기기 |
+| `original_object_key` | `varchar(500)` | O | OCI Object Storage 원본 이미지 객체 키. API는 조회 시점에 이 키로 presigned GET URL을 발급 |
+| `thumbnail_object_key` | `varchar(500)` | X | 썸네일 이미지 객체 키. 비동기 생성 전에는 `null` |
+| `thumbnail_status` | `varchar(20)` | O | 썸네일 생성 상태. `PENDING`, `READY`, `FAILED` |
+| `taken_at` | `timestamptz` | X | EXIF에서 추출했거나 보정한 촬영일시 |
+| `latitude` | `double precision` | X | 촬영 위치 위도 |
+| `longitude` | `double precision` | X | 촬영 위치 경도 |
+| `location_name` | `varchar(200)` | X | 촬영 위치명 |
+| `is_inferred` | `boolean` | O | 위치정보 추론 여부. 기본값 `false`. iOS 메타데이터 제안 UI와 연동되는 핵심 필드 |
+| `width` | `int` | X | 이미지 가로 픽셀 |
+| `height` | `int` | X | 이미지 세로 픽셀 |
 | `created_at` | `timestamptz` | O | 등록 시각 |
 | `updated_at` | `timestamptz` | O | 수정 시각 |
 | `deleted_at` | `timestamptz` | X | 삭제 시각 |
 
 주요 제약:
 
-- `object_key` unique
-- `file_size > 0`
-- `content_type like 'image/%'`
-- `original_file_name` 공백 불가
+- `original_object_key` unique
 - 원본 수정과 삭제는 원칙적으로 업로더만 가능
 - 업로더가 탈퇴한 경우 삭제는 공유 그룹 방장이 가능
+- 항상 1개 이상의 `shared_album_photo` 매핑을 가져야 한다(서비스 계층에서 강제)
+- 업로드 완료 등록 시 `thumbnail_status`는 `PENDING`으로 시작하고, 백그라운드 썸네일 생성 결과에 따라 `READY` 또는 `FAILED`로 갱신
 
-### 3.10 `photo_like`
+### 3.10 `shared_album_photo`
+
+사진과 공유집(앨범)의 N:M 소속 관계를 저장한다.
+
+| 컬럼 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `id` | `uuid` | O | 매핑 식별자 |
+| `shared_album_id` | `uuid` | O | 공유집(앨범) |
+| `photo_id` | `uuid` | O | 사진 |
+| `created_at` | `timestamptz` | O | 사진이 공유집(앨범)에 추가된 시각 |
+| `updated_at` | `timestamptz` | O | 수정 시각 |
+
+주요 제약:
+
+- `shared_album_id`, `photo_id` unique
+- 매핑 삭제(공유집(앨범) 삭제, 사진 제거)로 어떤 사진의 매핑이 0개가 되면 그 사진도 함께 soft delete한다
+- 같은 사진을 같은 공유집(앨범)에 중복으로 담을 수 없음
+
+### 3.11 `photo_like`
 
 사용자가 특정 사진에 좋아요를 누른 상태이다.
 
@@ -237,7 +261,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - `photo_id`, `app_user_id` unique
 - 좋아요 취소 또는 사용자 탈퇴 시 행을 물리 삭제
 
-### 3.11 `photo_comment`
+### 3.12 `photo_comment`
 
 단일 사진에 달리는 댓글이다.
 
@@ -249,13 +273,13 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 | `content` | `varchar(1000)` | O | 댓글 본문 |
 | `created_at` | `timestamptz` | O | 작성 시각 |
 | `updated_at` | `timestamptz` | O | 수정 시각 |
-| `deleted_at` | `timestamptz` | X | 삭제 시각 |
 
 주요 제약:
 
 - `content` 공백 불가
 - 댓글 작성과 조회는 활성 공유 그룹 멤버십 필요
 - 댓글 수정과 삭제는 작성자만 가능
+- 삭제는 `deleted_at` 기록 없이 행을 즉시 물리 삭제
 
 ## 4. 외래 키
 
@@ -272,8 +296,10 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 | `fk_shared_group_chat_message__app_user` | `shared_group_chat_message.app_user_id` -> `app_user.id` | restrict |
 | `fk_shared_album__shared_group` | `shared_album.shared_group_id` -> `shared_group.id` | cascade |
 | `fk_shared_album__created_by_app_user` | `shared_album.created_by_app_user_id` -> `app_user.id` | restrict |
-| `fk_photo__shared_album` | `photo.shared_album_id` -> `shared_album.id` | cascade |
 | `fk_photo__uploaded_by_app_user` | `photo.uploaded_by_app_user_id` -> `app_user.id` | restrict |
+| `fk_photo__device` | `photo.device_id` -> `device.id` | set null |
+| `fk_shared_album_photo__shared_album` | `shared_album_photo.shared_album_id` -> `shared_album.id` | cascade |
+| `fk_shared_album_photo__photo` | `shared_album_photo.photo_id` -> `photo.id` | cascade |
 | `fk_photo_like__photo` | `photo_like.photo_id` -> `photo.id` | cascade |
 | `fk_photo_like__app_user` | `photo_like.app_user_id` -> `app_user.id` | cascade |
 | `fk_photo_comment__photo` | `photo_comment.photo_id` -> `photo.id` | cascade |
@@ -285,12 +311,13 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 |---|---|---|
 | `shared_group_membership` | `uk_shared_group_membership__group_user` | 사용자 중복 참여 방지 |
 | `shared_group_membership` | `uk_shared_group_membership__host` | 공유 그룹별 방장 1명 보장 |
-| `shared_group_chat_message` | `idx_shared_group_chat_message__group_active_created_id` | 폴링 메시지 조회 |
+| `shared_group_chat_message` | `idx_shared_group_chat_message__group_created_id` | 폴링 메시지 조회 |
 | `shared_album` | `idx_shared_album__shared_group_id_deleted_at_created_at` | 공유 그룹별 공유집(앨범) 목록 |
-| `photo` | `idx_photo__album_active_id` | 공유집(앨범)별 활성 사진 조회 |
 | `photo` | `idx_photo__active_display_at` | 촬영일 우선 사진 정렬 |
+| `shared_album_photo` | `uk_shared_album_photo__shared_album_id_photo_id` | 앨범-사진 중복 매핑 방지 |
+| `shared_album_photo` | `idx_shared_album_photo__shared_album_id_created_at` | 공유집(앨범)별 사진 목록 |
 | `photo_like` | `uk_photo_like__photo_id_app_user_id` | 중복 좋아요 방지 |
-| `photo_comment` | `idx_photo_comment__photo_id_deleted_at_created_at` | 사진별 댓글 목록 |
+| `photo_comment` | `idx_photo_comment__photo_id_created_at` | 사진별 댓글 목록 |
 | `device` | `uk_device__active_name` | 사용자별 활성 기기명 중복 방지 |
 
 ## 6. 권한 기준
@@ -306,8 +333,8 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 | 공유집(앨범) 생성 | 요청 사용자의 상위 공유 그룹 활성 멤버십 확인 |
 | 공유집(앨범) 정보 수정 | 요청 사용자의 상위 공유 그룹 활성 멤버십 확인 |
 | 공유집(앨범) 삭제 | 생성자는 활성 멤버십과 `shared_album.created_by_app_user_id` 일치 확인. 생성자가 탈퇴한 경우 공유 그룹 `HOST` 멤버십 확인 |
-| 사진 업로드 | 대상 공유집(앨범)의 활성 상태와 요청 사용자의 상위 공유 그룹 활성 멤버십 확인 |
-| 사진 공유집(앨범) 이동 | 기능 채택 시 원본·대상 공유집(앨범)이 같은 활성 공유 그룹에 속하는지, 요청 사용자의 활성 멤버십이 있는지 확인 |
+| 사진 업로드 | 대상 공유집(앨범)의 활성 상태와 요청 사용자의 상위 공유 그룹 활성 멤버십 확인. 업로드 시 `photo`와 최초 `shared_album_photo` 매핑을 함께 생성 |
+| 사진을 다른 공유집(앨범)에 추가·제거 | 대상 공유집(앨범)이 사진의 기존 공유집(앨범)과 같은 공유 그룹에 속하는지(사진의 `shared_album_photo` 매핑을 조인해 확인), 요청 사용자의 활성 멤버십이 있는지 확인. 제거가 사진의 마지막 매핑이면 사진도 함께 soft delete |
 | 사진 원본 수정 | 활성 멤버십과 `photo.uploaded_by_app_user_id` 일치 확인 |
 | 사진 원본 삭제 | 업로더는 활성 멤버십과 `photo.uploaded_by_app_user_id` 일치 확인. 업로더가 탈퇴한 경우 공유 그룹 `HOST` 멤버십 확인 |
 | 사진 좋아요 생성·취소 | 요청 사용자의 활성 멤버십 확인. 취소는 본인 좋아요만 허용 |
@@ -319,15 +346,15 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 
 ## 7. 삭제 정리 순서
 
-1. 공유 그룹 삭제, 공유집(앨범) 삭제, 사진 삭제, 댓글 삭제, 그룹 채팅 메시지 삭제는 각 테이블의 `deleted_at` 기록으로 처리한다.
-2. 사진 좋아요 취소는 관계 행을 즉시 물리 삭제한다.
-3. 사용자 탈퇴 시 활성 Refresh Token을 폐기하고 `app_user.deleted_at`을 기록한다.
-4. 사용자 탈퇴 시 `app_user.display_name`을 "탈퇴한 사용자"로 갱신하고 `app_user` 행은 물리 삭제하지 않는다.
-5. 사용자 탈퇴 시 방장으로 만든 공유 그룹은 soft delete하고, `MEMBER`로 참여 중인 공유 그룹 멤버십은 물리 삭제한다.
-6. 사용자 탈퇴 시 활성 기기는 soft delete하고 사진 좋아요는 물리 삭제한다.
-7. 탈퇴한 사용자가 기존에 생성·작성·업로드한 공유 콘텐츠는 즉시 삭제하지 않고 사용자 표시는 "탈퇴한 사용자"로 대체한다.
-8. 공유 그룹 삭제 후 30일이 지나면 하위 사진의 Object Storage 객체를 먼저 삭제하거나 삭제 재시도 작업을 기록한다.
-9. 객체 삭제가 성공했거나 삭제 재시도 작업을 기록했거나 객체가 이미 없으면 `shared_group` 행을 삭제하고 멤버십, 채팅 메시지, 공유집(앨범), 사진과 종속 행을 FK cascade로 함께 삭제한다.
-10. 개별 삭제한 공유집(앨범)은 30일 뒤 하위 사진 객체 삭제가 끝난 뒤 `shared_album` 행을 삭제한다.
-11. 개별 삭제한 사진은 30일 뒤 Object Storage 객체 삭제가 끝난 뒤 `photo` 행을 삭제한다.
+1. 공유 그룹 삭제, 공유집(앨범) 삭제, 사진 삭제는 각 테이블의 `deleted_at` 기록으로 처리한다.
+2. 사진 좋아요 취소, 사진 댓글 삭제, 그룹 채팅 메시지 삭제는 각 행을 즉시 물리 삭제한다.
+3. 공유집(앨범) 삭제, 사진의 공유집(앨범) 제거, 공유 그룹 삭제 시점에는 관련 `shared_album_photo` 매핑을 즉시 물리 삭제하고, 매핑이 0개가 된 사진은 함께 soft delete한다(공유 그룹 삭제는 그 그룹의 모든 공유집(앨범)을 없애므로 결과적으로 그룹에 속한 모든 사진이 soft delete된다).
+4. 사용자 탈퇴 시 활성 Refresh Token을 폐기하고 `app_user.deleted_at`을 기록한다.
+5. 사용자 탈퇴 시 `app_user.display_name`을 "탈퇴한 사용자"로 갱신하고 `app_user` 행은 물리 삭제하지 않는다.
+6. 사용자 탈퇴 시 방장으로 만든 공유 그룹은 soft delete하고(위 3번 절차를 그대로 따른다), `MEMBER`로 참여 중인 공유 그룹 멤버십은 물리 삭제한다.
+7. 사용자 탈퇴 시 활성 기기는 soft delete하고 사진 좋아요는 물리 삭제한다.
+8. 탈퇴한 사용자가 기존에 생성·작성·업로드한 공유 콘텐츠는 즉시 삭제하지 않고 사용자 표시는 "탈퇴한 사용자"로 대체한다.
+9. 개별 삭제하거나 캐스케이드로 soft delete된 사진은 30일 뒤 Object Storage 원본·썸네일 객체 삭제가 끝난 뒤 `photo` 행을 물리 삭제한다.
+10. 개별 삭제한 공유집(앨범)은 30일 뒤 `shared_album` 행을 물리 삭제한다. 관련 `shared_album_photo` 매핑은 3번에서 이미 정리되어 있다.
+11. 공유 그룹은 30일 뒤 남아 있는 멤버십·채팅 메시지·공유집(앨범)을 FK cascade로 정리하며 `shared_group` 행을 물리 삭제한다.
 12. 공유 그룹 물리 삭제 트랜잭션에서 해당 초대 코드 예약 원장 행도 삭제한다.

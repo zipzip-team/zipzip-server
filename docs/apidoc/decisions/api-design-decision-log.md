@@ -5,7 +5,7 @@
 이 문서는 데이터 모델을 API 계약으로 변환하면서 확정한 분류, 멱등성, 권한 오류, 응답 DTO, 시간 표현, 이미지 URL, 그룹 채팅, Notion 문서화 규칙을 기록한다. API 명세와 구현이 충돌하면 이 문서의 결정을 기준으로 명세를 먼저 동기화한다.
 
 - 결정 상태: 확정
-- 최종 동기화일: 2026-07-07
+- 최종 동기화일: 2026-07-08
 - API 버전: `v1`
 - 기준 문서: `docs/data-modeling/`, `docs/apidoc/00-api-index.md`, `docs/apidoc/01-common-spec.md`
 
@@ -18,10 +18,10 @@
 | API-03 | 멱등성 | 중복 위험이 있는 POST API에 `Idempotency-Key` 필수 적용 |
 | API-04 | 권한 오류 | 범위 밖 리소스는 404, 범위 안 소유권·역할 부족은 403 |
 | API-05 | 응답 DTO | 현재 사용자 역할과 생성자·업로더·작성자 표현을 공통 구조로 통일 |
-| API-06 | 이미지 URL | 서명 URL과 만료 시각을 함께 반환하고 재조회로 갱신 |
+| API-06 | 이미지 URL | 업로드 시 생성한 원본·썸네일 URL을 만료 없이 그대로 저장·반환 |
 | API-07 | 실시간 전달 범위 | WebSocket 실시간 전달은 1차 범위에서 제외하고 후속 의사결정으로 분리 |
 | API-08 | Notion 템플릿 | endpoint별 페이지와 공통 규격 참조를 조합해 중복을 제어 |
-| API-09 | 사진·공유집(앨범) 경계 | 사진은 공유집(앨범)에 직접 속하고 사진 API는 `sharedAlbumId` 기준으로 설계 |
+| API-09 | 사진·공유집(앨범) 경계 | 사진은 공유 그룹에 직접 속하지 않고 `shared_album_photo` N:M 관계로만 공유집(앨범)에 속하며, 전용 추가·제거 API로 관리. 사진은 항상 1개 이상의 공유집(앨범)에 속해야 한다 |
 | API-10 | 그룹 채팅 | 그룹 채팅 메시지는 사진 댓글과 별도로 저장 |
 | API-11 | 시간 표현 | 서버 `Instant`를 UTC ISO-8601 문자열로 직렬화해 요청·응답 계약에 사용 |
 
@@ -82,7 +82,7 @@ API 버전을 URI에 명시해 iOS와 서버의 계약 변경 범위를 분리�
 - GROUP-02
 - INVITE-02
 - ALBUM-02
-- PHOTO-02, PHOTO-05
+- PHOTO-03, PHOTO-06, PHOTO-07, PHOTO-08
 - COMMENT-02
 - CHAT-02
 
@@ -135,24 +135,27 @@ JSON은 정규화한 body로 hash하고 multipart는 각 파일의 content diges
 - 사용자 요약은 `{ "userId": UUID, "displayName": String }` 구조를 사용한다.
 - 최초 생성자는 `createdBy`, 사진 업로더는 `uploadedBy`, 댓글 작성자는 `author`로 표현한다.
 - 요청 사용자와 앨범 생성자가 같은지는 `isCreator`, 사진 업로더와 같으면 `isUploader`, 댓글 작성자와 같으면 `isAuthor`로 표현한다.
-- DB 내부 FK 이름과 `objectKey`, `deletedAt`은 클라이언트 응답에 직접 노출하지 않는다.
+- DB 내부 FK 이름과 `deletedAt`은 클라이언트 응답에 직접 노출하지 않는다.
 
 ### 판단 이유
 
 같은 의미를 scalar ID와 중첩 객체로 섞으면 iOS DTO와 화면 조합 로직이 불필요하게 분기된다. 관계의 의미를 필드명으로 드러내되 사용자 요약 구조는 재사용한다.
 
-## 8. API-06. 이미지 서명 URL
+## 8. API-06. 이미지 URL
 
-### 결정
+### 결정 (재개정)
 
-- 사진 응답은 `imageUrl`과 `imageUrlExpiresAt`을 함께 반환한다.
-- Object Storage의 `objectKey`는 외부에 노출하지 않는다.
+- 사진 응답은 `originalUrl`/`thumbnailUrl`과 각각의 만료 시각(`originalUrlExpiresAt`/`thumbnailUrlExpiresAt`)을 함께 반환한다.
+- `photo`는 URL이 아니라 Object Storage 객체 키(`originalObjectKey`, `thumbnailObjectKey`)만 저장하고, API는 조회 시점마다 presigned URL을 새로 발급한다.
+- 원본 업로드도 presigned PUT URL로 처리한다. iOS가 [PHOTO-02](../07-photo-management.md#3-photo-02-사진-업로드-url-발급)로 발급받은 URL에 직접 업로드하고, 서버는 원본 바이트를 중계하지 않는다.
 - 클라이언트는 URL을 영구 저장하지 않고 만료되면 사진 목록 또는 상세 API를 재조회한다.
-- URL 유효 시간은 운영 설정이며 절대 시각인 `imageUrlExpiresAt`만 계약으로 보장한다.
+- `thumbnailStatus`가 `PENDING`이거나 `FAILED`면 `thumbnailUrl`, `thumbnailUrlExpiresAt`은 `null`이다.
 
-### 판단 이유
+### 결정 이력과 변경 사유
 
-만료 시각이 없으면 클라이언트가 캐시 실패와 네트워크 오류를 구분하기 어렵다. 별도 URL 갱신 endpoint보다 기존 조회 API를 재사용하는 편이 1차 범위에 단순하다.
+1. 최초 결정: 사진 응답은 `imageUrl`과 `imageUrlExpiresAt`을 함께 반환하고 `objectKey`는 노출하지 않는다. 업로드는 `multipart/form-data`로 서버가 직접 받는다.
+2. 1차 개정: `photo`에서 `object_key`를 제거하고 업로드 시점에 생성한 `original_url`, `thumbnail_url`을 만료 없이 직접 저장·반환하도록 바꿨다.
+3. 2차 개정(현재): 배포 아키텍처 결정에 따라 제어 평면과 데이터 평면을 분리한다. 원본이 서버 인스턴스를 거치지 않고 iOS와 Object Storage 사이에서 직접 오가야 작은 인스턴스로도 대량 원본 업로드를 감당할 수 있기 때문이다. URL을 DB에 영구 저장하는 대신 객체 키만 저장하고 presigned URL을 매번 새로 발급하는 편이, 서명 정책 변경이나 접근 제어 강화에 더 유연하게 대응할 수 있다.
 
 ## 9. API-07. 실시간 전달 범위
 
@@ -183,18 +186,21 @@ JSON은 정규화한 body로 hash하고 multipart는 각 파일의 content diges
 
 ## 11. API-09. 사진과 공유집(앨범) 경계
 
-### 결정
+### 결정 (재개정)
 
-- 사진 목록과 업로드 경로는 `/shared-albums/{sharedAlbumId}/photos`를 기준으로 한다.
-- 업로드된 사진은 요청 경로의 공유집(앨범)에 직접 속한다.
-- 기존 사진을 공유집(앨범)에 추가하거나 제거하는 별도 관계 API는 제공하지 않는다.
-- 사진 상세는 `sharedAlbumId`를 반환한다.
-- 공유집(앨범) 삭제는 하위 사진 접근을 함께 차단하고, 30일 뒤 Object Storage 객체와 DB 행을 정리한다.
+- 사진은 공유 그룹에 직접 속하지 않는다. `sharedGroupId`는 저장된 값이 아니라 사진의 `shared_album_photo` 매핑을 통해 조회 시점마다 계산해 응답에 포함하는 파생 필드다.
+- 사진 목록 조회와 업로드 경로는 `/shared-albums/{sharedAlbumId}/photos`를 기준으로 하며, 업로드 완료 등록 시 대상 공유집(앨범)에 대한 `shared_album_photo` 매핑을 함께 만든다. 이 매핑이 사진의 유일한 소속이다.
+- 기존 사진을 다른 공유집(앨범)에 추가·제거하는 전용 API(PHOTO-07, PHOTO-08)를 제공한다. 추가 시 대상 공유집(앨범)은 반드시 그 사진의 기존 공유집(앨범)과 같은 공유 그룹에 속해야 한다(`PHOTO_NOT_IN_SAME_SHARED_GROUP`).
+- 앨범 경로가 없는 사진 상세(`GET /photos/{photoId}`)는 단일 `sharedAlbumId` 대신 소속된 모든 활성 공유집(앨범) 식별자 배열인 `sharedAlbumIds`를 반환한다.
+- 사진은 항상 1개 이상의 공유집(앨범)에 속해야 한다. 공유집(앨범) 삭제(ALBUM-05)나 명시적 제거(PHOTO-08)로 사진의 마지막 매핑이 없어지면, 매핑 삭제와 함께 사진 원본도 soft delete한다.
+- 사진 원본 삭제(PHOTO-05, PHOTO-06)는 소속된 모든 공유집(앨범)에서 접근을 차단하는 명시적 동작이며, 마지막 매핑 제거로 인한 위 캐스케이드 삭제와는 트리거가 다르지만 결과(soft delete)는 같다.
+- 사진 업로드는 presigned URL 발급(PHOTO-02)과 완료 등록(PHOTO-03) 2단계로 나눈다. 원본 바이트는 서버를 거치지 않고 iOS와 Object Storage 사이에서 직접 오간다.
 
-### 판단 이유
+### 결정 이력과 변경 사유
 
-제품 계층은 공유 탭, 공유 그룹, 공유집(앨범), 사진 순서다.
-공유집(앨범)에 속하지 않는 사진이 없으므로 `photo.shared_album_id`로 직접 소속을 표현하는 편이 API 계약과 데이터 모델 모두 단순하다.
+1. 최초 결정: 업로드된 사진은 요청 경로의 공유집(앨범)에 직접 속하고, 기존 사진을 공유집(앨범)에 추가하거나 제거하는 별도 관계 API는 제공하지 않는다.
+2. 1차 개정: 한 사진을 여러 공유집(앨범)에 중복 업로드 없이 담아야 하는 요구가 확인되어 N:M으로 개정하면서, 사진에 `sharedGroupId`를 직접 속성처럼 저장하고 응답에도 그대로 노출했다.
+3. 2차 개정(현재): 1차 개정은 데이터 모델 결정(`docs/data-modeling/decisions/data-model-decision-log.md` DM-06)과 어긋났다 — 사진은 공유집(앨범)을 통해서만 그룹에 속해야 공유집(앨범) 삭제 시 사진 캐스케이드(다른 공유집(앨범)에 있으면 유지, 없으면 함께 삭제)가 성립한다. API 응답의 `sharedGroupId`는 유지하되, 저장된 속성이 아니라 매핑을 조인해 계산하는 파생 필드로 재정의했다. 사진 목록·업로드 API의 경로 형태는 유지해 클라이언트 화면 흐름과의 연속성을 지켰다.
 
 ## 12. API-10. 그룹 채팅
 
@@ -218,7 +224,7 @@ JSON은 정규화한 body로 hash하고 multipart는 각 파일의 content diges
 - 요청과 응답은 UTC ISO-8601 문자열을 사용한다.
 - 예: `2026-07-03T10:15:30Z`
 - DB의 `timestamptz` 컬럼과 API 시간 필드는 같은 절대 시각을 표현한다.
-- `createdAt`, `updatedAt`, `deletedAt`, `expiresAt`, `revokedAt`, `takenAt`, `imageUrlExpiresAt`은 모두 이 규칙을 따른다.
+- `createdAt`, `updatedAt`, `deletedAt`, `expiresAt`, `revokedAt`, `takenAt`, `originalUrlExpiresAt`, `thumbnailUrlExpiresAt`, `uploadUrlExpiresAt`은 모두 이 규칙을 따른다.
 - 서버 API 계약에서 `LocalDateTime`은 사용하지 않는다.
 
 ### 판단 이유
@@ -232,7 +238,9 @@ API 소비자는 여러 시간대의 기기일 수 있으므로 서버가 지역
 - [ ] 인증 응답 snapshot 암호화와 민감 정보 로그 마스킹 적용
 - [ ] API DTO의 모든 시간 필드가 `Instant`로 직렬화되는지 테스트
 - [ ] 공유 그룹 상세 응답의 최초 생성자와 현재 방장 구분 테스트
-- [ ] 공유집(앨범) 삭제 후 하위 사진 접근 차단과 30일 정리 테스트
-- [ ] 이미지 서명 URL 만료 시각 계약 테스트
+- [ ] 공유집(앨범) 삭제 후 앨범-사진 매핑 접근 차단과 30일 정리, 사진 원본 보존 테스트
+- [ ] PHOTO-07/PHOTO-08 추가·제거 API의 멱등성과 공유 그룹 일치 검증 테스트
+- [ ] PHOTO-02/PHOTO-03 presigned 업로드 흐름의 만료·재시도·부분 실패 시나리오 테스트
+- [ ] 조회 시점마다 새로 발급하는 `originalUrl`/`thumbnailUrl`과 만료 시각 응답 계약 테스트
 - [ ] 그룹 채팅 메시지 폴링 조회와 작성자 권한 통합 테스트
 - [ ] WebSocket 실시간 전달을 도입할 경우 별도 API 의사결정 작성

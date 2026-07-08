@@ -35,14 +35,25 @@
   "message": "사진을 조회했습니다.",
   "data": {
     "id": "385ff765-b20c-49a2-8e62-e1457784aa15",
-    "sharedAlbumId": "59ce0d18-a53e-4197-9c3c-e82331adc097",
-    "imageUrl": "https://object.example.com/signed/photo.jpg",
-    "imageUrlExpiresAt": "2026-07-03T11:15:30Z",
-    "originalFileName": "IMG_0001.HEIC",
-    "contentType": "image/heic",
-    "fileSize": 2849182,
+    "sharedGroupId": "b8a5f612-25d7-4ec3-9d1d-59684de40664",
+    "sharedAlbumIds": ["59ce0d18-a53e-4197-9c3c-e82331adc097"],
+    "originalUrl": "https://objectstorage.example.com/signed/385ff765-original.jpg",
+    "originalUrlExpiresAt": "2026-07-03T11:15:30Z",
+    "thumbnailUrl": "https://objectstorage.example.com/signed/385ff765-thumb.jpg",
+    "thumbnailUrlExpiresAt": "2026-07-03T11:15:30Z",
+    "thumbnailStatus": "READY",
+    "device": {
+      "deviceId": "6f1b2f0a-6c8a-4a9b-8f3e-8b6a2c1f9d10",
+      "name": "iPhone 15"
+    },
     "takenAt": "2026-06-30T04:20:00Z",
     "displayAt": "2026-06-30T04:20:00Z",
+    "latitude": 33.450701,
+    "longitude": 126.570667,
+    "locationName": "제주특별자치도 제주시",
+    "isInferred": false,
+    "width": 4032,
+    "height": 3024,
     "uploadedBy": {
       "userId": "018f0c3e-2c77-7d72-a37e-2f5666f25d32",
       "displayName": "집집이"
@@ -56,6 +67,11 @@
   }
 }
 ```
+
+`sharedAlbumIds`는 사진이 현재 속한 모든 활성 공유집(앨범) 식별자 목록이다.
+`originalUrl`, `thumbnailUrl`은 조회 시점마다 새로 발급하는 presigned URL이며 영구 저장하지 않는다.
+`thumbnailStatus`가 `PENDING`이거나 `FAILED`면 `thumbnailUrl`, `thumbnailUrlExpiresAt`은 `null`이다.
+`device`, `takenAt`, `latitude`, `longitude`, `locationName`, `width`, `height`는 iOS가 전달하지 않았으면 `null`이다.
 
 ### Fail Response Ⓧ
 
@@ -283,6 +299,8 @@
 | 404 | `PHOTO_COMMENT_NOT_FOUND` | 댓글 또는 상위 활성 리소스·멤버십이 없음 |
 
 ## 8. COMMENT-04 사진 댓글 삭제
+
+휴지통 없이 `photo_comment` 행을 즉시 물리 삭제한다. 복구할 수 없다.
 
 ### Request
 

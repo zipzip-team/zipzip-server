@@ -166,7 +166,7 @@
 ## 5. CHAT-04 그룹 채팅 메시지 삭제
 
 작성자만 삭제할 수 있다.
-삭제 시 `shared_group_chat_message.deleted_at`을 기록한다.
+휴지통 없이 `shared_group_chat_message` 행을 즉시 물리 삭제한다. 복구할 수 없다.
 
 ### Request
 

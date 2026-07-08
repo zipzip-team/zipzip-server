@@ -126,18 +126,17 @@ Table shared_group_chat_message {
   content varchar(1000) [not null, note: '그룹 채팅 메시지 본문. 최대 1,000자']
   created_at timestamptz [not null, default: `now()`, note: '메시지 작성 시각']
   updated_at timestamptz [not null, default: `now()`, note: '메시지 마지막 수정 시각']
-  deleted_at timestamptz [note: '메시지 삭제 시각. null이면 활성 메시지']
 
   indexes {
-    (shared_group_id, deleted_at, created_at, id) [name: 'idx_shared_group_chat_message__group_active_created_id']
-    (app_user_id, deleted_at, created_at) [name: 'idx_shared_group_chat_message__app_user_active_created']
+    (shared_group_id, created_at, id) [name: 'idx_shared_group_chat_message__group_created_id']
+    (app_user_id, created_at) [name: 'idx_shared_group_chat_message__app_user_id_created_at']
   }
 
   checks {
     `char_length(btrim(content)) > 0` [name: 'chk_shared_group_chat_message__content_not_blank']
   }
 
-  Note: '공유 그룹 안의 일반 채팅 메시지. 1차 구현은 created_at, id 커서를 사용하는 폴링 조회를 기준으로 한다.'
+  Note: '공유 그룹 안의 일반 채팅 메시지. 1차 구현은 created_at, id 커서를 사용하는 폴링 조회를 기준으로 한다. 휴지통 없이 삭제 시 행을 즉시 물리 삭제한다.'
 }
 
 Table shared_album {
@@ -164,30 +163,44 @@ Table shared_album {
 
 Table photo {
   id uuid [pk, not null, note: '애플리케이션에서 생성하는 사진 식별자']
-  shared_album_id uuid [not null, note: '사진 원본이 속한 공유집(앨범) 식별자']
   uploaded_by_app_user_id uuid [not null, note: '사진을 업로드한 사용자이며 원본 수정과 삭제 권한의 원칙적 기준']
-  object_key text [not null, unique, note: 'OCI Object Storage에서 이미지 객체를 찾는 고유 키']
-  original_file_name varchar(255) [not null, note: '업로드 당시 원본 파일명']
-  content_type varchar(100) [not null, note: '이미지 MIME type']
-  file_size bigint [not null, note: '이미지 파일 크기. byte 단위']
-  taken_at timestamptz [note: '서버가 이미지 EXIF에서 추출한 사진 촬영일시. 없으면 created_at을 표시와 정렬 기준으로 사용']
+  device_id uuid [note: '촬영 기기가 식별된 경우의 기기 식별자']
+  original_object_key varchar(500) [not null, unique, note: 'OCI Object Storage 원본 이미지 객체 키. API가 조회 시점에 presigned GET URL을 발급하는 데 사용']
+  thumbnail_object_key varchar(500) [note: '썸네일 이미지 객체 키. 비동기 생성 전에는 null']
+  thumbnail_status varchar(20) [not null, note: '썸네일 생성 진행 상태. PENDING, READY, FAILED']
+  taken_at timestamptz [note: 'iOS가 이미지 EXIF에서 추출해 전달했거나 사용자가 보정한 사진 촬영일시. 없으면 created_at을 표시와 정렬 기준으로 사용']
+  latitude float [note: '촬영 위치 위도']
+  longitude float [note: '촬영 위치 경도']
+  location_name varchar(200) [note: '촬영 위치명']
+  is_inferred boolean [not null, default: false, note: 'iOS 메타데이터 제안 UI로 위치정보를 추론해 채웠는지 여부']
+  width int [note: '이미지 가로 픽셀']
+  height int [note: '이미지 세로 픽셀']
   created_at timestamptz [not null, default: `now()`, note: '사진 등록 시각']
   updated_at timestamptz [not null, default: `now()`, note: '사진 정보 마지막 수정 시각']
   deleted_at timestamptz [note: '사진 삭제 시각. null이면 활성 사진']
 
   indexes {
-    (shared_album_id, deleted_at, id) [name: 'idx_photo__album_active_id']
     (uploaded_by_app_user_id, deleted_at) [name: 'idx_photo__uploaded_by_app_user_id_deleted_at']
     deleted_at [name: 'idx_photo__deleted_at']
   }
 
-  checks {
-    `file_size > 0` [name: 'chk_photo__file_size_positive']
-    `content_type like 'image/%'` [name: 'chk_photo__content_type_image']
-    `char_length(btrim(original_file_name)) > 0` [name: 'chk_photo__original_file_name_not_blank']
+  Note: '사진 원본 파일 참조 정보. 공유 그룹에 직접 속하지 않고 shared_album_photo를 통해서만 하나 이상의 공유집(앨범)에 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진이다). 원칙적으로 업로더가 수정·삭제하며, 업로더가 탈퇴한 경우 삭제는 공유 그룹 방장이 할 수 있다. 클라이언트는 presigned PUT URL로 원본을 Object Storage에 직접 업로드하고, 서버는 업로드 완료 등록 시점에 이 행을 생성한다. iOS가 이미지 EXIF에서 촬영일시와 위치정보를 추출해 전달하면 그대로 저장하며, 위치정보가 추론된 값이면 is_inferred를 true로 전달받는다. 썸네일은 등록 직후 서버가 비동기로 생성한다. 촬영일 우선 정렬용 coalesce 표현식 partial index는 postgresql-overrides.sql에 정의한다.'
+}
+
+Table shared_album_photo {
+  id uuid [pk, not null, note: '애플리케이션에서 생성하는 앨범-사진 매핑 식별자']
+  shared_album_id uuid [not null, note: '사진이 포함된 공유집(앨범) 식별자']
+  photo_id uuid [not null, note: '공유집(앨범)에 포함된 사진 식별자']
+  created_at timestamptz [not null, default: `now()`, note: '사진이 공유집(앨범)에 추가된 시각']
+  updated_at timestamptz [not null, default: `now()`, note: '매핑 행 마지막 수정 시각']
+
+  indexes {
+    (shared_album_id, created_at) [name: 'idx_shared_album_photo__shared_album_id_created_at']
+    photo_id [name: 'idx_shared_album_photo__photo_id']
+    (shared_album_id, photo_id) [unique, name: 'uk_shared_album_photo__shared_album_id_photo_id']
   }
 
-  Note: '공유집(앨범)의 사진 원본 파일 참조 정보. 원칙적으로 업로더가 수정·삭제하며, 업로더가 탈퇴한 경우 삭제는 공유 그룹 방장이 할 수 있다. 서버는 이미지 EXIF에서 촬영일시만 추출해 taken_at에 저장하고, EXIF를 제거하지 않은 원본 이미지 파일은 OCI Object Storage에 저장한다. 촬영일 우선 정렬용 coalesce 표현식 partial index는 postgresql-overrides.sql에 정의한다.'
+  Note: '사진과 공유집(앨범)의 N:M 소속 관계. 같은 사진을 여러 공유집(앨범)에 중복 없이 담을 수 있다. 사진은 항상 1개 이상의 매핑을 가져야 하며, 공유집(앨범) 삭제나 명시적 제거로 사진의 마지막 매핑이 없어지면 사진 원본도 함께 soft delete한다(고아 사진 방지).'
 }
 
 Table photo_like {
@@ -212,18 +225,17 @@ Table photo_comment {
   content varchar(1000) [not null, note: '사진 댓글 본문. 최대 1,000자']
   created_at timestamptz [not null, default: `now()`, note: '댓글 작성 시각']
   updated_at timestamptz [not null, default: `now()`, note: '댓글 마지막 수정 시각']
-  deleted_at timestamptz [note: '댓글 삭제 시각. null이면 활성 댓글']
 
   indexes {
-    (photo_id, deleted_at, created_at) [name: 'idx_photo_comment__photo_id_deleted_at_created_at']
-    (app_user_id, deleted_at) [name: 'idx_photo_comment__app_user_id_deleted_at']
+    (photo_id, created_at) [name: 'idx_photo_comment__photo_id_created_at']
+    (app_user_id, created_at) [name: 'idx_photo_comment__app_user_id_created_at']
   }
 
   checks {
     `char_length(btrim(content)) > 0` [name: 'chk_photo_comment__content_not_blank']
   }
 
-  Note: '단일 사진에 달리는 댓글. 그룹 채팅 메시지는 shared_group_chat_message에 별도로 저장한다.'
+  Note: '단일 사진에 달리는 댓글. 그룹 채팅 메시지는 shared_group_chat_message에 별도로 저장한다. 휴지통 없이 삭제 시 행을 즉시 물리 삭제한다.'
 }
 
 Ref fk_refresh_token__app_user: app_user.id < refresh_token.app_user_id [delete: cascade, update: no action]
@@ -242,8 +254,11 @@ Ref fk_shared_group_chat_message__app_user: app_user.id < shared_group_chat_mess
 Ref fk_shared_album__shared_group: shared_group.id < shared_album.shared_group_id [delete: cascade, update: no action]
 Ref fk_shared_album__created_by_app_user: app_user.id < shared_album.created_by_app_user_id [delete: restrict, update: no action]
 
-Ref fk_photo__shared_album: shared_album.id < photo.shared_album_id [delete: cascade, update: no action]
 Ref fk_photo__uploaded_by_app_user: app_user.id < photo.uploaded_by_app_user_id [delete: restrict, update: no action]
+Ref fk_photo__device: device.id < photo.device_id [delete: set null, update: no action]
+
+Ref fk_shared_album_photo__shared_album: shared_album.id < shared_album_photo.shared_album_id [delete: cascade, update: no action]
+Ref fk_shared_album_photo__photo: photo.id < shared_album_photo.photo_id [delete: cascade, update: no action]
 
 Ref fk_photo_like__photo: photo.id < photo_like.photo_id [delete: cascade, update: no action]
 Ref fk_photo_like__app_user: app_user.id < photo_like.app_user_id [delete: cascade, update: no action]
@@ -267,6 +282,7 @@ TableGroup shared_group_domain [note: '공유 그룹, 참여 관계, 표시용 �
 TableGroup shared_content_domain [note: '공유집(앨범)과 사진 상호작용'] {
   shared_album
   photo
+  shared_album_photo
   photo_like
   photo_comment
 }
