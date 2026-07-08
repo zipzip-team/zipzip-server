@@ -32,18 +32,20 @@ public class AppleClientSecretGenerator {
         try {
             Instant now = Instant.now(clock);
 
-            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ES256)
-                    .keyID(properties.getKeyId())
-                    .type(JOSEObjectType.JWT)
-                    .build();
+            JWSHeader header =
+                    new JWSHeader.Builder(JWSAlgorithm.ES256)
+                            .keyID(properties.getKeyId())
+                            .type(JOSEObjectType.JWT)
+                            .build();
 
-            JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                    .issuer(properties.getTeamId())
-                    .subject(properties.getClientId())
-                    .audience(APPLE_AUDIENCE)
-                    .issueTime(Date.from(now))
-                    .expirationTime(Date.from(now.plus(CLIENT_SECRET_TTL)))
-                    .build();
+            JWTClaimsSet claims =
+                    new JWTClaimsSet.Builder()
+                            .issuer(properties.getTeamId())
+                            .subject(properties.getClientId())
+                            .audience(APPLE_AUDIENCE)
+                            .issueTime(Date.from(now))
+                            .expirationTime(Date.from(now.plus(CLIENT_SECRET_TTL)))
+                            .build();
 
             SignedJWT signedJWT = new SignedJWT(header, claims);
             signedJWT.sign(new ECDSASigner(parsePrivateKey(properties.normalizedPrivateKey())));
@@ -55,10 +57,11 @@ public class AppleClientSecretGenerator {
     }
 
     private ECPrivateKey parsePrivateKey(String privateKey) throws Exception {
-        String privateKeyContent = privateKey
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replaceAll("\\s", "");
+        String privateKeyContent =
+                privateKey
+                        .replace("-----BEGIN PRIVATE KEY-----", "")
+                        .replace("-----END PRIVATE KEY-----", "")
+                        .replaceAll("\\s", "");
 
         byte[] decodedKey = Base64.getDecoder().decode(privateKeyContent);
         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(decodedKey);

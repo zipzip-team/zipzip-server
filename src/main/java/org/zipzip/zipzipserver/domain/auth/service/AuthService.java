@@ -36,7 +36,8 @@ public class AuthService {
     @Transactional
     public LoginResponse loginWithApple(AppleLoginRequest request) {
         AppleUserInfo requestUserInfo = appleIdTokenVerifier.verify(request.identityToken());
-        AppleTokenResponse tokenResponse = appleTokenClient.requestToken(request.authorizationCode());
+        AppleTokenResponse tokenResponse =
+                appleTokenClient.requestToken(request.authorizationCode());
         AppleUserInfo tokenUserInfo = appleIdTokenVerifier.verify(tokenResponse.idToken());
         validateSameAppleUser(requestUserInfo, tokenUserInfo);
 

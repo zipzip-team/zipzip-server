@@ -14,17 +14,13 @@ import org.springframework.validation.annotation.Validated;
 @ConfigurationProperties(prefix = "apple")
 public class AppleOAuthProperties {
 
-    @NotBlank
-    private String teamId;
+    @NotBlank private String teamId;
 
-    @NotBlank
-    private String clientId;
+    @NotBlank private String clientId;
 
-    @NotBlank
-    private String keyId;
+    @NotBlank private String keyId;
 
-    @NotBlank
-    private String privateKey;
+    @NotBlank private String privateKey;
 
     public String normalizedPrivateKey() {
         return privateKey.strip();

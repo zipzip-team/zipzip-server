@@ -146,9 +146,7 @@ class AuthServiceTest {
                         BusinessException.class,
                         exception ->
                                 assertThat(exception.getErrorCode())
-                                        .isEqualTo(
-                                                AuthErrorCode
-                                                        .INVALID_APPLE_AUTHORIZATION_CODE));
+                                        .isEqualTo(AuthErrorCode.INVALID_APPLE_AUTHORIZATION_CODE));
 
         verify(appUserRepository, never()).findByAppleSubject(any());
         verify(refreshTokenRepository, never()).save(any(RefreshToken.class));

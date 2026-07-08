@@ -1,10 +1,10 @@
 package org.zipzip.zipzipserver.domain.auth.apple;
 
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import java.net.URI;

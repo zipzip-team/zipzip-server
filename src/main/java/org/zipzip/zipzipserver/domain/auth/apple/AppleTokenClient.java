@@ -30,12 +30,14 @@ public class AppleTokenClient {
         form.add("grant_type", GRANT_TYPE_AUTHORIZATION_CODE);
 
         try {
-            AppleTokenResponse response = restClient.post()
-                    .uri(APPLE_TOKEN_URL)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body(form)
-                    .retrieve()
-                    .body(AppleTokenResponse.class);
+            AppleTokenResponse response =
+                    restClient
+                            .post()
+                            .uri(APPLE_TOKEN_URL)
+                            .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                            .body(form)
+                            .retrieve()
+                            .body(AppleTokenResponse.class);
 
             if (response == null || response.idToken() == null || response.idToken().isBlank()) {
                 throw new BusinessException(AuthErrorCode.INVALID_APPLE_AUTHORIZATION_CODE);
