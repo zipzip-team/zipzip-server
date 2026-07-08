@@ -12,7 +12,9 @@ import java.time.Instant;
 import java.util.Date;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.zipzip.zipzipserver.domain.auth.code.AuthErrorCode;
 import org.zipzip.zipzipserver.domain.auth.config.AppleOAuthProperties;
+import org.zipzip.zipzipserver.global.exception.BusinessException;
 
 @Component
 @RequiredArgsConstructor
@@ -33,7 +35,7 @@ public class AppleIdTokenVerifier {
 
             return new AppleUserInfo(claims.getSubject(), claims.getStringClaim("email"));
         } catch (Exception exception) {
-            throw new IllegalArgumentException("Apple id_token 검증에 실패했습니다.", exception);
+            throw new BusinessException(AuthErrorCode.INVALID_APPLE_TOKEN);
         }
     }
 
