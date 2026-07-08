@@ -29,7 +29,7 @@
 | 사진 DB 정보 | `original_object_key`, `thumbnail_object_key`, `thumbnail_status`, `width`, `height` 저장 | Object Storage 조회, presigned URL 발급, 운영 확인에 필요한 최소 참조 정보이다. URL 자체는 저장하지 않고 조회 시점에 발급한다. |
 | 사진-공유집(앨범) 관계 | `shared_album_photo` 관계 테이블 | 사진은 여러 공유집(앨범)에 중복 없이 속할 수 있어 N:M 관계 테이블로 표현한다. 사진은 공유 그룹에 직접 속하지 않고 이 매핑을 통해서만 공유집(앨범)에 속하며, 소속 공유 그룹이 필요하면 조인해 구한다. |
 | 사진 그룹 기준 | iOS가 EXIF에서 추출해 전달한 nullable `taken_at` 저장 | 촬영일이 있으면 이를 사용하고, 없으면 `created_at`을 표시·정렬 기준으로 사용한다. EXIF 전체를 DB 컬럼으로 저장하지 않는다. |
-| 사진 수 집계 | 실시간 count 우선 | 공유집(앨범)에 집계 컬럼을 두지 않고 활성 사진 기준으로 count 쿼리를 수행한다. |
+| 사진 수 집계 | 실시간 count 우선 | 공유집(앨범)에 집계 컬럼을 두지 않고 `shared_album_photo`와 조인한 활성 사진 기준으로 count 쿼리를 수행한다. |
 | 사진 좋아요 타입 | 단순 좋아요 | 현재 요구는 좋아요 여부와 수 표현이므로 이모지 반응 타입 없이 `photo_like` 존재 여부로 표현한다. |
 | 그룹 채팅 저장 | `shared_group_chat_message` | 공유 그룹 안에서 사진 컨텍스트 없는 일반 채팅을 지원한다. 1차 전달 방식은 폴링이며 저장 모델은 전송 방식과 분리한다. |
 | 기기 정보 저장 | 사용자 단위 기기명 저장 | 공유 그룹 관리 화면에서 방장/멤버별 주 사용 촬영 기기 태그를 표시해야 한다. 기기는 사용자에게 속한 표시용 정보로 관리하며 별도 유형은 두지 않는다. |
@@ -126,7 +126,7 @@ device.id         -> photo.device_id
 | 대상 | 형식 | 예시 |
 |---|---|---|
 | Primary Key | `pk_<table>` | `pk_app_user` |
-| Foreign Key | `fk_<table>__<referenced_table>` | `fk_photo__shared_group` |
+| Foreign Key | `fk_<table>__<referenced_table>` | `fk_photo__device` |
 | Unique Key | `uk_<table>__<columns>` | `uk_shared_group__invite_code` |
 | Index | `idx_<table>__<columns>` | `idx_photo__uploaded_by_app_user_id_deleted_at` |
 

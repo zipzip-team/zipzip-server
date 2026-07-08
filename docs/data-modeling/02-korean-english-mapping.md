@@ -56,8 +56,8 @@
 | 공유집(앨범) | 공유 그룹 안에서 사진을 담는 하위 공간 | 개념·API·테이블에서 `shared_album` 사용 |
 
 `share_tab` 하나에 여러 `shared_group`이 표시된다.
-`shared_group` 하나는 여러 `shared_album`과 여러 `photo`를 가질 수 있다.
-사진은 `shared_group`에 직접 속하고, `shared_album_photo`를 통해 하나 이상의 `shared_album`에 속할 수 있다.
+`shared_group` 하나는 여러 `shared_album`을 가질 수 있다.
+사진은 `shared_group`에 직접 속하지 않고, `shared_album_photo`를 통해서만 하나 이상의 `shared_album`에 속한다.
 기술 문서에서는 하단 탭 화면을 `공유 탭`, 초대와 채팅 단위를 `공유 그룹`, 사진 업로드와 조회 단위를 `공유집(앨범)`으로 구분한다.
 
 ## 5. 사용자와 멤버의 구분
@@ -82,12 +82,11 @@ app_user
 shared_group
 ├── shared_group_membership
 ├── shared_group_chat_message
-├── shared_album
-│   └── shared_album_photo
-└── photo
-    ├── shared_album_photo
-    ├── photo_like
-    └── photo_comment
+└── shared_album
+    └── shared_album_photo
+        └── photo
+            ├── photo_like
+            └── photo_comment
 
 invite_code_reservation
 └── shared_group
@@ -102,7 +101,7 @@ invite_code_reservation
 - `MEMBER`는 공유 그룹에 초대받은 멤버 역할이다.
 - `shared_group_chat_message`는 공유 그룹 안에서 작성된 일반 채팅 메시지이다.
 - `shared_album`은 공유 그룹 안에서 공유집(앨범)을 표현하고 사진을 담는 단위이다.
-- `photo`는 공유 그룹에 업로드된 사진 원본이다.
+- `photo`는 공유 그룹 안에서 업로드된 사진 원본이며, 공유 그룹에 직접 속하지 않고 `shared_album_photo`를 통해서만 공유집(앨범)에 속한다.
 - `shared_album_photo`는 사진과 공유집(앨범)의 N:M 소속 관계를 표현한다.
 - `shared_group.created_by_app_user_id`는 공유 그룹 최초 생성자 이력이다.
 - `shared_album.created_by_app_user_id`는 공유집(앨범) 삭제 권한의 원칙적 기준이다. 생성자가 탈퇴한 경우 공유 그룹 방장이 삭제할 수 있다.

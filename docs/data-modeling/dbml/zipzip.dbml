@@ -158,7 +158,7 @@ Table shared_album {
     `char_length(btrim(name)) > 0` [name: 'chk_shared_album__name_not_blank']
   }
 
-  Note: '공유 그룹 참여자가 생성하는 공유집(앨범)이자 사진의 직접 소속 단위. 사진 없이도 존재할 수 있으며 활성 멤버가 이름을 수정할 수 있다. 삭제는 생성자 또는 탈퇴한 생성자의 공유 그룹 방장이 할 수 있다.'
+  Note: '공유 그룹 참여자가 생성하는 공유집(앨범)이며 shared_album_photo를 통해 사진을 담는다. 사진 없이도 존재할 수 있으며 활성 멤버가 이름을 수정할 수 있다. 삭제는 생성자 또는 탈퇴한 생성자의 공유 그룹 방장이 할 수 있다.'
 }
 
 Table photo {

@@ -18,7 +18,7 @@
 | API-03 | 멱등성 | 중복 위험이 있는 POST API에 `Idempotency-Key` 필수 적용 |
 | API-04 | 권한 오류 | 범위 밖 리소스는 404, 범위 안 소유권·역할 부족은 403 |
 | API-05 | 응답 DTO | 현재 사용자 역할과 생성자·업로더·작성자 표현을 공통 구조로 통일 |
-| API-06 | 이미지 URL | 업로드 시 생성한 원본·썸네일 URL을 만료 없이 그대로 저장·반환 |
+| API-06 | 이미지 URL | 원본·썸네일은 Object Storage 객체 키로만 저장하고, API는 조회 시점마다 만료 시각이 있는 presigned URL을 새로 발급 |
 | API-07 | 실시간 전달 범위 | WebSocket 실시간 전달은 1차 범위에서 제외하고 후속 의사결정으로 분리 |
 | API-08 | Notion 템플릿 | endpoint별 페이지와 공통 규격 참조를 조합해 중복을 제어 |
 | API-09 | 사진·공유집(앨범) 경계 | 사진은 공유 그룹에 직접 속하지 않고 `shared_album_photo` N:M 관계로만 공유집(앨범)에 속하며, 전용 추가·제거 API로 관리. 사진은 항상 1개 이상의 공유집(앨범)에 속해야 한다 |
@@ -37,7 +37,7 @@ index는 화면 이름이나 세부 행위가 아니라 endpoint가 다루는 �
 | 사용자·기기 | 사용자 프로필, 사용자 탈퇴, 사용자 단위 기기 태그 |
 | 공유 그룹 | 공유 그룹, 멤버십, 초대 코드, 참여와 나가기 |
 | 앨범 | 공유집(앨범) CRUD |
-| 사진 | 공유집(앨범) 사진 목록, 업로드, 촬영일시, 삭제 |
+| 사진 | 공유집(앨범) 사진 목록, 업로드 URL 발급·완료 등록, 단건·일괄 삭제, 앨범 추가·제거 |
 | 사진 반응·댓글 | 사진 상세, 좋아요, 사진 댓글 |
 | 채팅 | 그룹 채팅 메시지 목록, 작성, 수정, 삭제 |
 
@@ -100,7 +100,7 @@ API 버전을 URI에 명시해 iOS와 서버의 계약 변경 범위를 분리�
 4. 같은 hash의 재요청에는 저장한 응답을 반환하고 `Idempotency-Replayed: true`를 추가한다.
 5. 다른 hash면 `409 IDEMPOTENCY_KEY_REUSED`, 처리 중이면 `409 IDEMPOTENCY_REQUEST_IN_PROGRESS`를 반환한다.
 
-JSON은 정규화한 body로 hash하고 multipart는 각 파일의 content digest와 metadata를 함께 hash한다. Apple token, authorization code, Refresh Token 원문은 로그와 평문 record에 저장하지 않는다.
+요청 본문은 정규화한 JSON으로 hash한다(사진 원본은 presigned URL로 직접 업로드하므로 API 요청 자체는 항상 JSON이다). Apple token, authorization code, Refresh Token 원문은 로그와 평문 record에 저장하지 않는다.
 
 ### 저장 결정
 

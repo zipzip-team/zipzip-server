@@ -18,7 +18,7 @@
 | DM-07 | 그룹 채팅 | 사진 댓글과 별도인 `shared_group_chat_message`를 사용한다. |
 | DM-08 | 초대 코드 | 공유 그룹이 존재하는 동안 `invite_code_reservation`으로 코드 점유를 보장하고, 공유 그룹 물리 삭제 시 예약 행도 삭제한다. |
 | DM-09 | 삭제 정책 | `app_user`, `shared_group`, `device`, `shared_album`, `photo`는 soft delete 후 30일 뒤 물리 정리한다. `shared_group_membership`, `shared_album_photo`, `photo_like`, `shared_group_chat_message`, `photo_comment`는 즉시 물리 삭제한다. 탈퇴한 사용자의 공유 콘텐츠는 보존하고 사용자 표시는 "탈퇴한 사용자"로 대체한다. |
-| DM-10 | 집계 | 공유집(앨범) 사진 수는 활성 사진 기준으로 실시간 count한다. |
+| DM-10 | 집계 | 공유집(앨범) 사진 수는 `shared_album_photo`와 `photo`를 조인해 활성 사진 기준으로 실시간 count한다. |
 | DM-11 | 시간 타입 | DB는 `timestamptz`, Java/JPA 엔티티는 `Instant`, API는 UTC ISO-8601 문자열을 사용한다. |
 | DM-12 | 사진 원본 저장 참조 | 사진 원본·썸네일은 URL이 아니라 Object Storage 객체 키(`original_object_key`, `thumbnail_object_key`)로 저장한다. API는 조회 시점에 presigned URL을 발급한다. 썸네일은 비동기로 생성하며 `thumbnail_status`(`PENDING`/`READY`/`FAILED`)로 진행 상태를 관리한다. |
 
@@ -29,11 +29,11 @@
 └── 공유 그룹(shared_group)
     ├── 공유 그룹 멤버십(shared_group_membership)
     ├── 그룹 채팅 메시지(shared_group_chat_message)
-    ├── 사진(photo)
-    │   ├── 사진 좋아요(photo_like)
-    │   └── 사진 댓글(photo_comment)
     └── 공유집(앨범, shared_album)
         └── 앨범-사진 매핑(shared_album_photo)
+            └── 사진(photo)
+                ├── 사진 좋아요(photo_like)
+                └── 사진 댓글(photo_comment)
 ```
 
 ## 4. 주요 결정
@@ -212,6 +212,6 @@ DB FK만으로 표현하지 않는 규칙은 서비스 계층과 통합 테스�
 
 ## 7. 남은 확인 사항
 
-1. 사진을 여러 공유집(앨범)에 추가·제거하는 API와 UI 정책을 1차 범위에서 어디까지 지원할지 확인
+1. 사진을 여러 공유집(앨범)에 추가·제거하는 UI 정책을 1차 범위에서 어디까지 지원할지 확인(API는 `PHOTO-07`/`PHOTO-08`로 확정됨)
 2. 공유 그룹 삭제와 Object Storage 객체 정리 배치 통합 테스트 작성
 3. presigned URL TTL 기본값과 썸네일 생성 재시도(스윕) 주기 확정

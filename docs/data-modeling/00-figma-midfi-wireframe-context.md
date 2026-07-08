@@ -92,11 +92,11 @@
 └── 공유 그룹(shared_group)
     ├── 공유 그룹 멤버십(shared_group_membership)
     ├── 그룹 채팅 메시지(shared_group_chat_message)
-    ├── 사진(photo)
-    │   ├── 사진 좋아요(photo_like)
-    │   └── 사진 댓글(photo_comment)
     └── 공유집(앨범, shared_album)
         └── 앨범-사진 매핑(shared_album_photo)
+            └── 사진(photo)
+                ├── 사진 좋아요(photo_like)
+                └── 사진 댓글(photo_comment)
 ```
 
 ## 6. 1차 테이블 후보
