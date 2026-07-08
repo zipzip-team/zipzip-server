@@ -6,7 +6,7 @@
 |---|---|
 | Base Path | `/api/v1` |
 | 기본 요청 형식 | `application/json` |
-| 사진 업로드 형식 | `multipart/form-data` |
+| 사진 원본 업로드 | iOS가 presigned PUT URL로 Object Storage에 직접 업로드(서버 경유 없음) |
 | 인증 | `Authorization: Bearer {accessToken}` |
 | 식별자 | UUID 문자열 |
 | 시간 | `java.time.Instant` 직렬화 기준의 UTC ISO-8601 문자열. 예: `2026-07-03T10:15:30Z` |
@@ -39,8 +39,10 @@ Apple 로그인과 토큰 갱신을 제외한 모든 API는 인증이 필요하�
 - GROUP-02 공유 그룹 생성
 - INVITE-02 초대 코드로 참여
 - ALBUM-02 앨범 생성
-- PHOTO-02 사진 업로드
-- PHOTO-05 사진 일괄 삭제
+- PHOTO-03 사진 업로드 완료 등록
+- PHOTO-06 사진 일괄 삭제
+- PHOTO-07 공유집(앨범)에 기존 사진 추가
+- PHOTO-08 공유집(앨범)에서 사진 제거
 - COMMENT-02 사진 댓글 작성
 - CHAT-02 그룹 채팅 메시지 작성
 
@@ -132,10 +134,11 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 409 | `RESOURCE_CONFLICT` | 현재 상태와 충돌하는 요청입니다. | 중복 생성 또는 상태 충돌 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 다른 요청에 사용한 멱등성 키입니다. | 같은 key를 다른 요청 본문에 재사용 |
 | 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 동일한 요청을 처리하고 있습니다. | 같은 key의 최초 요청이 아직 처리 중 |
-| 413 | `FILE_TOO_LARGE` | 업로드 가능한 파일 크기를 초과했습니다. | 업로드 제한 초과 |
-| 415 | `UNSUPPORTED_IMAGE_TYPE` | 지원하지 않는 이미지 형식입니다. | `image/*`가 아닌 파일 |
+| 413 | `FILE_TOO_LARGE` | 업로드 가능한 파일 크기를 초과했습니다. | 업로드 URL 발급 요청의 선언한 파일 크기가 제한 초과 |
+| 415 | `UNSUPPORTED_IMAGE_TYPE` | 지원하지 않는 이미지 형식입니다. | 업로드 URL 발급 요청의 `contentType`이 `image/*`가 아님 |
 | 500 | `INTERNAL_SERVER_ERROR` | 서버 내부 오류가 발생했습니다. | 처리하지 못한 예외 |
-| 502 | `OBJECT_STORAGE_UPLOAD_FAILED` | 사진 저장에 실패했습니다. | OCI Object Storage 업로드 실패 |
+
+썸네일 생성 같은 업로드 완료 이후의 Object Storage 작업은 비동기로 처리하므로 동기 API 오류로 노출하지 않는다. 실패하면 `photo.thumbnailStatus`가 `FAILED`로 남고, 스윕이 재시도한다.
 
 보안상 다른 공유 그룹의 리소스 ID를 사용한 경우 존재 여부를 노출하지 않도록 `404 RESOURCE_NOT_FOUND`로 응답한다. 같은 공유 그룹 안에서 소유권만 부족한 경우에는 `403` 도메인 오류를 사용한다.
 
@@ -164,12 +167,16 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 앨범 이름 검증 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 |
 | 403 | `NOT_SHARED_ALBUM_CREATOR` | 생성자가 아닌 사용자의 앨범 삭제 |
-| 400 | `INVALID_UPLOAD_METADATA` | multipart 사진 업로드 요청 검증 |
+| 400 | `INVALID_UPLOAD_METADATA` | 사진 업로드 URL 발급·완료 등록 요청 검증 |
 | 400 | `TOO_MANY_FILES` | 한 요청의 사진 개수 제한 초과 |
+| 404 | `UPLOAD_OBJECT_NOT_FOUND` | `objectKey`에 대응하는 유효한 업로드 예약이 없음(발급받은 적 없음, 다른 사용자·다른 공유집(앨범)에 발급됨, 이미 등록에 사용함, 만료됨을 모두 포함) |
+| 409 | `UPLOAD_NOT_COMPLETED` | 예약은 유효하지만 `objectKey`로 원본이 아직 업로드되지 않은 상태에서 완료 등록 시도 |
 | 400 | `INVALID_TAKEN_AT` | 촬영일시 UTC ISO-8601 형식 검증 |
-| 400 | `INVALID_PHOTO_IDS` | 사진 일괄 삭제 식별자 배열 검증 |
+| 400 | `INVALID_PHOTO_LOCATION` | 사진 위치 필드 일부만 전달 |
+| 400 | `INVALID_PHOTO_IDS` | 사진 일괄 삭제·추가·제거 식별자 배열 검증 |
 | 404 | `PHOTO_NOT_FOUND` | 사진 |
 | 403 | `NOT_PHOTO_UPLOADER` | 업로더가 아닌 사용자의 사진 수정·삭제 |
+| 409 | `PHOTO_NOT_IN_SAME_SHARED_GROUP` | 공유집(앨범)과 다른 공유 그룹에 속한 사진을 추가 시도 |
 | 400 | `INVALID_PHOTO_COMMENT_CONTENT` | 사진 댓글 내용 검증 |
 | 404 | `PHOTO_COMMENT_NOT_FOUND` | 사진 댓글 |
 | 403 | `NOT_PHOTO_COMMENT_AUTHOR` | 작성자가 아닌 사용자의 댓글 수정·삭제 |
@@ -184,19 +191,32 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 공유 그룹 | 로그인 사용자 | 활성 방장 | 활성 방장 |
 | 공유집(앨범) | 활성 방장·멤버 | 활성 방장·멤버 | 생성자. 생성자가 탈퇴한 경우 공유 그룹 방장 |
 | 사진 | 활성 방장·멤버 | 업로더 | 업로더. 업로더가 탈퇴한 경우 공유 그룹 방장 |
+| 앨범-사진 매핑 | 활성 방장·멤버 | 해당 없음 | 활성 방장·멤버 |
 | 사진 좋아요 | 활성 방장·멤버 | 해당 없음 | 좋아요를 누른 사용자 |
 | 사진 댓글 | 활성 방장·멤버 | 작성자 | 작성자 |
 | 그룹 채팅 메시지 | 활성 방장·멤버 | 작성자 | 작성자 |
 
-삭제된 공유 그룹의 모든 하위 데이터와 나간 멤버의 접근은 즉시 차단한다. 사진·공유집(앨범)·공유 그룹은 soft delete 후 30일 뒤 물리 정리하며 사용자 복구 API는 제공하지 않는다. 사진은 반드시 하나의 공유집(앨범)에 직접 속한다.
+삭제된 공유 그룹의 모든 하위 데이터와 나간 멤버의 접근은 즉시 차단한다. 사진·공유집(앨범)·공유 그룹은 soft delete 후 30일 뒤 물리 정리하며 사용자 복구 API는 제공하지 않는다. 사진은 공유 그룹에 직접 속하지 않고, `shared_album_photo`를 통해서만 하나 이상의 공유집(앨범)에 속한다. 사진은 항상 1개 이상의 공유집(앨범)에 속해야 하며, 마지막 소속이 없어지면 사진도 함께 soft delete된다.
+사진 댓글과 그룹 채팅 메시지는 휴지통 없이 즉시 물리 삭제하며 30일 유예나 복구 절차가 없다.
 
-## 9. 이미지 URL 정책
+## 9. 사진 업로드와 이미지 URL 정책
 
-API는 내부 `objectKey`를 노출하지 않고 만료 가능한 서명 URL을 `imageUrl`로 반환한다. 모든 `imageUrl` 응답에는 만료 시각인 `imageUrlExpiresAt`을 함께 반환한다.
+원본 이미지는 서버를 거치지 않고 iOS와 OCI Object Storage 사이에서 직접 오간다. 서버는 제어 평면(메타데이터, presigned URL 발급)만 담당한다.
 
-- 클라이언트는 서명 URL을 영구 저장하지 않는다.
-- URL이 만료되면 사진 목록 또는 상세 API를 다시 호출해 갱신한다.
-- 기본 URL 유효 시간은 운영 설정으로 관리하며 API 계약은 만료 시각 필드로만 보장한다.
+업로드 흐름:
+
+1. iOS가 [PHOTO-02 사진 업로드 URL 발급](07-photo-management.md#3-photo-02-사진-업로드-url-발급)을 호출해 파일별 `objectKey`와 presigned PUT URL을 받는다.
+2. iOS가 발급받은 URL로 원본을 Object Storage에 직접 병렬 업로드한다.
+3. iOS가 [PHOTO-03 사진 업로드 완료 등록](07-photo-management.md#4-photo-03-사진-업로드-완료-등록)을 호출해 `photo` 행을 생성한다. 이때 `thumbnailStatus`는 `PENDING`으로 시작한다.
+4. 서버가 비동기로 원본을 다운로드해 썸네일을 생성하고 Object Storage에 업로드한 뒤 `thumbnailStatus`를 `READY` 또는 `FAILED`로 갱신한다.
+
+이미지 URL 정책:
+
+- `photo`는 원본·썸네일 URL이 아니라 Object Storage 객체 키(`originalObjectKey`, `thumbnailObjectKey`)만 저장한다.
+- API는 사진을 반환할 때마다 해당 객체 키로 presigned GET URL(`originalUrl`, `thumbnailUrl`)을 새로 발급하고, 만료 시각(`originalUrlExpiresAt`, `thumbnailUrlExpiresAt`)을 함께 반환한다.
+- 클라이언트는 응답받은 URL을 영구 저장하지 않는다. 만료되면 목록 또는 상세 API를 다시 호출해 갱신한다.
+- URL 유효 시간은 운영 설정이며 API 계약은 만료 시각 필드로만 보장한다.
+- `thumbnailStatus`가 `PENDING`이거나 `FAILED`면 `thumbnailUrl`, `thumbnailUrlExpiresAt`은 `null`이다.
 
 ## 10. 사진 업로드 초안 정책
 
@@ -205,8 +225,10 @@ API는 내부 `objectKey`를 노출하지 않고 만료 가능한 서명 URL을 
 | 항목 | 초안값 |
 |---|---|
 | 한 요청의 최대 사진 수 | 20개 |
-| 사진 한 장 최대 크기 | 20 MiB |
+| 사진 한 장 최대 크기 | 20 MiB. 업로드 URL 발급 요청에 선언한 크기가 초과하면 `FILE_TOO_LARGE`, 실제 업로드 바이트 크기 제한은 presigned URL 서명 조건으로 강제 |
 | 허용 MIME type | `image/*` |
-| 촬영일시 | 서버가 EXIF에서 추출. 없으면 `takenAt=null`로 보존하고 `createdAt`을 표시·정렬에 사용 |
+| 촬영일시·위치·이미지 크기 | iOS가 EXIF에서 추출해 업로드 완료 등록 요청에 실어 보낸다. 서버는 추론하지 않고 전달받은 값만 저장하며, 없으면 `null`로 보존한다 |
+| 썸네일 | 완료 등록 직후 서버가 비동기로 생성한다. 재시작으로 작업이 유실되면 `thumbnailStatus=PENDING` 상태의 사진을 주기적 스윕이 재제출한다 |
+| 원본 이미지 형식 | iOS가 JPEG로 업로드해 서버의 HEIC 디코딩을 피한다 |
 
 운영 인프라와 iOS 메모리 검증 후 제한값을 확정해야 한다. 제한값이 바뀌어도 DB 스키마 변경은 필요하지 않다.

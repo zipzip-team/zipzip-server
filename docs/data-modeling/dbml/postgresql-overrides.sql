@@ -10,5 +10,5 @@ create unique index if not exists uk_device__active_name
     where deleted_at is null;
 
 create index if not exists idx_photo__active_display_at
-    on photo (shared_album_id, (coalesce(taken_at, created_at)), id)
+    on photo ((coalesce(taken_at, created_at)), id)
     where deleted_at is null;

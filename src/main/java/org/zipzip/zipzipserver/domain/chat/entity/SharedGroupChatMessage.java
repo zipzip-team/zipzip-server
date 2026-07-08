@@ -7,7 +7,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -41,8 +40,6 @@ public class SharedGroupChatMessage extends BaseTimeEntity {
     @Column(nullable = false, length = 1000)
     private String content;
 
-    private Instant deletedAt;
-
     public static SharedGroupChatMessage create(
             SharedGroup sharedGroup, AppUser appUser, String content) {
         return SharedGroupChatMessage.builder()
@@ -55,9 +52,5 @@ public class SharedGroupChatMessage extends BaseTimeEntity {
 
     public void updateContent(String content) {
         this.content = content;
-    }
-
-    public void delete(Instant deletedAt) {
-        this.deletedAt = deletedAt;
     }
 }

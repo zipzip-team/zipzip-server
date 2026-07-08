@@ -26,10 +26,10 @@
 | 삭제 정책 | 데이터 성격별 혼합 정책 | 사용자와 공유 콘텐츠 엔티티는 soft delete한다. Refresh Token은 폐기 상태로 관리한다. 공유 그룹 멤버십과 사진 좋아요는 물리 삭제한다. 개별 삭제한 공유집(앨범)·사진과 삭제된 공유 그룹 데이터는 30일 뒤 물리 삭제한다. |
 | Refresh Token 저장 | 원문 미저장, 해시 저장 | DB가 유출되어도 토큰 원문을 바로 사용할 수 없게 하며, 로그아웃/폐기 처리를 서버에서 제어할 수 있다. |
 | 사진 파일 저장 | 이미지 파일은 Object Storage 저장 | 바이너리 파일을 DB에 직접 저장하지 않고, OCI Object Storage에 저장한다. |
-| 사진 DB 정보 | `object_key`, `original_file_name`, `content_type`, `file_size` 저장 | 파일 조회, 다운로드, 검증, 운영 확인에 필요한 최소 참조 정보이다. |
-| 사진-공유집(앨범) 관계 | `photo.shared_album_id` | 사진은 반드시 하나의 공유집(앨범)에 속하므로 별도 포함 관계 테이블을 두지 않는다. |
-| 사진 그룹 기준 | 서버가 EXIF에서 추출한 nullable `taken_at` 저장 | 촬영일이 있으면 이를 사용하고, 없으면 `created_at`을 표시·정렬 기준으로 사용한다. EXIF 전체를 DB 컬럼으로 저장하지 않는다. |
-| 사진 수 집계 | 실시간 count 우선 | 공유집(앨범)에 집계 컬럼을 두지 않고 활성 사진 기준으로 count 쿼리를 수행한다. |
+| 사진 DB 정보 | `original_object_key`, `thumbnail_object_key`, `thumbnail_status`, `width`, `height` 저장 | Object Storage 조회, presigned URL 발급, 운영 확인에 필요한 최소 참조 정보이다. URL 자체는 저장하지 않고 조회 시점에 발급한다. |
+| 사진-공유집(앨범) 관계 | `shared_album_photo` 관계 테이블 | 사진은 여러 공유집(앨범)에 중복 없이 속할 수 있어 N:M 관계 테이블로 표현한다. 사진은 공유 그룹에 직접 속하지 않고 이 매핑을 통해서만 공유집(앨범)에 속하며, 소속 공유 그룹이 필요하면 조인해 구한다. |
+| 사진 그룹 기준 | iOS가 EXIF에서 추출해 전달한 nullable `taken_at` 저장 | 촬영일이 있으면 이를 사용하고, 없으면 `created_at`을 표시·정렬 기준으로 사용한다. EXIF 전체를 DB 컬럼으로 저장하지 않는다. |
+| 사진 수 집계 | 실시간 count 우선 | 공유집(앨범)에 집계 컬럼을 두지 않고 `shared_album_photo`와 조인한 활성 사진 기준으로 count 쿼리를 수행한다. |
 | 사진 좋아요 타입 | 단순 좋아요 | 현재 요구는 좋아요 여부와 수 표현이므로 이모지 반응 타입 없이 `photo_like` 존재 여부로 표현한다. |
 | 그룹 채팅 저장 | `shared_group_chat_message` | 공유 그룹 안에서 사진 컨텍스트 없는 일반 채팅을 지원한다. 1차 전달 방식은 폴링이며 저장 모델은 전송 방식과 분리한다. |
 | 기기 정보 저장 | 사용자 단위 기기명 저장 | 공유 그룹 관리 화면에서 방장/멤버별 주 사용 촬영 기기 태그를 표시해야 한다. 기기는 사용자에게 속한 표시용 정보로 관리하며 별도 유형은 두지 않는다. |
@@ -81,7 +81,9 @@ app_user.id       -> shared_group_chat_message.app_user_id
 shared_group.id   -> shared_group_membership.shared_group_id
 shared_group.id   -> shared_album.shared_group_id
 shared_group.id   -> shared_group_chat_message.shared_group_id
-shared_album.id   -> photo.shared_album_id
+shared_album.id   -> shared_album_photo.shared_album_id
+photo.id          -> shared_album_photo.photo_id
+device.id         -> photo.device_id
 ```
 
 ## 5. 명명 규칙
@@ -102,6 +104,7 @@ shared_album.id   -> photo.shared_album_id
 | 공유 그룹 멤버십 | `shared_group_membership` |
 | 공유집(앨범) | `shared_album` |
 | 사진 | `photo` |
+| 앨범-사진 매핑 | `shared_album_photo` |
 | 그룹 채팅 메시지 | `shared_group_chat_message` |
 
 ### 5.2 컬럼명
@@ -123,9 +126,9 @@ shared_album.id   -> photo.shared_album_id
 | 대상 | 형식 | 예시 |
 |---|---|---|
 | Primary Key | `pk_<table>` | `pk_app_user` |
-| Foreign Key | `fk_<table>__<referenced_table>` | `fk_photo__shared_album` |
+| Foreign Key | `fk_<table>__<referenced_table>` | `fk_photo__device` |
 | Unique Key | `uk_<table>__<columns>` | `uk_shared_group__invite_code` |
-| Index | `idx_<table>__<columns>` | `idx_photo__album_active_id` |
+| Index | `idx_<table>__<columns>` | `idx_photo__uploaded_by_app_user_id_deleted_at` |
 
 ## 6. 날짜/시간 컬럼 표준
 
@@ -166,12 +169,13 @@ Soft delete 대상 테이블에는 아래 컬럼을 추가한다.
 
 ## 7. 삭제 정책 표준
 
-- `app_user`, `shared_group`, `device`, `shared_album`, `photo`, `photo_comment`, `shared_group_chat_message`는 soft delete를 사용한다.
+- `app_user`, `shared_group`, `device`, `shared_album`, `photo`는 soft delete를 사용한다.
 - `app_user`는 Zipzip 서비스 탈퇴 시 `deleted_at`을 기록한다.
 - `app_user`는 재가입 복구를 위해 물리 삭제하지 않고, 탈퇴 시 `display_name`을 "탈퇴한 사용자"로 갱신한다.
 - `shared_group_membership`은 멤버 나가기 또는 Zipzip 서비스 탈퇴 시 물리 삭제한다.
 - `refresh_token`은 `revoked_at`과 `expires_at`으로 생명주기를 관리하고 `deleted_at`을 사용하지 않는다.
 - `photo_like`는 활성 공유 그룹 멤버이면서 해당 좋아요를 누른 사용자만 취소할 수 있다. 취소 또는 사용자 탈퇴 시 물리 삭제하고 `deleted_at`을 사용하지 않는다.
+- `photo_comment`, `shared_group_chat_message`는 휴지통 없이 작성자 삭제 시 즉시 물리 삭제하고 `deleted_at`을 사용하지 않는다.
 - soft delete 대상 데이터는 `deleted_at is not null`이면 삭제된 것으로 판단한다.
 - soft delete 대상 조회 API는 기본적으로 `deleted_at is null`인 데이터만 반환한다.
 - 활성 멤버십은 멤버십 행이 존재하고 상위 공유 그룹과 사용자가 모두 soft delete되지 않은 상태이다.
@@ -182,7 +186,7 @@ Soft delete 대상 테이블에는 아래 컬럼을 추가한다.
 - 공유 그룹 삭제 후 30일이 지나면 별도 배치가 Object Storage 객체와 DB 데이터를 물리 삭제한다.
 - 개별 삭제한 공유집(앨범)과 사진도 각 `deleted_at`으로부터 30일이 지나면 같은 배치 정책으로 물리 삭제한다.
 - 사진 원본 삭제는 `photo.deleted_at`으로 처리한다.
-- 공유집(앨범) 삭제 시 하위 사진은 조회에서 제외하고 물리 정리 시 함께 삭제한다.
+- 공유집(앨범) 삭제 시 해당 앨범-사진 매핑(`shared_album_photo`)은 즉시 물리 삭제한다. 다른 공유집(앨범)에도 속한 사진은 원본이 유지되지만, 그 공유집(앨범)이 마지막 소속이었던 사진은 원본도 함께 soft delete한다(사진은 공유 그룹에 직접 속하지 않고 공유집(앨범)을 통해서만 속하기 때문).
 - Object Storage 파일 삭제는 DB soft delete와 분리해 비동기로 처리한다.
 - Object Storage 객체 삭제가 필요한 사진은 객체 삭제가 성공했거나 삭제 재시도 작업을 기록한 뒤 DB 행을 물리 삭제한다.
 - 객체 삭제가 실패하고 재시도 작업도 기록하지 못하면 DB 행은 남겨 재시도한다.

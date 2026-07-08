@@ -14,12 +14,14 @@
 | DM-03 | 공유 위계 | 공유 탭, 공유 그룹, 공유집(앨범), 사진 순서로 모델링한다. |
 | DM-04 | 공유 그룹 | 초대 코드, 멤버십, 그룹 채팅은 공유 그룹에 속한다. |
 | DM-05 | 공유집(앨범) | 별도 `shared_house` 테이블을 두지 않고 공유집(앨범)을 `shared_album`으로 저장한다. |
-| DM-06 | 사진 소속 | 사진은 반드시 하나의 공유집(앨범)에 직접 속하며 `photo.shared_album_id`로 표현한다. |
+| DM-06 | 사진 소속 | 사진은 공유 그룹에 직접 속하지 않고, `shared_album_photo`로 하나 이상의 공유집(앨범)에 N:M으로 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진). 사진은 항상 1개 이상의 공유집(앨범)에 속해야 하며, 마지막 소속이 없어지면 사진도 함께 soft delete한다. |
 | DM-07 | 그룹 채팅 | 사진 댓글과 별도인 `shared_group_chat_message`를 사용한다. |
 | DM-08 | 초대 코드 | 공유 그룹이 존재하는 동안 `invite_code_reservation`으로 코드 점유를 보장하고, 공유 그룹 물리 삭제 시 예약 행도 삭제한다. |
-| DM-09 | 삭제 정책 | 사용자와 공유 콘텐츠 엔티티는 soft delete한다. 탈퇴한 사용자의 공유 콘텐츠는 보존하고 사용자 표시는 "탈퇴한 사용자"로 대체한다. 탈퇴 시 기기는 soft delete하고 사진 좋아요는 물리 삭제한다. 30일 뒤 Object Storage 객체와 DB 행을 물리 정리한다. |
-| DM-10 | 집계 | 공유집(앨범) 사진 수는 활성 사진 기준으로 실시간 count한다. |
+| DM-09 | 삭제 정책 | `app_user`, `shared_group`, `device`, `shared_album`, `photo`는 soft delete 후 30일 뒤 물리 정리한다. `shared_group_membership`, `shared_album_photo`, `photo_like`, `shared_group_chat_message`, `photo_comment`는 즉시 물리 삭제한다. 탈퇴한 사용자의 공유 콘텐츠는 보존하고 사용자 표시는 "탈퇴한 사용자"로 대체한다. |
+| DM-10 | 집계 | 공유집(앨범) 사진 수는 `shared_album_photo`와 `photo`를 조인해 활성 사진 기준으로 실시간 count한다. |
 | DM-11 | 시간 타입 | DB는 `timestamptz`, Java/JPA 엔티티는 `Instant`, API는 UTC ISO-8601 문자열을 사용한다. |
+| DM-12 | 사진 원본 저장 참조 | 사진 원본·썸네일은 URL이 아니라 Object Storage 객체 키(`original_object_key`, `thumbnail_object_key`)로 저장한다. API는 조회 시점에 presigned URL을 발급한다. 썸네일은 비동기로 생성하며 `thumbnail_status`(`PENDING`/`READY`/`FAILED`)로 진행 상태를 관리한다. |
+| DM-13 | 업로드 예약 | 업로드 URL 발급 시 `objectKey`를 요청 사용자·대상 공유집(앨범)·만료 시각과 함께 `photo_upload_reservation`에 기록한다. 완료 등록은 이 예약과 일치할 때만 `photo`를 생성하고 예약 행을 삭제해, 발급 대상 불일치와 재사용을 막는다. |
 
 ## 3. 현재 도메인 계층
 
@@ -29,9 +31,10 @@
     ├── 공유 그룹 멤버십(shared_group_membership)
     ├── 그룹 채팅 메시지(shared_group_chat_message)
     └── 공유집(앨범, shared_album)
-        └── 사진(photo)
-            ├── 사진 좋아요(photo_like)
-            └── 사진 댓글(photo_comment)
+        └── 앨범-사진 매핑(shared_album_photo)
+            └── 사진(photo)
+                ├── 사진 좋아요(photo_like)
+                └── 사진 댓글(photo_comment)
 ```
 
 ## 4. 주요 결정
@@ -68,19 +71,20 @@
 
 ### 4.3 DM-06. 사진 소속
 
-결정:
+결정 (재개정):
 
-- 사진은 `photo`에 저장한다.
-- 사진은 반드시 하나의 공유집(앨범)에 직접 속한다.
-- 소속은 `photo.shared_album_id`로 표현한다.
-- `shared_album_photo` 관계 테이블은 두지 않는다.
-- 사진을 다른 공유집(앨범)으로 옮기는 기능이 필요하면 `photo.shared_album_id` 변경으로 처리한다.
-- 같은 이미지를 여러 공유집(앨범)에 별도로 두려면 별도 사진 업로드 또는 복제 정책을 정의한다.
+- 사진은 `photo`에 저장한다. 공유 그룹을 가리키는 직접 FK는 두지 않는다 — 공유 위계(공유 그룹 > 공유집(앨범) > 사진)를 그대로 지킨다.
+- 사진과 공유집(앨범)의 소속 관계는 `shared_album_photo` 관계 테이블로 표현하는 N:M이다.
+- 사진의 "소속 공유 그룹"이 필요한 조회·검증은 `shared_album_photo` → `shared_album` → `shared_group`을 조인해 구한다.
+- 사진 업로드는 대상 공유집(앨범)에 사진을 만들면서 `shared_album_photo` 매핑도 함께 생성한다.
+- 같은 사진을 여러 공유집(앨범)에 담으려면 별도 사진 업로드 없이 `shared_album_photo` 행만 추가하되, 대상 공유집(앨범)은 반드시 그 사진의 기존 공유집(앨범)과 같은 공유 그룹에 속해야 한다.
+- 사진은 항상 1개 이상의 `shared_album_photo` 매핑을 가져야 한다. 공유집(앨범) 삭제나 명시적 제거로 사진의 마지막 매핑이 없어지면 사진도 함께 soft delete한다. 이 불변식은 DB 제약이 아니라 서비스 계층에서 강제한다.
 
-근거:
+결정 이력과 변경 사유:
 
-현재 제품 규칙에서는 공유집(앨범)에 속하지 않는 사진이 없다.
-따라서 사진 원본과 앨범 포함 관계를 N:M으로 분리하는 설계보다 직접 FK가 단순하고 명확하다.
+1. 최초 결정: 사진은 반드시 하나의 공유집(앨범)에 직접 속하며 `photo.shared_album_id`로 표현하고 `shared_album_photo` 관계 테이블은 두지 않는다.
+2. 1차 개정: 한 사진을 여러 공유집(앨범)에 중복 없이 담아야 하는 요구가 확인되어 N:M으로 개정했다. 이때 사진 조회·권한 검증을 단순하게 유지한다는 이유로 `photo.shared_group_id`라는 비정규화 직접 FK를 함께 추가했다.
+3. 2차 개정(현재): 1차 개정이 실수였다 — "공유 그룹에 사진이 직접 속한다"는 관계 자체가 제품의 공유 위계(공유 그룹 > 공유집(앨범) > 사진)와 어긋난다. 사진은 반드시 공유집(앨범)을 통해서만 그룹에 속해야 하고, 그래서 공유집(앨범) 삭제 시 "다른 공유집(앨범)에 있으면 매핑만 삭제, 없으면 사진도 함께 삭제"라는 캐스케이드가 성립한다. `photo.shared_group_id`가 남아 있으면 이 캐스케이드와 무관하게 사진이 "그냥 그룹에 남아 있는" 것처럼 보여 혼동을 준다. 그룹 조회가 필요하면 조인 비용을 감수하고 `shared_album_photo` 경로로만 구한다.
 
 ### 4.4 DM-07. 그룹 채팅
 
@@ -111,29 +115,37 @@
 
 ### 4.6 DM-09. 삭제 정책
 
-결정:
+결정 (개정):
 
-- `app_user`, `shared_group`, `device`, `shared_group_chat_message`, `shared_album`, `photo`, `photo_comment`는 soft delete한다.
-- `shared_group_membership`, `photo_like`는 물리 삭제한다.
+- `app_user`, `shared_group`, `device`, `shared_album`, `photo`는 soft delete한다.
+- `shared_group_membership`, `shared_album_photo`, `photo_like`, `shared_group_chat_message`, `photo_comment`는 즉시 물리 삭제한다. 휴지통이나 복구 기능은 제공하지 않는다.
 - 사용자 탈퇴 시 활성 Refresh Token을 폐기하고 `app_user.deleted_at`을 기록한다.
 - 사용자 탈퇴 시 `app_user.display_name`을 "탈퇴한 사용자"로 갱신하고, `app_user` 행은 재가입 복구를 위해 물리 삭제하지 않는다.
 - 사용자 탈퇴 시 방장으로 만든 공유 그룹은 soft delete하고, `MEMBER`로 참여 중인 공유 그룹 멤버십은 물리 삭제한다.
 - 사용자 탈퇴 시 활성 기기는 soft delete하고 사진 좋아요는 물리 삭제한다.
 - 탈퇴한 사용자가 기존에 생성·작성·업로드한 공유 콘텐츠는 즉시 삭제하지 않고 사용자 표시는 "탈퇴한 사용자"로 대체한다.
-- 공유 그룹, 공유집(앨범), 사진, 댓글, 그룹 채팅 메시지는 삭제 즉시 조회에서 제외한다.
+- 공유 그룹, 공유집(앨범), 사진은 삭제 즉시 조회에서 제외한다.
+- 공유집(앨범) 삭제(또는 사진의 명시적 제거)는 관련 `shared_album_photo` 매핑을 즉시 물리 삭제하고, 매핑이 0개가 된 사진도 함께 soft delete한다(DM-06 참고). 공유 그룹 삭제는 그 그룹의 모든 공유집(앨범)에 대해 이 과정을 적용한 결과와 같다.
 - 삭제 후 30일이 지나면 Object Storage 객체를 먼저 삭제하거나 삭제 재시도 작업을 기록한 뒤 DB 행을 물리 삭제한다.
 - Object Storage 객체 삭제가 실패하고 재시도 작업도 기록하지 못하면 DB 행은 남겨 재시도한다.
+
+이전 결정과 변경 사유:
+
+최초 결정은 `shared_group_chat_message`와 `photo_comment`도 다른 공유 콘텐츠와 함께 soft delete하는 것이었다.
+이후 배포·운영 계획에서 "휴지통 없는 즉시 영구 삭제"가 확정되면서, 기록성이 강하고 Object Storage 객체를 직접 참조하지 않는 이 두 테이블은 즉시 물리 삭제로 개정했다.
+반면 `photo`, `shared_album`, `shared_group`은 Object Storage 정리와 연동된 30일 유예 정책을 그대로 유지한다 — soft delete 유예가 필요한 이유가 파일 정리 순서 보장에 있고, 댓글·채팅 메시지는 그 문제가 없기 때문이다.
 
 근거:
 
 삭제 직후 접근 차단과 운영상 지연 정리를 함께 만족해야 한다.
 사진 파일은 외부 Object Storage 객체와 DB 행이 분리되어 있으므로, 객체 삭제 성공 여부를 기준으로 DB 물리 삭제를 안전하게 진행한다.
+댓글과 채팅 메시지는 파일을 참조하지 않아 이 지연 정리가 필요 없고, 즉시 삭제가 사용자 기대(삭제하면 바로 사라짐)에도 더 맞는다.
 
 ### 4.7 DM-10. 집계
 
 결정:
 
-- 공유집(앨범) 사진 수는 `photo.deleted_at is null`인 활성 사진 기준으로 실시간 count한다.
+- 공유집(앨범) 사진 수는 `shared_album_photo`와 `photo`를 조인해 `photo.deleted_at is null`인 활성 사진 기준으로 실시간 count한다.
 - 별도 집계 컬럼은 두지 않는다.
 
 근거:
@@ -155,6 +167,38 @@
 Zipzip은 여러 사용자와 기기가 함께 공유 콘텐츠를 조회하므로 서버와 DB의 시간 기준을 절대 시각으로 통일해야 한다.
 `timestamptz`와 `Instant` 조합은 UTC 기준 저장과 API 직렬화가 명확하고, 서버 기본 시간대나 실행 환경에 따라 같은 값이 다르게 해석되는 위험을 줄인다.
 
+### 4.9 DM-12. 사진 원본 저장 참조
+
+결정:
+
+- `photo`는 원본과 썸네일을 URL이 아니라 Object Storage 객체 키(`original_object_key`, `thumbnail_object_key`)로 저장한다.
+- API는 조회 시점마다 해당 객체 키로 presigned URL(원본은 GET, 업로드는 PUT)을 발급한다. 발급한 URL을 DB에 저장하지 않는다.
+- 사진 원본 업로드는 클라이언트가 presigned PUT URL로 Object Storage에 직접 업로드하고, 서버는 업로드 완료 등록 요청을 받은 뒤에야 `photo` 행을 생성한다.
+- 썸네일은 업로드 완료 등록 직후 서버가 비동기로 생성하며, 생성 진행 상태를 `photo.thumbnail_status`(`PENDING`/`READY`/`FAILED`)로 관리한다.
+- `original_object_key`는 unique 제약을 가진다.
+
+근거:
+
+원본 바이트가 서버를 거치지 않고 클라이언트와 Object Storage 사이에서 직접 오가야 작은 인스턴스로도 대량 원본 업로드를 감당할 수 있다.
+URL을 DB에 영구 저장하면 서명 만료·정책 변경에 대응하기 어렵고 접근 제어를 URL 자체에 의존하게 되므로, 대신 객체 키만 저장하고 API 응답 시점에 짧은 TTL의 presigned URL을 매번 새로 발급한다.
+썸네일 생성은 원본 다운로드·디코딩·리사이즈·재업로드를 수반하는 무거운 작업이라 업로드 응답을 막지 않도록 비동기로 분리하고, 재시작으로 작업이 유실돼도 원본이 이미 안전하게 저장돼 있으므로 `thumbnail_status`를 스윕으로 재처리할 수 있다.
+
+### 4.10 DM-13. 업로드 예약
+
+결정:
+
+- 업로드 URL 발급(PHOTO-02) 시 발급한 각 `objectKey`를 요청 사용자·대상 공유집(앨범)·만료 시각과 함께 `photo_upload_reservation`에 기록한다.
+- 완료 등록(PHOTO-03)은 각 `objectKey`에 대응하는 예약 행이 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않았을 때만 `photo`와 `shared_album_photo` 매핑을 생성한다.
+- 완료 등록에 성공하면 같은 트랜잭션에서 해당 예약 행을 물리 삭제한다. 예약 행이 없으면 발급받은 적이 없는 것과 동일하게(`UPLOAD_OBJECT_NOT_FOUND`) 처리하며, "발급된 적 없음"과 "이미 사용함"을 구분하지 않는다.
+- `invite_code_reservation`과 같이 상태 변경을 기록하지 않는 예약 테이블이므로 `objectKey` 자체를 PK로 쓰고 `updated_at`은 두지 않는다.
+- 만료된 미완료 예약과 대응하는 Object Storage 객체는 정기 스윕이 정리한다.
+
+근거:
+
+PR 리뷰에서 PHOTO-02가 발급 이력을 저장하지 않아 PHOTO-03이 `objectKey`의 발급 대상(사용자·공유집(앨범))과 재사용 여부를 검증할 수 없다는 지적을 받았다. Object Storage HEAD 확인과 `photo.original_object_key` unique 제약만으로는 이 사용자·이 공유집(앨범)에 정당하게 발급된 key인지 확인할 수 없다.
+HMAC 기반 무상태 completion token도 검토했지만, 재사용을 막으려면 결국 "사용됨" 상태를 어딘가에 저장해야 해 무상태의 이점이 사라지고, 만료된 발급 건에 대응하는 Object Storage 고아 객체를 찾는 스윕도 지원할 수 없다. 기존에 검증된 `invite_code_reservation` 패턴을 재사용하면 검증·재사용 방지·고아 객체 정리를 모두 하나의 테이블로 해결하면서 Redis 없이 PostgreSQL을 단일 진실 소스로 쓰는 기존 원칙과도 일관된다.
+`photo.thumbnail_status`는 `photo` 행이 이미 생성된 뒤의 비동기 썸네일 진행 상태를 추적하는 필드라 이 문제(행 생성 이전의 등록 요청 검증)와는 무관하다.
+
 ## 5. 서비스 계층 검증
 
 DB FK만으로 표현하지 않는 규칙은 서비스 계층과 통합 테스트로 강제한다.
@@ -163,23 +207,30 @@ DB FK만으로 표현하지 않는 규칙은 서비스 계층과 통합 테스�
 2. 공유 그룹 정보 수정과 삭제는 `HOST`만 허용한다.
 3. 공유집(앨범) 삭제는 `shared_album.created_by_app_user_id`와 요청 사용자가 같아야 한다. 생성자가 탈퇴한 경우 공유 그룹 `HOST`도 삭제할 수 있다.
 4. 사진 수정은 `photo.uploaded_by_app_user_id`와 요청 사용자가 같아야 한다. 사진 삭제도 원칙적으로 업로더만 허용하되, 업로더가 탈퇴한 경우 공유 그룹 `HOST`도 삭제할 수 있다.
-5. 사진이 속한 공유집(앨범)의 상위 공유 그룹과 요청 사용자의 멤버십을 함께 확인한다.
+5. 사진이 속한 공유 그룹과 요청 사용자의 멤버십을 함께 확인한다. 사진을 공유집(앨범)에 추가·제거할 때는 대상 공유집(앨범)이 사진과 같은 공유 그룹에 속하는지도 확인한다.
 6. 댓글과 그룹 채팅 메시지 수정·삭제는 작성자만 허용한다.
+7. 사진 업로드 완료 등록은 `objectKey`에 대응하는 `photo_upload_reservation`이 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않았는지 확인한다.
 
 ## 6. 완료 기준
 
 - [x] 공유 위계를 공유 그룹, 공유집(앨범), 사진으로 반영했다.
 - [x] `shared_house`를 별도 테이블로 두지 않고 `shared_album`으로 통합했다.
-- [x] 사진을 `photo.shared_album_id`로 공유집(앨범)에 직접 연결했다.
-- [x] `shared_album_photo` 관계 테이블을 제거했다.
+- [x] 사진은 공유 그룹에 직접 연결하지 않고 `shared_album_photo`를 통해서만 공유집(앨범)에 연결하도록 정정했다.
+- [x] `shared_album_photo` 관계 테이블을 추가해 사진과 공유집(앨범)을 N:M으로 연결했다.
+- [x] 사진이 항상 1개 이상의 공유집(앨범)에 속하도록 하는 불변식과, 마지막 소속이 없어질 때의 캐스케이드 soft delete 규칙을 정리했다.
 - [x] 그룹 채팅 메시지 저장 테이블을 반영했다.
 - [x] 초대 코드 예약과 공유 그룹 생명주기를 정리했다.
 - [x] soft delete와 30일 물리 정리 기준을 정리했다.
 - [x] 탈퇴한 사용자 표시와 탈퇴한 생성자·업로더 콘텐츠의 방장 삭제 권한을 정리했다.
 - [x] 사용자 탈퇴 시 기기 soft delete와 사진 좋아요 물리 삭제 정책을 정리했다.
 - [x] `timestamptz`와 `Instant` 기반 시간 타입 기준을 정리했다.
+- [x] 사진 댓글과 그룹 채팅 메시지를 soft delete에서 즉시 물리 삭제로 개정했다.
+- [x] 사진 원본·썸네일을 Object Storage 객체 키 저장 + presigned URL 발급 방식으로 정리했다.
+- [x] 썸네일 비동기 생성 진행 상태(`thumbnail_status`) 기준을 정리했다.
+- [x] `photo_upload_reservation`을 추가해 업로드 URL 발급 대상과 완료 등록 요청을 검증하도록 정리했다.
 
 ## 7. 남은 확인 사항
 
-1. 사진을 다른 공유집(앨범)으로 이동하는 기능을 1차 범위에 포함할지 확인
+1. 사진을 여러 공유집(앨범)에 추가·제거하는 UI 정책을 1차 범위에서 어디까지 지원할지 확인(API는 `PHOTO-07`/`PHOTO-08`로 확정됨)
 2. 공유 그룹 삭제와 Object Storage 객체 정리 배치 통합 테스트 작성
+3. presigned URL TTL 기본값, `photo_upload_reservation` 만료 시각 정책, 썸네일 생성 재시도(스윕) 주기 확정

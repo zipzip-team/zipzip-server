@@ -2,6 +2,8 @@ package org.zipzip.zipzipserver.domain.photo.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -14,7 +16,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
+import org.zipzip.zipzipserver.domain.device.entity.Device;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.global.jpa.BaseTimeEntity;
 
@@ -31,51 +33,80 @@ public class Photo extends BaseTimeEntity {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "shared_album_id", nullable = false)
-    private SharedAlbum sharedAlbum;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "uploaded_by_app_user_id", nullable = false)
     private AppUser uploadedByAppUser;
 
-    @Column(nullable = false, unique = true, columnDefinition = "text")
-    private String objectKey;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "device_id")
+    private Device device;
 
-    @Column(nullable = false, length = 255)
-    private String originalFileName;
+    @Column(nullable = false, unique = true, length = 500)
+    private String originalObjectKey;
 
-    @Column(nullable = false, length = 100)
-    private String contentType;
+    @Column(length = 500)
+    private String thumbnailObjectKey;
 
-    @Column(nullable = false)
-    private Long fileSize;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PhotoThumbnailStatus thumbnailStatus;
 
     private Instant takenAt;
+
+    private Double latitude;
+
+    private Double longitude;
+
+    @Column(length = 200)
+    private String locationName;
+
+    @Column(name = "is_inferred", nullable = false)
+    private boolean inferred;
+
+    private Integer width;
+
+    private Integer height;
 
     private Instant deletedAt;
 
     public static Photo create(
-            SharedAlbum sharedAlbum,
             AppUser uploadedByAppUser,
-            String objectKey,
-            String originalFileName,
-            String contentType,
-            Long fileSize,
-            Instant takenAt) {
+            Device device,
+            String originalObjectKey,
+            Instant takenAt,
+            Integer width,
+            Integer height) {
         return Photo.builder()
                 .id(UUID.randomUUID())
-                .sharedAlbum(sharedAlbum)
                 .uploadedByAppUser(uploadedByAppUser)
-                .objectKey(objectKey)
-                .originalFileName(originalFileName)
-                .contentType(contentType)
-                .fileSize(fileSize)
+                .device(device)
+                .originalObjectKey(originalObjectKey)
+                .thumbnailStatus(PhotoThumbnailStatus.PENDING)
                 .takenAt(takenAt)
+                .width(width)
+                .height(height)
+                .inferred(false)
                 .build();
     }
 
     public void updateTakenAt(Instant takenAt) {
         this.takenAt = takenAt;
+    }
+
+    public void applyLocation(
+            Double latitude, Double longitude, String locationName, boolean inferred) {
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.locationName = locationName;
+        this.inferred = inferred;
+    }
+
+    public void markThumbnailReady(String thumbnailObjectKey) {
+        this.thumbnailObjectKey = thumbnailObjectKey;
+        this.thumbnailStatus = PhotoThumbnailStatus.READY;
+    }
+
+    public void markThumbnailFailed() {
+        this.thumbnailStatus = PhotoThumbnailStatus.FAILED;
     }
 
     public void delete(Instant deletedAt) {

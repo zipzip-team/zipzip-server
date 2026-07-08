@@ -27,8 +27,9 @@
 | 공유 공간 | 공유 그룹 | `shared_group` | - | 테이블, 컬럼, API | 초대 코드, 멤버십, 채팅, 공유집(앨범)의 기준이 되는 최상위 공유 공간 |
 | 관계 | 공유 그룹 멤버십 | `shared_group_membership` | - | 테이블, 관계, 권한 설명 | 사용자와 공유 그룹 사이의 참여 관계 |
 | 공유 공간 | 공유집(앨범) | `shared_album` | - | 테이블, 컬럼, API | 공유 그룹 안에서 사진을 담는 하위 공간 |
-| 미디어 | 사진 | `photo` | - | 테이블, 컬럼, API | 공유집(앨범) 하위의 사진 원본 |
-| 미디어 | 촬영일시 | `taken_at` | - | 컬럼, API | 서버가 이미지 EXIF에서 추출하는 nullable 값. 없으면 `created_at`을 표시·정렬 기준으로 사용 |
+| 미디어 | 사진 | `photo` | - | 테이블, 컬럼, API | 공유 그룹에 업로드된 사진 원본 |
+| 관계 | 앨범-사진 매핑 | `shared_album_photo` | - | 테이블 | 사진과 공유집(앨범)의 N:M 소속 관계 |
+| 미디어 | 촬영일시 | `taken_at` | - | 컬럼, API | iOS가 이미지 EXIF에서 추출해 전달하는 nullable 값. 없으면 `created_at`을 표시·정렬 기준으로 사용 |
 | 관계 | 공유 그룹·공유집(앨범) 생성자 | `created_by_app_user_id` | - | 컬럼, API | 생성자 이력과 원칙적 삭제 권한 기준 |
 | 관계 | 사진 업로더 | `uploaded_by_app_user_id` | - | 컬럼, API | 사진 원본 수정·삭제의 원칙적 권한 기준 |
 | 사진 반응 | 사진 좋아요 | `photo_like` | - | 테이블, 컬럼, API | 사용자가 특정 사진에 좋아요를 누른 상태 |
@@ -56,7 +57,7 @@
 
 `share_tab` 하나에 여러 `shared_group`이 표시된다.
 `shared_group` 하나는 여러 `shared_album`을 가질 수 있다.
-사진은 반드시 하나의 `shared_album`에 직접 속한다.
+사진은 `shared_group`에 직접 속하지 않고, `shared_album_photo`를 통해서만 하나 이상의 `shared_album`에 속한다.
 기술 문서에서는 하단 탭 화면을 `공유 탭`, 초대와 채팅 단위를 `공유 그룹`, 사진 업로드와 조회 단위를 `공유집(앨범)`으로 구분한다.
 
 ## 5. 사용자와 멤버의 구분
@@ -82,9 +83,10 @@ shared_group
 ├── shared_group_membership
 ├── shared_group_chat_message
 └── shared_album
-    └── photo
-        ├── photo_like
-        └── photo_comment
+    └── shared_album_photo
+        └── photo
+            ├── photo_like
+            └── photo_comment
 
 invite_code_reservation
 └── shared_group
@@ -99,7 +101,8 @@ invite_code_reservation
 - `MEMBER`는 공유 그룹에 초대받은 멤버 역할이다.
 - `shared_group_chat_message`는 공유 그룹 안에서 작성된 일반 채팅 메시지이다.
 - `shared_album`은 공유 그룹 안에서 공유집(앨범)을 표현하고 사진을 담는 단위이다.
-- `photo`는 공유집(앨범) 안에 업로드된 사진 원본이다.
+- `photo`는 공유 그룹 안에서 업로드된 사진 원본이며, 공유 그룹에 직접 속하지 않고 `shared_album_photo`를 통해서만 공유집(앨범)에 속한다.
+- `shared_album_photo`는 사진과 공유집(앨범)의 N:M 소속 관계를 표현한다.
 - `shared_group.created_by_app_user_id`는 공유 그룹 최초 생성자 이력이다.
 - `shared_album.created_by_app_user_id`는 공유집(앨범) 삭제 권한의 원칙적 기준이다. 생성자가 탈퇴한 경우 공유 그룹 방장이 삭제할 수 있다.
 - `photo.uploaded_by_app_user_id`는 사진 원본 수정·삭제 권한의 원칙적 기준이다. 업로더가 탈퇴한 경우 공유 그룹 방장이 삭제할 수 있다.
