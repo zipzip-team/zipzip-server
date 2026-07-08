@@ -22,6 +22,7 @@
 | 날짜/시간 컬럼 | `created_at`, `updated_at` | 모든 주요 업무 테이블의 기본 생성/수정 시각을 일관되게 추적한다. |
 | Soft delete 컬럼 | `deleted_at` | soft delete 대상 테이블의 삭제 시각을 nullable 컬럼으로 관리한다. |
 | 날짜/시간 타입 | `timestamptz` | 시간대 정보를 안전하게 다룰 수 있고, DB 저장 기준을 UTC로 통일하기 좋다. |
+| Java 시간 타입 | `java.time.Instant` | PostgreSQL `timestamptz`와 UTC 기준 절대 시각을 그대로 매핑하고, 서버 기본 시간대에 따른 오해를 피한다. |
 | 삭제 정책 | 데이터 성격별 혼합 정책 | 사용자와 공유 콘텐츠 엔티티는 soft delete한다. Refresh Token은 폐기 상태로 관리한다. 공유 그룹 멤버십과 사진 좋아요는 물리 삭제한다. 개별 삭제한 공유집(앨범)·사진과 삭제된 공유 그룹 데이터는 30일 뒤 물리 삭제한다. |
 | Refresh Token 저장 | 원문 미저장, 해시 저장 | DB가 유출되어도 토큰 원문을 바로 사용할 수 없게 하며, 로그아웃/폐기 처리를 서버에서 제어할 수 있다. |
 | 사진 파일 저장 | 이미지 파일은 Object Storage 저장 | 바이너리 파일을 DB에 직접 저장하지 않고, OCI Object Storage에 저장한다. |
@@ -44,6 +45,7 @@
 - SQL DDL은 PostgreSQL 문법을 기준으로 작성한다.
 - UUID는 PostgreSQL native `uuid` 타입을 사용한다.
 - 날짜/시간은 `timestamptz` 타입을 사용한다.
+- JPA 엔티티의 날짜/시간 필드는 `java.time.Instant`를 사용한다.
 - 문자열은 길이 제한이 명확한 경우 `varchar(n)`, 길이 제한을 두기 어려운 경우 `text`를 사용한다.
 - JSON 형태의 동적 데이터가 꼭 필요한 경우에만 `jsonb`를 사용한다.
 
@@ -153,6 +155,14 @@ Soft delete 대상 테이블에는 아래 컬럼을 추가한다.
 - DB에는 UTC 기준으로 저장한다.
 - API 응답도 UTC ISO-8601 형식을 기본으로 한다.
 - 클라이언트 화면 표시 시간대는 앱에서 변환한다.
+
+### 6.4 Java/JPA 매핑 기준
+
+- DB의 `timestamptz` 컬럼은 JPA 엔티티에서 `java.time.Instant`로 매핑한다.
+- `LocalDateTime`은 시간대 정보가 없는 지역 시각이므로 도메인 엔티티의 영속 시간 타입으로 사용하지 않는다.
+- 서버가 생성·수정·삭제·만료·폐기 시각을 기록할 때는 UTC 기준 `Instant`를 저장한다.
+- API JSON에서는 `Instant`를 UTC ISO-8601 문자열로 직렬화한다.
+- 예: `2026-07-03T10:15:30Z`
 
 ## 7. 삭제 정책 표준
 

@@ -9,12 +9,16 @@
 | 사진 업로드 형식 | `multipart/form-data` |
 | 인증 | `Authorization: Bearer {accessToken}` |
 | 식별자 | UUID 문자열 |
-| 시간 | UTC ISO-8601 문자열. 예: `2026-07-03T10:15:30Z` |
+| 시간 | `java.time.Instant` 직렬화 기준의 UTC ISO-8601 문자열. 예: `2026-07-03T10:15:30Z` |
 | JSON 필드명 | `camelCase` |
 | 목록 페이지네이션 | 불투명 cursor 기반 |
 | 삭제 응답 | `200 OK`와 `data: null` |
 
 Apple 로그인과 토큰 갱신을 제외한 모든 API는 인증이 필요하다. 인증된 사용자라도 공유 그룹 내부 리소스에는 해당 공유 그룹의 활성 멤버십이 있어야 한다.
+
+시간 필드는 서버 내부에서 `Instant`로 다루며 API에서는 UTC `Z` 접미사가 붙은 ISO-8601 문자열로 주고받는다.
+클라이언트 화면 표시 시간대 변환은 앱에서 처리한다.
+서버는 `LocalDateTime`처럼 시간대가 없는 지역 시각을 API 계약 타입으로 사용하지 않는다.
 
 ## 2. Request Header
 

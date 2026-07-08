@@ -11,9 +11,26 @@
 - Gradle 명령은 JDK 21로 실행할 것.
 - 현재 로컬 기본 JDK가 21이 아닐 수 있으므로, 필요하면 `JAVA_HOME`을 JDK 21 경로로 지정해서 실행할 것.
 
+## 테스트 전략 규칙
+
+- 엔티티 골격, JPA 어노테이션, 생성 메서드, soft delete 필드 같은 도메인 기본 구조는 우선 순수 단위 테스트로 검증할 것.
+- 개발용 PostgreSQL 컨테이너를 그대로 테스트에 사용하지 말 것.
+- PostgreSQL 연동 테스트는 Flyway 마이그레이션, Repository, Service 권한 정책이 생기는 시점부터 도입할 것.
+- PostgreSQL 연동 테스트가 필요하면 개발 DB가 아니라 테스트 전용 DB 또는 Testcontainers를 사용할 것.
+- PostgreSQL 테스트는 매 실행마다 깨끗한 스키마에 `flyway migrate`가 적용되는 상태를 보장할 것.
+- PostgreSQL 전용 기능인 partial index, expression index, check constraint, FK, unique 제약은 H2 대신 PostgreSQL 기반 테스트에서 검증할 것.
+- Repository 테스트는 `@DataJpaTest` 또는 필요한 최소 Spring context를 사용하고, Service 권한 정책은 `@SpringBootTest` 또는 통합 테스트로 검증할 것.
+
 ## GitHub CLI 실행 규칙
 
 - GitHub 인증 토큰이 필요한 `gh` 작업은 샌드박스 외부에서 실행할 것.
+
+## 패키지 구조 규칙
+
+- `domain` 패키지는 도메인 모듈의 최상위 경계로 사용할 것.
+- JPA 엔티티 클래스는 도메인 모듈 하위의 `entity` 패키지에 둘 것.
+- 엔티티 클래스를 `domain/<module>/domain` 패키지에 두지 말 것.
+- 예시: `org.zipzip.zipzipserver.domain.user.entity.AppUser`
 
 ## Git Convention
 

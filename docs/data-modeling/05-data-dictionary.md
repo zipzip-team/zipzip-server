@@ -21,6 +21,15 @@
 | `photo_like` | 사진 좋아요 | 사용자가 사진에 좋아요를 누른 상태 |
 | `photo_comment` | 사진 댓글 | 단일 사진에 달리는 댓글 |
 
+### 2.1 Java 타입 매핑
+
+| DB 타입 | Java/JPA 타입 | API JSON 표현 |
+|---|---|---|
+| `uuid` | `java.util.UUID` | UUID 문자열 |
+| `timestamptz` | `java.time.Instant` | UTC ISO-8601 문자열. 예: `2026-07-03T10:15:30Z` |
+
+날짜/시간 컬럼은 서버 기본 시간대의 영향을 받지 않도록 `LocalDateTime`이 아니라 `Instant`로 매핑한다.
+
 ## 3. 테이블 상세
 
 ### 3.1 `app_user`
