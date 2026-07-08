@@ -169,8 +169,8 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 403 | `NOT_SHARED_ALBUM_CREATOR` | 생성자가 아닌 사용자의 앨범 삭제 |
 | 400 | `INVALID_UPLOAD_METADATA` | 사진 업로드 URL 발급·완료 등록 요청 검증 |
 | 400 | `TOO_MANY_FILES` | 한 요청의 사진 개수 제한 초과 |
-| 404 | `UPLOAD_OBJECT_NOT_FOUND` | 발급받지 않았거나 이미 등록에 사용한 `objectKey`로 완료 등록 시도 |
-| 409 | `UPLOAD_NOT_COMPLETED` | `objectKey`로 원본이 아직 업로드되지 않은 상태에서 완료 등록 시도 |
+| 404 | `UPLOAD_OBJECT_NOT_FOUND` | `objectKey`에 대응하는 유효한 업로드 예약이 없음(발급받은 적 없음, 다른 사용자·다른 공유집(앨범)에 발급됨, 이미 등록에 사용함, 만료됨을 모두 포함) |
+| 409 | `UPLOAD_NOT_COMPLETED` | 예약은 유효하지만 `objectKey`로 원본이 아직 업로드되지 않은 상태에서 완료 등록 시도 |
 | 400 | `INVALID_TAKEN_AT` | 촬영일시 UTC ISO-8601 형식 검증 |
 | 400 | `INVALID_PHOTO_LOCATION` | 사진 위치 필드 일부만 전달 |
 | 400 | `INVALID_PHOTO_IDS` | 사진 일괄 삭제·추가·제거 식별자 배열 검증 |

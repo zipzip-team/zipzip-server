@@ -18,6 +18,7 @@
 - 공유 플로우에서만 서버에 사진을 업로드한다.
 - 이미지 파일은 OCI Object Storage에 저장한다.
 - DB에는 Object Storage 참조에 필요한 최소 파일 정보만 저장한다.
+- 업로드용 presigned URL 발급은 `photo_upload_reservation`에 발급 대상(사용자·공유집(앨범))과 만료 시각을 기록하고, 완료 등록은 이 예약 행을 검증·소진해 발급 대상이 아닌 `objectKey` 등록과 재사용을 막는다.
 - 공유 그룹 관리 화면에서 방장/멤버별 기기 태그를 표시하기 위해 사용자 단위 기기명을 저장한다.
 - 그룹 채팅 메시지는 `shared_group_chat_message`에 저장하고 1차 구현은 폴링으로 조회한다.
 - 날짜별 사진 그룹은 촬영일 기준으로 표시하고 촬영일이 없으면 생성 시각을 사용한다.
@@ -81,12 +82,13 @@
 | 기기 | `device` | 필요 | 사용자 단위 기기 태그를 저장하고 공유 그룹 멤버별 표시에 사용한다. |
 | 그룹 채팅 메시지 | `shared_group_chat_message` | 필요 | 공유 그룹 안의 일반 채팅 메시지를 저장한다. |
 | 공유집(앨범) | `shared_album` | 필요 | 공유 그룹 안에서 사진을 담는 하위 단위를 저장한다. |
+| 사진 업로드 예약 원장 | `photo_upload_reservation` | 필요 | 발급한 업로드 `objectKey`를 요청 사용자·대상 공유집(앨범)과 함께 점유해, 완료 등록 시 발급 대상 검증과 재사용 방지 근거를 제공한다. |
 | 사진 | `photo` | 필요 | 공유 그룹에 업로드된 사진 원본의 Object Storage 참조 정보를 저장한다. |
 | 앨범-사진 매핑 | `shared_album_photo` | 필요 | 사진과 공유집(앨범)의 N:M 소속 관계를 저장한다. |
 | 사진 좋아요 | `photo_like` | 필요 | 사용자별 사진 좋아요 상태를 저장한다. |
 | 사진 댓글 | `photo_comment` | 필요 | 단일 사진에 달리는 댓글을 저장한다. |
 
-1차 모델은 12개 테이블이다.
+1차 모델은 13개 테이블이다.
 별도 `shared_house`, `chat_room`, `chat_message` 테이블은 두지 않는다.
 
 ## 5. 테이블별 설명
@@ -158,7 +160,20 @@ Access Token과 Refresh Token 원문은 DB에 저장하지 않는다.
 공유집(앨범) 이름 같은 정보 수정은 활성 공유 그룹 멤버가 할 수 있다.
 공유집(앨범) 삭제는 해당 공유집(앨범) 생성자가 할 수 있고, 생성자가 탈퇴한 사용자인 경우 상위 공유 그룹의 방장이 할 수 있다.
 
-### 5.9 `photo`
+### 5.9 `photo_upload_reservation`
+
+PHOTO-02에서 발급한 업로드 `objectKey`를 요청 사용자·대상 공유집(앨범)·만료 시각과 함께 예약하는 원장을 저장한다.
+
+필요한 이유:
+
+- PHOTO-03 완료 등록 시 `objectKey`가 실제로 이 사용자·이 공유집(앨범)에 발급됐는지 검증하는 근거 제공
+- 같은 `objectKey`로 완료 등록을 반복(재사용·재생)하는 것을 방지
+- 만료된 미완료 예약과 그에 대응하는 Object Storage 객체를 정기 스윕으로 정리하는 근거 제공
+
+`invite_code_reservation`과 같은 이유로 예약 행의 상태 변경을 기록하지 않고 `objectKey` 자체를 PK로 사용하며 `updated_at`을 두지 않는다.
+PHOTO-03 완료 등록에 성공하면 해당 예약 행을 즉시 물리 삭제한다. 따라서 예약 행이 없는 상태는 "발급된 적 없음"과 "이미 등록에 사용함"을 구분하지 않는다.
+
+### 5.10 `photo`
 
 사진 원본의 Object Storage 참조 정보를 저장한다. 공유 그룹에 직접 속하지 않고 `shared_album_photo`를 통해서만 공유집(앨범)에 속한다.
 
@@ -179,7 +194,7 @@ Access Token과 Refresh Token 원문은 DB에 저장하지 않는다.
 로컬 저장공간 또는 로컬 사진집에서 공유집(앨범)으로 사진을 불러오는 플로우는 사진 업로드로 처리한다.
 공유 사진 또는 공유 앨범을 로컬 저장공간으로 복사하는 플로우는 다운로드이며 서버 엔티티를 생성하지 않는다.
 
-### 5.10 `shared_album_photo`
+### 5.11 `shared_album_photo`
 
 사진과 공유집(앨범)의 N:M 소속 관계를 저장한다.
 
@@ -194,13 +209,13 @@ Access Token과 Refresh Token 원문은 DB에 저장하지 않는다.
 공유집(앨범)을 삭제하면 그 공유집(앨범)의 매핑을 모두 물리 삭제한다. 이때 다른 활성 공유집(앨범)에도 속한 사진은 원본을 유지하고, 방금 삭제한 공유집(앨범)이 마지막 소속이었던 사진은 함께 soft delete한다.
 사진을 특정 공유집(앨범)에서 명시적으로 제거할 때도 같은 규칙을 적용한다: 다른 공유집(앨범)에 남아 있으면 매핑만 제거하고, 마지막 소속이면 사진 원본도 soft delete한다.
 
-### 5.11 `photo_like`
+### 5.12 `photo_like`
 
 사용자가 특정 사진에 좋아요를 누른 상태를 저장한다.
 좋아요 취소 시 `photo_like` 행을 물리 삭제한다.
 사용자 탈퇴 시 해당 사용자의 `photo_like` 행도 물리 삭제해 활성 좋아요 수에 탈퇴 사용자를 포함하지 않는다.
 
-### 5.12 `photo_comment`
+### 5.13 `photo_comment`
 
 단일 사진에 달리는 댓글을 저장한다.
 댓글 작성, 수정, 삭제는 사진이 속한 공유 그룹 활성 멤버십을 요구한다.
@@ -227,6 +242,7 @@ app_user
 ├── shared_group_membership
 ├── shared_group_chat_message
 ├── shared_album
+├── photo_upload_reservation
 ├── photo
 ├── photo_like
 └── photo_comment
@@ -237,6 +253,7 @@ shared_group
 └── shared_album
 
 shared_album
+├── photo_upload_reservation
 └── shared_album_photo
 
 photo
@@ -249,6 +266,7 @@ photo
 - 한 공유 그룹은 하나의 `HOST` 멤버십만 가질 수 있다.
 - 한 공유 그룹은 여러 공유집(앨범)을 가질 수 있다. 사진은 공유 그룹에 직접 속하지 않는다.
 - 한 공유집(앨범)은 사진 없이 존재하거나 `shared_album_photo`를 통해 여러 사진을 가질 수 있다.
+- 한 공유집(앨범)과 한 사용자는 여러 `photo_upload_reservation`을 가질 수 있다. 완료 등록에 성공하거나 만료되면 해당 예약 행은 없어진다.
 - 한 사진은 `shared_album_photo`를 통해 하나 이상의 공유집(앨범)에 속해야 한다. 마지막 소속 공유집(앨범)이 없어지면 사진도 함께 soft delete한다.
 - 한 사진은 여러 좋아요와 댓글을 가질 수 있다.
 - 한 사용자는 여러 공유 그룹에 참여할 수 있다.
@@ -260,12 +278,13 @@ photo
 
 ## 8. ERD 설계 요약
 
-- 1차 ERD 대상은 `app_user`, `refresh_token`, `invite_code_reservation`, `shared_group`, `shared_group_membership`, `device`, `shared_group_chat_message`, `shared_album`, `photo`, `shared_album_photo`, `photo_like`, `photo_comment` 12개 테이블이다.
+- 1차 ERD 대상은 `app_user`, `refresh_token`, `invite_code_reservation`, `shared_group`, `shared_group_membership`, `device`, `shared_group_chat_message`, `shared_album`, `photo_upload_reservation`, `photo`, `shared_album_photo`, `photo_like`, `photo_comment` 13개 테이블이다.
 - 하단 네비게이션의 공유 탭은 테이블로 만들지 않는다.
 - 사진집 탭의 로컬 데이터는 서버 모델에 포함하지 않는다.
 - 초대 코드, 멤버십, 방장 역할, 관리, 그룹 채팅은 공유 그룹에 속한다.
 - 공유집(앨범)은 공유 그룹 아래에서 참여자들이 생성하는 사진 묶음이다.
 - 사진 원본은 공유 그룹에 직접 속하지 않고, `shared_album_photo`로 하나 이상의 공유집(앨범)에 속한다.
+- `photo_upload_reservation`은 업로드 URL 발급과 완료 등록 사이를 잇는 예약 원장이며, 완료 등록이 발급 대상이 아닌 사용자·공유집(앨범)이나 재사용된 `objectKey`를 받아들이지 않도록 한다.
 - 그룹 채팅 메시지는 `shared_group_chat_message`에 저장하며 1차 구현은 폴링 조회를 사용한다.
 - 사진 댓글은 `photo_comment`에 저장하며 사진 상세 기능에 속한다.
 - `photo_like`는 단순 좋아요 상태를 저장하고 취소 시 물리 삭제한다.
@@ -298,6 +317,7 @@ photo
 | `device` | `app_user_id`, `name`, `deleted_at` |
 | `shared_group_chat_message` | `shared_group_id`, `app_user_id`, `content` |
 | `shared_album` | `shared_group_id`, `created_by_app_user_id`, `name`, `deleted_at` |
+| `photo_upload_reservation` | `object_key`, `shared_album_id`, `requested_by_app_user_id`, `expires_at`, `created_at` |
 | `photo` | `uploaded_by_app_user_id`, `device_id`, `original_object_key`, `thumbnail_object_key`, `thumbnail_status`, `taken_at`, 위치·크기 메타데이터 컬럼, `deleted_at` |
 | `shared_album_photo` | `shared_album_id`, `photo_id` |
 | `photo_like` | `photo_id`, `app_user_id` |
@@ -307,7 +327,7 @@ photo
 
 - 주요 업무 테이블은 `id`, `created_at`, `updated_at`을 가진다.
 - soft delete 대상 테이블은 `deleted_at`을 가진다.
-- `invite_code_reservation`은 상태 변경을 기록하지 않으므로 `updated_at`을 두지 않는다.
+- `invite_code_reservation`, `photo_upload_reservation`은 상태 변경을 기록하지 않으므로 `updated_at`을 두지 않는다.
 - `shared_group_chat_message`, `photo_comment`는 즉시 물리 삭제하는 테이블이라 `deleted_at`을 두지 않는다.
 
 ## 10. FK와 삭제 규칙
@@ -324,6 +344,8 @@ photo
 | `shared_group_chat_message.app_user_id` | `app_user.id` | N:1 | restrict |
 | `shared_album.shared_group_id` | `shared_group.id` | N:1 | cascade |
 | `shared_album.created_by_app_user_id` | `app_user.id` | N:1 | restrict |
+| `photo_upload_reservation.shared_album_id` | `shared_album.id` | N:1 | cascade |
+| `photo_upload_reservation.requested_by_app_user_id` | `app_user.id` | N:1 | restrict |
 | `photo.uploaded_by_app_user_id` | `app_user.id` | N:1 | restrict |
 | `photo.device_id` | `device.id` | N:1 | set null |
 | `shared_album_photo.shared_album_id` | `shared_album.id` | N:1 | cascade |
@@ -359,6 +381,7 @@ PostgreSQL 보완 인덱스:
 - 공유집(앨범) 목록은 `shared_album(shared_group_id, deleted_at, created_at)`을 사용한다.
 - 공유집(앨범) 사진 목록은 `shared_album_photo(shared_album_id, created_at)`으로 매핑을 조회한 뒤 `photo`와 조인해 표시 시각으로 정렬한다.
 - 사진 댓글 목록은 `photo_comment(photo_id, created_at)`을 사용한다.
+- 만료된 미완료 업로드 예약 스윕은 `photo_upload_reservation(expires_at)`을 사용한다.
 
 ## 12. 검증 규칙
 
@@ -370,11 +393,12 @@ PostgreSQL 보완 인덱스:
 - 사진 업로드 시 대상 공유집(앨범)은 활성 상태이고 요청 사용자가 상위 공유 그룹의 활성 멤버여야 한다.
 - 같은 사진을 같은 공유집(앨범)에 중복으로 담을 수 없다.
 - 사진은 항상 1개 이상의 공유집(앨범)에 속해야 한다. 이 불변식은 DB 제약이 아니라 서비스 계층(공유집(앨범) 삭제, 사진 제거 처리)에서 강제한다.
+- 사진 업로드 완료 등록은 `objectKey`에 대응하는 `photo_upload_reservation`이 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않았을 때만 허용한다. 일치하지 않으면 발급받은 적 없는 것과 동일하게 취급한다.
 
 ## 13. 삭제와 정리 정책
 
 - `app_user`, `shared_group`, `device`, `shared_album`, `photo`는 soft delete한다.
-- `shared_group_membership`, `shared_album_photo`, `photo_like`, `shared_group_chat_message`, `photo_comment`는 물리 삭제한다.
+- `shared_group_membership`, `shared_album_photo`, `photo_like`, `shared_group_chat_message`, `photo_comment`, `photo_upload_reservation`은 물리 삭제한다.
 - 사용자 탈퇴 시 `app_user.deleted_at`을 기록하고 활성 Refresh Token을 폐기한다.
 - 사용자 탈퇴 시 `app_user.display_name`을 "탈퇴한 사용자"로 갱신하고 `app_user` 행은 재가입 복구를 위해 물리 삭제하지 않는다.
 - 사용자 탈퇴 시 방장으로 만든 공유 그룹은 soft delete하고, `MEMBER`로 참여 중인 공유 그룹 멤버십은 물리 삭제한다.
@@ -399,6 +423,8 @@ PostgreSQL 보완 인덱스:
 - Object Storage 객체 삭제가 필요한 사진은 원본·썸네일 객체 삭제가 성공했거나 삭제 재시도 작업을 기록한 뒤 DB 행을 물리 삭제한다.
 - Object Storage 객체 삭제가 실패하고 재시도 작업도 기록하지 못하면 DB 행은 남겨 재시도한다.
 - 공유 그룹 물리 삭제 시 해당 `invite_code_reservation` 행도 삭제해 초대 코드 점유를 해제한다.
+- 사진 업로드 완료 등록에 성공하면 해당 `photo_upload_reservation` 행을 같은 트랜잭션에서 물리 삭제한다.
+- 만료되었지만 완료 등록에 쓰이지 않은 `photo_upload_reservation` 행은 정기 스윕이 물리 삭제하고, 대응하는 Object Storage 객체가 남아 있으면 함께 정리한다.
 
 ## 14. 구현 체크리스트
 
@@ -427,6 +453,7 @@ PostgreSQL 보완 인덱스:
 - [x] 사진 원본·썸네일을 URL이 아닌 Object Storage 객체 키(`original_object_key`, `thumbnail_object_key`)로 저장하도록 반영했다.
 - [x] `photo.original_object_key`에 unique 제약을 적용했다.
 - [x] 비동기 썸네일 생성 진행 상태를 `photo.thumbnail_status`(`PENDING`/`READY`/`FAILED`)로 반영했다.
+- [x] `photo_upload_reservation`을 추가해 업로드 URL 발급 대상(사용자·공유집(앨범))과 재사용 여부를 완료 등록에서 검증할 수 있도록 했다.
 - [x] 사진 댓글과 그룹 채팅 메시지를 soft delete에서 즉시 물리 삭제로 전환하고 `deleted_at` 컬럼을 제거했다.
 - [x] 사진·공유집(앨범)의 개별 삭제 후 30일 정리를 위한 기준을 정의했다.
 - [x] 탈퇴한 사용자의 공유 콘텐츠 표시를 "탈퇴한 사용자"로 대체하도록 정의했다.
@@ -442,3 +469,4 @@ PostgreSQL 보완 인덱스:
 4. 그룹 채팅 읽음 상태와 알림 정책 필요 여부 확인
 5. 공유 그룹 삭제와 Object Storage 객체 정리 배치 통합 테스트 작성
 6. 썸네일 비동기 생성 파이프라인(원본 다운로드, 리사이즈, 재업로드, 재시도 스윕) 구현
+7. 만료된 `photo_upload_reservation` 정리와 대응 Object Storage 고아 객체 스윕 배치 구현

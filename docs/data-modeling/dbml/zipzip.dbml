@@ -161,6 +161,22 @@ Table shared_album {
   Note: '공유 그룹 참여자가 생성하는 공유집(앨범)이며 shared_album_photo를 통해 사진을 담는다. 사진 없이도 존재할 수 있으며 활성 멤버가 이름을 수정할 수 있다. 삭제는 생성자 또는 탈퇴한 생성자의 공유 그룹 방장이 할 수 있다.'
 }
 
+Table photo_upload_reservation {
+  object_key varchar(500) [pk, not null, note: '발급된 업로드 presigned PUT URL의 대상 객체 키']
+  shared_album_id uuid [not null, note: '업로드 URL을 발급받은 대상 공유집(앨범) 식별자']
+  requested_by_app_user_id uuid [not null, note: '업로드 URL 발급을 요청한 사용자 식별자']
+  expires_at timestamptz [not null, note: '예약 만료 시각. presigned PUT URL 만료 시각과 맞춘다']
+  created_at timestamptz [not null, default: `now()`, note: '업로드 URL 발급 시각']
+
+  indexes {
+    shared_album_id [name: 'idx_photo_upload_reservation__shared_album_id']
+    requested_by_app_user_id [name: 'idx_photo_upload_reservation__requested_by_app_user_id']
+    expires_at [name: 'idx_photo_upload_reservation__expires_at']
+  }
+
+  Note: '사진 업로드 URL 발급(PHOTO-02)과 완료 등록(PHOTO-03) 사이를 잇는 예약 원장. 완료 등록은 objectKey에 대응하는 행이 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않았을 때만 photo 행을 생성하며, 성공하면 이 행을 물리 삭제한다. 만료된 미완료 행은 정기 스윕이 정리한다. 주요 업무 엔티티가 아니므로 UUID id와 updated_at을 두지 않는 표준 예외다.'
+}
+
 Table photo {
   id uuid [pk, not null, note: '애플리케이션에서 생성하는 사진 식별자']
   uploaded_by_app_user_id uuid [not null, note: '사진을 업로드한 사용자이며 원본 수정과 삭제 권한의 원칙적 기준']
@@ -254,6 +270,9 @@ Ref fk_shared_group_chat_message__app_user: app_user.id < shared_group_chat_mess
 Ref fk_shared_album__shared_group: shared_group.id < shared_album.shared_group_id [delete: cascade, update: no action]
 Ref fk_shared_album__created_by_app_user: app_user.id < shared_album.created_by_app_user_id [delete: restrict, update: no action]
 
+Ref fk_photo_upload_reservation__shared_album: shared_album.id < photo_upload_reservation.shared_album_id [delete: cascade, update: no action]
+Ref fk_photo_upload_reservation__requested_by_app_user: app_user.id < photo_upload_reservation.requested_by_app_user_id [delete: restrict, update: no action]
+
 Ref fk_photo__uploaded_by_app_user: app_user.id < photo.uploaded_by_app_user_id [delete: restrict, update: no action]
 Ref fk_photo__device: device.id < photo.device_id [delete: set null, update: no action]
 
@@ -281,6 +300,7 @@ TableGroup shared_group_domain [note: '공유 그룹, 참여 관계, 표시용 �
 
 TableGroup shared_content_domain [note: '공유집(앨범)과 사진 상호작용'] {
   shared_album
+  photo_upload_reservation
   photo
   shared_album_photo
   photo_like

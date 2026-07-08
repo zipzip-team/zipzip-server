@@ -69,16 +69,17 @@
 
 **결정.** 원본을 API 서버로 스트리밍하지 않는다. 서버는 스토리지 접근 자격을 갖고, 클라이언트가 자격 없이 한 번만 쓸 수 있는 **서명된 임시 URL(presigned URL)** 을 발급한다.
 
-- iOS가 업로드 URL 요청 → 서버가 "PUT · 이 객체 키 · N분 만료" 조건을 서명해 URL 반환
+- iOS가 업로드 URL 요청 → 서버가 "PUT · 이 객체 키 · N분 만료" 조건을 서명해 URL 반환하고, 발급한 객체 키를 요청 사용자·대상 앨범·만료 시각과 함께 `photo_upload_reservation`에 예약해 둔다
 - iOS가 그 URL로 원본을 Object Storage에 **직접 PUT** (서버를 거치지 않음)
 - 서명 검증은 API 서버가 아니라 **Object Storage** 가 수행
+- 완료 등록은 `photo_upload_reservation`에서 발급 대상(요청 사용자·앨범)이 일치하고 만료되지 않은 예약을 확인한 뒤에만 `photo` 행을 생성하고, 성공하면 그 예약 행을 지운다. 이 확인이 없으면 다른 사용자·다른 앨범에 발급된 객체 키나 이미 등록에 쓰인 객체 키도 그대로 등록될 수 있다
 - 다운로드도 대칭으로 presigned **GET** URL 발급 (원본·썸네일 모두)
 
-**근거.** 파일 트래픽이 서버 메모리·대역폭을 전혀 쓰지 않는다. 이 구조가 없으면 원본 화질 대량 업로드 자체가 불가능하다. IAM은 **서버 한 곳**에만 필요하며 사용자 수와 무관하다(사용자는 서명된 URL만 받을 뿐 IAM 신원이 없다).
+**근거.** 파일 트래픽이 서버 메모리·대역폭을 전혀 쓰지 않는다. 이 구조가 없으면 원본 화질 대량 업로드 자체가 불가능하다. IAM은 **서버 한 곳**에만 필요하며 사용자 수와 무관하다(사용자는 서명된 URL만 받을 뿐 IAM 신원이 없다). 예약 테이블은 Object Storage 서명 검증이 놓치는 "발급 대상이 맞는가·재사용은 아닌가"를 DB 트랜잭션으로 보강한다.
 
-**주의.** 업로드는 성공했는데 완료 등록이 실패하면 orphan 객체가 생긴다. MVP에선 감수하고 스윕으로 정리. 업로드 제약(content-length·content-type)은 서명에 포함, 만료는 짧게, 객체 키는 UUID 기반.
+**주의.** 업로드는 성공했는데 완료 등록이 실패하면 orphan 객체가 생긴다. MVP에선 감수하고 스윕으로 정리(만료된 미완료 `photo_upload_reservation`도 같은 스윕이 정리). 업로드 제약(content-length·content-type)은 서명에 포함, 만료는 짧게, 객체 키는 UUID 기반.
 
-이 결정의 API 계약은 `docs/apidoc/07-photo-management.md`의 PHOTO-02(업로드 URL 발급)·PHOTO-03(완료 등록)에, 데이터 모델 근거는 `docs/data-modeling/decisions/data-model-decision-log.md`의 DM-12에 있다.
+이 결정의 API 계약은 `docs/apidoc/07-photo-management.md`의 PHOTO-02(업로드 URL 발급)·PHOTO-03(완료 등록)에, 데이터 모델 근거는 `docs/data-modeling/decisions/data-model-decision-log.md`의 DM-12·DM-13에 있다.
 
 ### 4.2 썸네일 — 서버 생성 (JPEG 전제)
 
@@ -230,11 +231,13 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[iOS: 업로드 URL 배치 요청] --> B["서버: presigned PUT URL N개 발급 (PHOTO-02)"]
+    A[iOS: 업로드 URL 배치 요청] --> B["서버: presigned PUT URL N개 발급 (PHOTO-02) · photo_upload_reservation 기록"]
     B --> C[iOS: 원본 병렬 직접 업로드]
     C --> D[Object Storage: 서명·만료 검증]
     D --> E["iOS: 완료 등록 배치 · sharedAlbumId 필수 (PHOTO-03)"]
-    E --> F[서버: 한 트랜잭션에 photo + shared_album_photo 생성 · thumbnailStatus PENDING]
+    E --> E2{photo_upload_reservation 일치·미만료?}
+    E2 -->|아니오| E3[404 UPLOAD_OBJECT_NOT_FOUND]
+    E2 -->|예| F[서버: 한 트랜잭션에 photo + shared_album_photo 생성 · 예약 행 삭제 · thumbnailStatus PENDING]
     F --> G[즉시 응답]
     G --> H[멤버에게 업로드 푸시 · N장 묶음]
     G --> I[후처리 풀에 제출 → 5.4]

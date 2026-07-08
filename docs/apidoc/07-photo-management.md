@@ -112,6 +112,7 @@
 한 요청에서 최대 20개까지 원본 업로드용 presigned PUT URL을 발급한다.
 이 단계에서는 아직 `photo` 행을 만들지 않는다. 발급한 URL로 실제 업로드가 끝난 뒤 [PHOTO-03 사진 업로드 완료 등록](#4-photo-03-사진-업로드-완료-등록)을 호출해야 사진이 생성된다.
 발급한 각 URL은 정해진 시간 안에 정해진 `objectKey`로만 `PUT` 할 수 있도록 서명 조건에 파일 크기·MIME type 제약을 포함한다.
+서버는 발급한 각 `objectKey`를 요청 사용자·대상 공유집(앨범)·만료 시각과 함께 `photo_upload_reservation`에 기록한다. 이 예약 행은 PHOTO-03이 `objectKey`의 발급 대상(사용자·공유집(앨범))과 재사용 여부를 검증하는 근거이며, 완료 등록에 성공하면 삭제한다. 만료된 미완료 예약과 그에 대응하는 Object Storage 객체는 정기 스윕이 정리한다.
 
 ### Request
 
@@ -181,7 +182,8 @@
 ## 4. PHOTO-03 사진 업로드 완료 등록
 
 [PHOTO-02](#3-photo-02-사진-업로드-url-발급)에서 발급받은 `objectKey`로 원본을 직접 업로드한 뒤, 업로드가 끝난 파일들을 한 번에 등록한다.
-서버는 각 `objectKey`의 업로드 완료 여부를 Object Storage에서 확인한 뒤 한 트랜잭션으로 `photo`와 요청 경로 공유집(앨범)에 대한 `shared_album_photo` 매핑을 함께 생성한다. 이 매핑이 사진의 유일한 소속이 되며, 사진은 공유 그룹에 직접 속하지 않는다(응답의 `sharedGroupId`는 이 매핑을 통해 조회 시점에 계산한 값이다).
+서버는 각 `objectKey`에 대해 (1) 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않은 `photo_upload_reservation` 행이 있는지, (2) Object Storage에 실제 업로드가 끝났는지를 확인한다. 두 조건을 모두 만족하면 한 트랜잭션으로 `photo`와 `shared_album_photo` 매핑을 생성하고 해당 예약 행을 삭제한다. 이 매핑이 사진의 유일한 소속이 되며, 사진은 공유 그룹에 직접 속하지 않는다(응답의 `sharedGroupId`는 이 매핑을 통해 조회 시점에 계산한 값이다).
+예약 행이 없으면(발급된 적이 없거나, 다른 사용자·다른 공유집(앨범)에 발급됐거나, 이미 등록에 사용됐거나, 만료됨) `objectKey`를 신뢰하지 않는다.
 생성된 사진의 `thumbnailStatus`는 `PENDING`으로 시작하며, 서버가 즉시 비동기 썸네일 생성 작업에 제출한다.
 전체 요청은 원자적으로 처리하며 한 파일이라도 검증에 실패하면 전체를 실패 처리한다(이미 Object Storage에 올라간 원본 객체는 남아있을 수 있으며 정기 스윕이 정리한다).
 촬영일시·위치·이미지 크기는 iOS가 EXIF에서 추출해 값을 넘긴 경우에만 저장하고, 넘기지 않으면 `null`로 보존한다.
@@ -278,8 +280,8 @@
 | 400 | `INVALID_UPLOAD_METADATA` | `files`가 비었거나 20개를 초과하거나 필드 형식이 잘못됨 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 공유집(앨범) 또는 활성 멤버십이 없음 |
 | 404 | `DEVICE_NOT_FOUND` | `deviceId`가 요청 사용자의 활성 기기가 아님 |
-| 404 | `UPLOAD_OBJECT_NOT_FOUND` | `objectKey`를 발급받은 적이 없거나 이미 등록에 사용함 |
-| 409 | `UPLOAD_NOT_COMPLETED` | `objectKey`로 원본이 아직 업로드되지 않음 |
+| 404 | `UPLOAD_OBJECT_NOT_FOUND` | `objectKey`에 대응하는 `photo_upload_reservation`이 없음(발급받은 적 없음, 다른 사용자·다른 공유집(앨범)에 발급됨, 이미 등록에 사용함, 만료됨을 모두 포함) |
+| 409 | `UPLOAD_NOT_COMPLETED` | 예약은 유효하지만 `objectKey`로 원본이 아직 Object Storage에 업로드되지 않음 |
 
 ## 5. PHOTO-04 사진 메타데이터 수정
 

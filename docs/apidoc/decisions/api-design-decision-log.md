@@ -24,6 +24,7 @@
 | API-09 | 사진·공유집(앨범) 경계 | 사진은 공유 그룹에 직접 속하지 않고 `shared_album_photo` N:M 관계로만 공유집(앨범)에 속하며, 전용 추가·제거 API로 관리. 사진은 항상 1개 이상의 공유집(앨범)에 속해야 한다 |
 | API-10 | 그룹 채팅 | 그룹 채팅 메시지는 사진 댓글과 별도로 저장 |
 | API-11 | 시간 표현 | 서버 `Instant`를 UTC ISO-8601 문자열로 직렬화해 요청·응답 계약에 사용 |
+| API-12 | 업로드 발급-등록 무결성 | `photo_upload_reservation`으로 PHOTO-02 발급 대상과 PHOTO-03 등록 요청을 연결해 발급 대상 불일치와 재사용을 검증 |
 
 ## 3. API-01. Notion index 분류
 
@@ -232,7 +233,24 @@ API 버전을 URI에 명시해 iOS와 서버의 계약 변경 범위를 분리�
 API 소비자는 여러 시간대의 기기일 수 있으므로 서버가 지역 시각을 의미하는 값을 내려주면 표시와 정렬 기준이 흔들릴 수 있다.
 `Instant`와 UTC ISO-8601 문자열을 사용하면 DB 저장값, 서버 DTO, iOS 표시 변환의 경계가 명확해진다.
 
-## 14. 후속 구현 체크리스트
+## 14. API-12. 업로드 발급-등록 무결성
+
+### 결정
+
+- PHOTO-02는 발급한 각 `objectKey`를 요청 사용자·대상 공유집(앨범)·만료 시각과 함께 `photo_upload_reservation`에 기록한다.
+- PHOTO-03은 각 `objectKey`에 대응하는 `photo_upload_reservation`이 (1) 요청 사용자, (2) 요청 경로 공유집(앨범)과 일치하고, (3) 만료되지 않았는지 확인한 뒤에만 `photo` 행을 생성한다. 세 조건 중 하나라도 어긋나면 발급받은 적이 없는 것과 동일하게 `404 UPLOAD_OBJECT_NOT_FOUND`로 응답한다.
+- 완료 등록에 성공하면 해당 예약 행을 같은 트랜잭션에서 물리 삭제해 재사용(같은 `objectKey`로 반복 등록)을 막는다.
+- 만료된 미완료 예약과 대응하는 Object Storage 객체는 정기 스윕이 정리한다.
+
+### 판단 이유
+
+PHOTO-02가 발급 이력을 저장하지 않으면 PHOTO-03이 `objectKey`의 발급 대상(사용자·공유집(앨범))과 재사용 여부를 검증할 방법이 없다는 문제가 있었다. Object Storage HEAD 확인과 `photo.original_object_key` unique 제약만으로는 "이 사용자·이 공유집(앨범)에 발급된 key인가"를 확인할 수 없고, 다른 공유집(앨범)에서 발급받은 `objectKey`를 다른 경로로 등록하는 것도 막지 못한다.
+
+대안으로 HMAC 기반 서명 completion token도 검토했다. 하지만 토큰만으로는 재사용 방지를 위해 결국 "사용됨" 상태를 어딘가에 저장해야 하므로 무상태라는 장점이 실질적이지 않고, 만료된 발급 건에 대응하는 Object Storage 고아 객체를 찾아 정리하는 스윕(`docs/architecture/backend-architecture.md` 4.1)도 지원할 수 없다. `invite_code_reservation`과 같은 예약 테이블 패턴을 그대로 재사용하는 편이 검증·재사용 방지·고아 객체 정리 세 가지 요구를 모두 충족하면서 기존 아키텍처(Redis 없이 PostgreSQL을 단일 진실 소스로 사용)와도 일관된다.
+
+`photo.thumbnail_status`(`PENDING`/`READY`/`FAILED`)는 이 문제와 무관하다. `thumbnail_status`는 `photo` 행이 이미 생성된 뒤 비동기 썸네일 생성 진행 상태를 추적하는 필드이고, 이번 문제는 `photo` 행이 생성되기 전 PHOTO-03이 등록 요청 자체의 정당성을 검증하는 단계에서 발생한다.
+
+## 15. 후속 구현 체크리스트
 
 - [ ] PostgreSQL `api_idempotency_record` 마이그레이션과 정리 배치 구현
 - [ ] 인증 응답 snapshot 암호화와 민감 정보 로그 마스킹 적용
@@ -241,6 +259,8 @@ API 소비자는 여러 시간대의 기기일 수 있으므로 서버가 지역
 - [ ] 공유집(앨범) 삭제 후 앨범-사진 매핑 접근 차단과 30일 정리, 사진 원본 보존 테스트
 - [ ] PHOTO-07/PHOTO-08 추가·제거 API의 멱등성과 공유 그룹 일치 검증 테스트
 - [ ] PHOTO-02/PHOTO-03 presigned 업로드 흐름의 만료·재시도·부분 실패 시나리오 테스트
+- [ ] `photo_upload_reservation` 발급 대상 불일치(다른 사용자·다른 공유집(앨범))와 재사용 시도에 대한 PHOTO-03 거부 테스트
+- [ ] 만료된 `photo_upload_reservation`과 대응 Object Storage 고아 객체 정리 스윕 배치 구현
 - [ ] 조회 시점마다 새로 발급하는 `originalUrl`/`thumbnailUrl`과 만료 시각 응답 계약 테스트
 - [ ] 그룹 채팅 메시지 폴링 조회와 작성자 권한 통합 테스트
 - [ ] WebSocket 실시간 전달을 도입할 경우 별도 API 의사결정 작성

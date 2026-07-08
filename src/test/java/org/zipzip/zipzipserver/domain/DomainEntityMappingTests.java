@@ -14,6 +14,7 @@ import org.zipzip.zipzipserver.domain.chat.entity.SharedGroupChatMessage;
 import org.zipzip.zipzipserver.domain.device.entity.Device;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
+import org.zipzip.zipzipserver.domain.photo.entity.PhotoUploadReservation;
 import org.zipzip.zipzipserver.domain.reaction.entity.PhotoComment;
 import org.zipzip.zipzipserver.domain.reaction.entity.PhotoLike;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
@@ -110,6 +111,26 @@ class DomainEntityMappingTests {
         photo.markThumbnailFailed();
 
         assertThat(photo.getThumbnailStatus()).isEqualTo(PhotoThumbnailStatus.FAILED);
+    }
+
+    @Test
+    void photoUploadReservationIsUsableOnlyByMatchingUserAndAlbumBeforeExpiry() {
+        AppUser owner = AppUser.create("apple-subject-owner", "업로더");
+        AppUser stranger = AppUser.create("apple-subject-stranger", "다른 사용자");
+        SharedGroup sharedGroup =
+                SharedGroup.create(owner, "공유 그룹", InviteCodeReservation.create("INVITE1"));
+        SharedAlbum sharedAlbum = SharedAlbum.create(sharedGroup, owner, "앨범");
+        SharedAlbum otherAlbum = SharedAlbum.create(sharedGroup, owner, "다른 앨범");
+        Instant expiresAt = Instant.parse("2026-07-08T04:00:00Z");
+        PhotoUploadReservation reservation =
+                PhotoUploadReservation.create(
+                        "photos/385ff765/original.jpg", sharedAlbum, owner, expiresAt);
+
+        assertThat(reservation.isUsableBy(sharedAlbum, owner, expiresAt.minusSeconds(1))).isTrue();
+        assertThat(reservation.isUsableBy(sharedAlbum, stranger, expiresAt.minusSeconds(1)))
+                .isFalse();
+        assertThat(reservation.isUsableBy(otherAlbum, owner, expiresAt.minusSeconds(1))).isFalse();
+        assertThat(reservation.isUsableBy(sharedAlbum, owner, expiresAt.plusSeconds(1))).isFalse();
     }
 
     @Test

@@ -17,6 +17,7 @@
 | `device` | 기기 | 사용자의 주 사용 촬영 기기 표시용 태그 |
 | `shared_group_chat_message` | 그룹 채팅 메시지 | 공유 그룹 안에서 작성하는 일반 채팅 메시지 |
 | `shared_album` | 공유집(앨범) | 공유 그룹 안에서 사진을 담는 단위 |
+| `photo_upload_reservation` | 사진 업로드 예약 원장 | 발급된 업로드 `objectKey`의 발급 대상(사용자·공유집(앨범)) 점유 예약 테이블 |
 | `photo` | 사진 | 공유 그룹에 업로드된 사진 원본의 Object Storage 참조 |
 | `shared_album_photo` | 앨범-사진 매핑 | 사진과 공유집(앨범)의 N:M 소속 관계 |
 | `photo_like` | 사진 좋아요 | 사용자가 사진에 좋아요를 누른 상태 |
@@ -194,7 +195,26 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - 생성과 수정은 활성 공유 그룹 멤버만 가능
 - 삭제는 생성자 또는 탈퇴한 생성자의 공유 그룹 방장만 가능
 
-### 3.9 `photo`
+### 3.9 `photo_upload_reservation`
+
+PHOTO-02에서 발급한 업로드 `objectKey`의 발급 대상 점유를 예약하는 테이블이다.
+PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않은 행을 찾아야만 진행하며, 성공하면 해당 행을 물리 삭제한다.
+
+| 컬럼 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `object_key` | `varchar(500)` | O | 예약된 업로드 객체 키이자 PK |
+| `shared_album_id` | `uuid` | O | 발급 대상 공유집(앨범) |
+| `requested_by_app_user_id` | `uuid` | O | 발급을 요청한 사용자 |
+| `expires_at` | `timestamptz` | O | 예약 만료 시각. presigned PUT URL 만료 시각과 맞춘다 |
+| `created_at` | `timestamptz` | O | 발급 시각 |
+
+주요 제약:
+
+- 완료 등록 성공 시 행을 즉시 물리 삭제(재사용 방지)
+- 만료된 미완료 행은 정기 스윕이 물리 삭제하고, 대응하는 Object Storage 객체가 있으면 함께 정리
+- 상위 `shared_album` 삭제 시 cascade로 함께 삭제
+
+### 3.10 `photo`
 
 사진 원본의 파일 참조 정보를 저장한다.
 사진은 공유 그룹에 직접 속하지 않고, `shared_album_photo`를 통해서만 하나 이상의 공유집(앨범)에 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진).
@@ -226,7 +246,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - 항상 1개 이상의 `shared_album_photo` 매핑을 가져야 한다(서비스 계층에서 강제)
 - 업로드 완료 등록 시 `thumbnail_status`는 `PENDING`으로 시작하고, 백그라운드 썸네일 생성 결과에 따라 `READY` 또는 `FAILED`로 갱신
 
-### 3.10 `shared_album_photo`
+### 3.11 `shared_album_photo`
 
 사진과 공유집(앨범)의 N:M 소속 관계를 저장한다.
 
@@ -244,7 +264,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - 매핑 삭제(공유집(앨범) 삭제, 사진 제거)로 어떤 사진의 매핑이 0개가 되면 그 사진도 함께 soft delete한다
 - 같은 사진을 같은 공유집(앨범)에 중복으로 담을 수 없음
 
-### 3.11 `photo_like`
+### 3.12 `photo_like`
 
 사용자가 특정 사진에 좋아요를 누른 상태이다.
 
@@ -261,7 +281,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - `photo_id`, `app_user_id` unique
 - 좋아요 취소 또는 사용자 탈퇴 시 행을 물리 삭제
 
-### 3.12 `photo_comment`
+### 3.13 `photo_comment`
 
 단일 사진에 달리는 댓글이다.
 
@@ -296,6 +316,8 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 | `fk_shared_group_chat_message__app_user` | `shared_group_chat_message.app_user_id` -> `app_user.id` | restrict |
 | `fk_shared_album__shared_group` | `shared_album.shared_group_id` -> `shared_group.id` | cascade |
 | `fk_shared_album__created_by_app_user` | `shared_album.created_by_app_user_id` -> `app_user.id` | restrict |
+| `fk_photo_upload_reservation__shared_album` | `photo_upload_reservation.shared_album_id` -> `shared_album.id` | cascade |
+| `fk_photo_upload_reservation__requested_by_app_user` | `photo_upload_reservation.requested_by_app_user_id` -> `app_user.id` | restrict |
 | `fk_photo__uploaded_by_app_user` | `photo.uploaded_by_app_user_id` -> `app_user.id` | restrict |
 | `fk_photo__device` | `photo.device_id` -> `device.id` | set null |
 | `fk_shared_album_photo__shared_album` | `shared_album_photo.shared_album_id` -> `shared_album.id` | cascade |
@@ -319,6 +341,9 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 | `photo_like` | `uk_photo_like__photo_id_app_user_id` | 중복 좋아요 방지 |
 | `photo_comment` | `idx_photo_comment__photo_id_created_at` | 사진별 댓글 목록 |
 | `device` | `uk_device__active_name` | 사용자별 활성 기기명 중복 방지 |
+| `photo_upload_reservation` | `idx_photo_upload_reservation__shared_album_id` | 공유집(앨범)별 예약 조회 |
+| `photo_upload_reservation` | `idx_photo_upload_reservation__requested_by_app_user_id` | 사용자별 예약 조회 |
+| `photo_upload_reservation` | `idx_photo_upload_reservation__expires_at` | 만료된 미완료 예약 스윕 |
 
 ## 6. 권한 기준
 
@@ -333,7 +358,8 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 | 공유집(앨범) 생성 | 요청 사용자의 상위 공유 그룹 활성 멤버십 확인 |
 | 공유집(앨범) 정보 수정 | 요청 사용자의 상위 공유 그룹 활성 멤버십 확인 |
 | 공유집(앨범) 삭제 | 생성자는 활성 멤버십과 `shared_album.created_by_app_user_id` 일치 확인. 생성자가 탈퇴한 경우 공유 그룹 `HOST` 멤버십 확인 |
-| 사진 업로드 | 대상 공유집(앨범)의 활성 상태와 요청 사용자의 상위 공유 그룹 활성 멤버십 확인. 업로드 시 `photo`와 최초 `shared_album_photo` 매핑을 함께 생성 |
+| 사진 업로드 URL 발급 | 대상 공유집(앨범)의 활성 상태와 요청 사용자의 상위 공유 그룹 활성 멤버십 확인. 발급한 각 `objectKey`를 요청 사용자·공유집(앨범)과 함께 `photo_upload_reservation`에 기록 |
+| 사진 업로드 완료 등록 | `objectKey`에 대응하는 `photo_upload_reservation`이 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않았는지 확인. 통과하면 `photo`와 최초 `shared_album_photo` 매핑을 함께 생성하고 예약 행을 삭제 |
 | 사진을 다른 공유집(앨범)에 추가·제거 | 대상 공유집(앨범)이 사진의 기존 공유집(앨범)과 같은 공유 그룹에 속하는지(사진의 `shared_album_photo` 매핑을 조인해 확인), 요청 사용자의 활성 멤버십이 있는지 확인. 제거가 사진의 마지막 매핑이면 사진도 함께 soft delete |
 | 사진 원본 수정 | 활성 멤버십과 `photo.uploaded_by_app_user_id` 일치 확인 |
 | 사진 원본 삭제 | 업로더는 활성 멤버십과 `photo.uploaded_by_app_user_id` 일치 확인. 업로더가 탈퇴한 경우 공유 그룹 `HOST` 멤버십 확인 |
@@ -358,3 +384,5 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 10. 개별 삭제한 공유집(앨범)은 30일 뒤 `shared_album` 행을 물리 삭제한다. 관련 `shared_album_photo` 매핑은 3번에서 이미 정리되어 있다.
 11. 공유 그룹은 30일 뒤 남아 있는 멤버십·채팅 메시지·공유집(앨범)을 FK cascade로 정리하며 `shared_group` 행을 물리 삭제한다.
 12. 공유 그룹 물리 삭제 트랜잭션에서 해당 초대 코드 예약 원장 행도 삭제한다.
+13. 사진 업로드 완료 등록 트랜잭션에서 사용한 `photo_upload_reservation` 행을 물리 삭제한다.
+14. 만료되었지만 완료 등록에 쓰이지 않은 `photo_upload_reservation` 행은 정기 스윕이 물리 삭제하고, 대응하는 Object Storage 객체가 남아 있으면 함께 정리한다.

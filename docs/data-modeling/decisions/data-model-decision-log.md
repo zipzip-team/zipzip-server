@@ -21,6 +21,7 @@
 | DM-10 | 집계 | 공유집(앨범) 사진 수는 `shared_album_photo`와 `photo`를 조인해 활성 사진 기준으로 실시간 count한다. |
 | DM-11 | 시간 타입 | DB는 `timestamptz`, Java/JPA 엔티티는 `Instant`, API는 UTC ISO-8601 문자열을 사용한다. |
 | DM-12 | 사진 원본 저장 참조 | 사진 원본·썸네일은 URL이 아니라 Object Storage 객체 키(`original_object_key`, `thumbnail_object_key`)로 저장한다. API는 조회 시점에 presigned URL을 발급한다. 썸네일은 비동기로 생성하며 `thumbnail_status`(`PENDING`/`READY`/`FAILED`)로 진행 상태를 관리한다. |
+| DM-13 | 업로드 예약 | 업로드 URL 발급 시 `objectKey`를 요청 사용자·대상 공유집(앨범)·만료 시각과 함께 `photo_upload_reservation`에 기록한다. 완료 등록은 이 예약과 일치할 때만 `photo`를 생성하고 예약 행을 삭제해, 발급 대상 불일치와 재사용을 막는다. |
 
 ## 3. 현재 도메인 계층
 
@@ -182,6 +183,22 @@ Zipzip은 여러 사용자와 기기가 함께 공유 콘텐츠를 조회하므�
 URL을 DB에 영구 저장하면 서명 만료·정책 변경에 대응하기 어렵고 접근 제어를 URL 자체에 의존하게 되므로, 대신 객체 키만 저장하고 API 응답 시점에 짧은 TTL의 presigned URL을 매번 새로 발급한다.
 썸네일 생성은 원본 다운로드·디코딩·리사이즈·재업로드를 수반하는 무거운 작업이라 업로드 응답을 막지 않도록 비동기로 분리하고, 재시작으로 작업이 유실돼도 원본이 이미 안전하게 저장돼 있으므로 `thumbnail_status`를 스윕으로 재처리할 수 있다.
 
+### 4.10 DM-13. 업로드 예약
+
+결정:
+
+- 업로드 URL 발급(PHOTO-02) 시 발급한 각 `objectKey`를 요청 사용자·대상 공유집(앨범)·만료 시각과 함께 `photo_upload_reservation`에 기록한다.
+- 완료 등록(PHOTO-03)은 각 `objectKey`에 대응하는 예약 행이 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않았을 때만 `photo`와 `shared_album_photo` 매핑을 생성한다.
+- 완료 등록에 성공하면 같은 트랜잭션에서 해당 예약 행을 물리 삭제한다. 예약 행이 없으면 발급받은 적이 없는 것과 동일하게(`UPLOAD_OBJECT_NOT_FOUND`) 처리하며, "발급된 적 없음"과 "이미 사용함"을 구분하지 않는다.
+- `invite_code_reservation`과 같이 상태 변경을 기록하지 않는 예약 테이블이므로 `objectKey` 자체를 PK로 쓰고 `updated_at`은 두지 않는다.
+- 만료된 미완료 예약과 대응하는 Object Storage 객체는 정기 스윕이 정리한다.
+
+근거:
+
+PR 리뷰에서 PHOTO-02가 발급 이력을 저장하지 않아 PHOTO-03이 `objectKey`의 발급 대상(사용자·공유집(앨범))과 재사용 여부를 검증할 수 없다는 지적을 받았다. Object Storage HEAD 확인과 `photo.original_object_key` unique 제약만으로는 이 사용자·이 공유집(앨범)에 정당하게 발급된 key인지 확인할 수 없다.
+HMAC 기반 무상태 completion token도 검토했지만, 재사용을 막으려면 결국 "사용됨" 상태를 어딘가에 저장해야 해 무상태의 이점이 사라지고, 만료된 발급 건에 대응하는 Object Storage 고아 객체를 찾는 스윕도 지원할 수 없다. 기존에 검증된 `invite_code_reservation` 패턴을 재사용하면 검증·재사용 방지·고아 객체 정리를 모두 하나의 테이블로 해결하면서 Redis 없이 PostgreSQL을 단일 진실 소스로 쓰는 기존 원칙과도 일관된다.
+`photo.thumbnail_status`는 `photo` 행이 이미 생성된 뒤의 비동기 썸네일 진행 상태를 추적하는 필드라 이 문제(행 생성 이전의 등록 요청 검증)와는 무관하다.
+
 ## 5. 서비스 계층 검증
 
 DB FK만으로 표현하지 않는 규칙은 서비스 계층과 통합 테스트로 강제한다.
@@ -192,6 +209,7 @@ DB FK만으로 표현하지 않는 규칙은 서비스 계층과 통합 테스�
 4. 사진 수정은 `photo.uploaded_by_app_user_id`와 요청 사용자가 같아야 한다. 사진 삭제도 원칙적으로 업로더만 허용하되, 업로더가 탈퇴한 경우 공유 그룹 `HOST`도 삭제할 수 있다.
 5. 사진이 속한 공유 그룹과 요청 사용자의 멤버십을 함께 확인한다. 사진을 공유집(앨범)에 추가·제거할 때는 대상 공유집(앨범)이 사진과 같은 공유 그룹에 속하는지도 확인한다.
 6. 댓글과 그룹 채팅 메시지 수정·삭제는 작성자만 허용한다.
+7. 사진 업로드 완료 등록은 `objectKey`에 대응하는 `photo_upload_reservation`이 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않았는지 확인한다.
 
 ## 6. 완료 기준
 
@@ -209,9 +227,10 @@ DB FK만으로 표현하지 않는 규칙은 서비스 계층과 통합 테스�
 - [x] 사진 댓글과 그룹 채팅 메시지를 soft delete에서 즉시 물리 삭제로 개정했다.
 - [x] 사진 원본·썸네일을 Object Storage 객체 키 저장 + presigned URL 발급 방식으로 정리했다.
 - [x] 썸네일 비동기 생성 진행 상태(`thumbnail_status`) 기준을 정리했다.
+- [x] `photo_upload_reservation`을 추가해 업로드 URL 발급 대상과 완료 등록 요청을 검증하도록 정리했다.
 
 ## 7. 남은 확인 사항
 
 1. 사진을 여러 공유집(앨범)에 추가·제거하는 UI 정책을 1차 범위에서 어디까지 지원할지 확인(API는 `PHOTO-07`/`PHOTO-08`로 확정됨)
 2. 공유 그룹 삭제와 Object Storage 객체 정리 배치 통합 테스트 작성
-3. presigned URL TTL 기본값과 썸네일 생성 재시도(스윕) 주기 확정
+3. presigned URL TTL 기본값, `photo_upload_reservation` 만료 시각 정책, 썸네일 생성 재시도(스윕) 주기 확정
