@@ -15,8 +15,8 @@
 - `~/zipzip-deploy/.env`: compose 변수 치환용. `DOCKERHUB_IMAGE=<dockerhub-username>/zipzip-be` (형식은
   `.env.example` 참고). 개인 계정명을 커밋된 파일에 박아두지 않기 위해 분리함 — 시크릿은 아니고
   단순히 개인 네임스페이스를 코드에서 분리하기 위한 목적.
-- `~/zipzip-deploy/zipzip-be.env`: 프로덕션 DB 접속정보(`SPRING_DATASOURCE_*`). git/이미지에 절대 포함하지 않음.
-  CD가 배포할 때마다 GitHub Secrets 값으로 덮어씀(아래 배포 흐름 참고).
+- `~/zipzip-deploy/zipzip-be.env`: 프로덕션 런타임 환경변수(`SPRING_DATASOURCE_*`, `APPLE_*`, `JWT_*`).
+  git/이미지에 절대 포함하지 않음. CD가 배포할 때마다 GitHub Secrets 값으로 덮어씀(아래 배포 흐름 참고).
 - `~/zipzip-deploy/certbot/conf`: 발급된 인증서.
 
 ## 배포 흐름
@@ -25,8 +25,24 @@ CD(`​.github/workflows/cd.yml`)가 이미지를 Docker Hub에 push한 뒤, 서
 이 키는 `authorized_keys`에 forced command로 제한되어 있어 실제로는 클라이언트가 보낸 명령과 무관하게
 `~/zipzip-deploy.sh`만 실행됩니다.
 
-**DB 접속정보**는 GitHub Secrets(`SPRING_DATASOURCE_URL/USERNAME/PASSWORD`)에 개별 등록해두고, forced
-command라 인자로 못 넘기니 **stdin으로 흘려보내** 스크립트가 `zipzip-be.env`에 기록합니다.
+**런타임 환경변수**는 GitHub Secrets에 개별 등록해두고, forced command라 인자로 못 넘기니
+**stdin으로 흘려보내** 스크립트가 `zipzip-be.env`에 기록합니다.
+
+prod CD에 필요한 Secrets:
+
+- `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
+- `APPLE_TEAM_ID`, `APPLE_CLIENT_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`
+- `JWT_ISSUER`, `JWT_SECRET`, `JWT_ACCESS_TOKEN_EXPIRATION`, `JWT_REFRESH_TOKEN_EXPIRATION`
+
+dev CD는 동일한 애플리케이션 env key를 서버 `.env.dev`에 기록하되, GitHub Secrets 이름은
+`*_DEV` 접미사를 사용합니다.
+
+- `SPRING_DATASOURCE_URL_DEV`, `SPRING_DATASOURCE_USERNAME_DEV`, `SPRING_DATASOURCE_PASSWORD_DEV`
+- `APPLE_TEAM_ID_DEV`, `APPLE_CLIENT_ID_DEV`, `APPLE_KEY_ID_DEV`, `APPLE_PRIVATE_KEY_DEV`
+- `JWT_ISSUER_DEV`, `JWT_SECRET_DEV`, `JWT_ACCESS_TOKEN_EXPIRATION_DEV`, `JWT_REFRESH_TOKEN_EXPIRATION_DEV`
+
+`APPLE_PRIVATE_KEY(_DEV)`는 서버 env 파일과 SSH heredoc 전달 경로가 줄 단위로 동작하므로 raw multiline
+PEM이 아니라 **단일 라인 PKCS#8 PEM** 또는 **base64 body** 형태로 등록해야 합니다.
 
 **`docker-compose.yml`/`nginx/conf.d/api.conf`**는 stdin으로 파일 내용을 직접 보내지 않습니다 — 그러면
 배포키가 유출됐을 때 임의 compose 설정(호스트 마운트, `privileged` 등)을 주입당할 위험이 있기 때문입니다.
@@ -71,6 +87,11 @@ certbot은 이 흐름에서 건드리지 않고, 인증서 갱신 루프만 별�
 
 `cd-dev.yml` → `~/zipzip-deploy-dev.sh`도 완전히 같은 패턴입니다. 다만 nginx는 prod가 쓰는 것을 그대로
 공유하므로, `dev-api.conf`는 `~/zipzip-deploy-dev`가 아니라 **`~/zipzip-deploy/nginx/conf.d/`에 씀**니다.
+
+현재 서버 배포 스크립트는 `docker compose up -d` 이후 애플리케이션 health check와 rollback까지 수행하지는
+않습니다. CD workflow는 GitHub Secrets 값이 비어 있으면 SSH 전에 실패시키지만, 잘못된 값으로 인한 런타임
+기동 실패까지 자동 복구하려면 서버의 `~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh`에 health check와 rollback
+절차를 추가해야 합니다.
 
 ## 인증서 최초 발급 (1회성, 이미 완료됨)
 

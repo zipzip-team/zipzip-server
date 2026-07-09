@@ -53,8 +53,8 @@
   그대로 박히지만, 실제 배포 시 컨테이너가 `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`
   환경변수를 주입받아 Spring 프로퍼티 우선순위상 이 값을 덮어쓰므로, public Docker 이미지에
   placeholder 값이 남아 있어도 안전하다.
-- **CD의 배포(서버 반영) 단계**: 실제 dev/prod DB 접속정보는 GitHub Secrets에서 가져와
-  SSH로 서버에 전달하고, 서버가 이를 컨테이너 `env_file`로 기록한다(3절 참고).
+- **CD의 배포(서버 반영) 단계**: 실제 dev/prod 런타임 환경변수(DB, Apple Login, JWT)는
+  GitHub Secrets에서 가져와 SSH로 서버에 전달하고, 서버가 이를 컨테이너 `env_file`로 기록한다(3절 참고).
 
 ## 3. CD 워크플로우 상세 흐름 (`cd.yml` = prod, `cd-dev.yml` = dev)
 
@@ -92,6 +92,13 @@
 
 `needs: build-and-push`로 이미지 push가 끝난 뒤에만 실행된다.
 
+**(0) 필수 GitHub Secrets 검증**
+
+- `Validate required deployment secrets` 단계에서 SSH, DB, Apple Login, JWT 관련 값이 비어 있는지 확인한다.
+- `APPLE_PRIVATE_KEY`, `APPLE_PRIVATE_KEY_DEV`는 서버 env 파일에 줄 단위로 기록되므로 newline이 포함되어
+  있으면 실패시킨다. 이 값은 단일 라인 PKCS#8 PEM 또는 base64 body 형태로 등록해야 한다.
+- 이 검증은 실제 값을 노출하지 않고, 누락된 env 변수 이름만 GitHub Actions 로그에 남긴다.
+
 **(1) SSH 설정**
 
 - prod: `SSH_PRIVATE_KEY` 시크릿을 `~/.ssh/deploy_key`로 기록(`chmod 600`),
@@ -112,6 +119,14 @@ GIT_SHA=$GIT_SHA
 SPRING_DATASOURCE_URL=$DB_URL
 SPRING_DATASOURCE_USERNAME=$DB_USERNAME
 SPRING_DATASOURCE_PASSWORD=$DB_PASSWORD
+APPLE_TEAM_ID=$APPLE_TEAM_ID
+APPLE_CLIENT_ID=$APPLE_CLIENT_ID
+APPLE_KEY_ID=$APPLE_KEY_ID
+APPLE_PRIVATE_KEY=$APPLE_PRIVATE_KEY
+JWT_ISSUER=$JWT_ISSUER
+JWT_SECRET=$JWT_SECRET
+JWT_ACCESS_TOKEN_EXPIRATION=$JWT_ACCESS_TOKEN_EXPIRATION
+JWT_REFRESH_TOKEN_EXPIRATION=$JWT_REFRESH_TOKEN_EXPIRATION
 ENVEOF
 ```
 
@@ -122,7 +137,7 @@ ENVEOF
   - prod 키 → `~/zipzip-deploy.sh`
   - dev 키 → `~/zipzip-deploy-dev.sh`
   - 두 파이프라인은 SSH 키, GitHub Secrets, 서버 스크립트, 컨테이너/서비스명이 전부 별개다.
-- forced command라서 인자로 임의 데이터를 못 받기 때문에, DB 접속정보는 **stdin**으로
+- forced command라서 인자로 임의 데이터를 못 받기 때문에, 런타임 환경변수는 **stdin**으로
   흘려보내고 서버 스크립트가 그걸 읽어서 env 파일에 기록한다.
   - prod: `~/zipzip-deploy/zipzip-be.env`
   - dev: `~/zipzip-deploy-dev/.env.dev` (`DOCKERHUB_IMAGE` 값도 함께 보내는데, 이 파일이
@@ -188,11 +203,10 @@ CD 빌드 단계(`./gradlew ... bootJar -x test`, 3-2절)는 Spring 컨텍스트
 
 ### 4-3. 이 방법이 남기는 한계
 
-- `cd.yml`이 해당 키를 **전달하겠다고 선언**했는지만 확인한다. `secrets.APPLE_CLIENT_ID`
-  자체가 GitHub에 등록 안 돼 있거나 값이 비어 있는 경우는 잡지 못한다 — 다만 `cd.yml`에
-  시크릿 참조를 추가하면서 등록만 빠뜨리는 실수는, 애초에 참조 자체를 빠뜨리는 실수보다
-  발생 빈도가 낮다고 판단해 감수하기로 했다.
-  실제 컨테이너 기동 실패까지 잡으려면 배포 스크립트에 헬스체크 + 롤백이 필요한데, 이건
+- PR 단계에서는 `cd.yml`이 해당 키를 **전달하겠다고 선언**했는지만 확인한다. GitHub Secrets의
+  실제 값은 PR에서 노출하거나 검증할 수 없기 때문이다. 대신 CD 실행 초반의
+  `Validate required deployment secrets` 단계가 필수 secret 값이 비어 있으면 SSH 전에 실패시킨다.
+- 실제 컨테이너 기동 실패까지 잡으려면 배포 스크립트에 헬스체크 + 롤백이 필요한데, 이건
   서버(`~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh`, 5절 표 참고)에 직접 접근해야 적용할
   수 있어 별도 과제로 보류했다.
 - 중첩된(nested object) `@ConfigurationProperties` 필드는 지원하지 않는다 — 현재 코드에
@@ -207,8 +221,8 @@ CD 빌드 단계(`./gradlew ... bootJar -x test`, 3-2절)는 Spring 컨텍스트
 | `deploy/nginx/conf.d/api.conf` | 저장소 | O | prod nginx 설정 |
 | `deploy/nginx/conf.d/dev-api.conf` | 저장소 | O | dev nginx 설정 |
 | `~/zipzip-deploy/.env` | 서버(prod) | X | `DOCKERHUB_IMAGE=<username>/zipzip-be` — 시크릿은 아니고 개인 네임스페이스 분리용 |
-| `~/zipzip-deploy/zipzip-be.env` | 서버(prod) | X | 실제 prod `SPRING_DATASOURCE_*` — 매 배포마다 GitHub Secrets 값으로 덮어써짐 |
-| `~/zipzip-deploy-dev/.env.dev` | 서버(dev) | X | 실제 dev `SPRING_DATASOURCE_*` + `DOCKERHUB_IMAGE` — 매 배포마다 덮어써짐 |
+| `~/zipzip-deploy/zipzip-be.env` | 서버(prod) | X | 실제 prod `SPRING_DATASOURCE_*`, `APPLE_*`, `JWT_*` — 매 배포마다 GitHub Secrets 값으로 덮어써짐 |
+| `~/zipzip-deploy-dev/.env.dev` | 서버(dev) | X | 실제 dev `SPRING_DATASOURCE_*`, `APPLE_*`, `JWT_*` + `DOCKERHUB_IMAGE` — 매 배포마다 덮어써짐 |
 | `~/zipzip-deploy/certbot/conf` | 서버(prod) | X | Let's Encrypt 발급 인증서 |
 | `~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh` | 서버 | X | forced command로 실행되는 배포 스크립트 본체 |
 
@@ -259,6 +273,26 @@ dev 스택이 별도 nginx를 안 띄우고 prod의 `zipzip-net`(compose 프로�
 | `SPRING_DATASOURCE_URL_DEV` | cd-dev.yml | dev DB 접속 URL |
 | `SPRING_DATASOURCE_USERNAME_DEV` | cd-dev.yml | dev DB 계정 |
 | `SPRING_DATASOURCE_PASSWORD_DEV` | cd-dev.yml | dev DB 비밀번호 |
+| `APPLE_TEAM_ID` | cd.yml | prod Apple Developer Team ID |
+| `APPLE_CLIENT_ID` | cd.yml | prod Apple Login client id |
+| `APPLE_KEY_ID` | cd.yml | prod Apple private key id |
+| `APPLE_PRIVATE_KEY` | cd.yml | prod Apple client secret 서명용 private key |
+| `JWT_ISSUER` | cd.yml | prod JWT issuer |
+| `JWT_SECRET` | cd.yml | prod JWT 서명 secret |
+| `JWT_ACCESS_TOKEN_EXPIRATION` | cd.yml | prod access token 만료 시간 |
+| `JWT_REFRESH_TOKEN_EXPIRATION` | cd.yml | prod refresh token 만료 시간 |
+| `APPLE_TEAM_ID_DEV` | cd-dev.yml | dev Apple Developer Team ID |
+| `APPLE_CLIENT_ID_DEV` | cd-dev.yml | dev Apple Login client id |
+| `APPLE_KEY_ID_DEV` | cd-dev.yml | dev Apple private key id |
+| `APPLE_PRIVATE_KEY_DEV` | cd-dev.yml | dev Apple client secret 서명용 private key |
+| `JWT_ISSUER_DEV` | cd-dev.yml | dev JWT issuer |
+| `JWT_SECRET_DEV` | cd-dev.yml | dev JWT 서명 secret |
+| `JWT_ACCESS_TOKEN_EXPIRATION_DEV` | cd-dev.yml | dev access token 만료 시간 |
+| `JWT_REFRESH_TOKEN_EXPIRATION_DEV` | cd-dev.yml | dev refresh token 만료 시간 |
+
+`APPLE_PRIVATE_KEY`, `APPLE_PRIVATE_KEY_DEV`는 SSH heredoc과 서버 env 파일이 줄 단위로 전달·기록되므로
+raw multiline PEM이 아니라 **단일 라인 PKCS#8 PEM** 또는 **base64 body** 형태로 등록해야 한다. CD의
+`Validate required deployment secrets` 단계는 값이 비어 있거나 newline을 포함하면 SSH 전에 실패한다.
 
 ## 9. 브랜치 → 배포 트리거 매핑 요약
 

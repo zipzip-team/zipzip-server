@@ -92,12 +92,49 @@ jobs:
     name: Deploy to zipzip-be (dev)
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PRIVATE_KEY_DEV: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
+      GIT_SHA: ${{ github.sha }}
+      DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/zipzip-be
+      DB_URL: ${{ secrets.SPRING_DATASOURCE_URL_DEV }}
+      DB_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME_DEV }}
+      DB_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD_DEV }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID_DEV }}
+      APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID_DEV }}
+      APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID_DEV }}
+      APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY_DEV }}
+      JWT_ISSUER: ${{ secrets.JWT_ISSUER_DEV }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET_DEV }}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${{ secrets.JWT_ACCESS_TOKEN_EXPIRATION_DEV }}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${{ secrets.JWT_REFRESH_TOKEN_EXPIRATION_DEV }}
     steps:
+      - name: Validate required deployment secrets
+        shell: bash
+        run: |
+          missing=0
+          for name in \
+            SSH_USER SSH_HOST SSH_PRIVATE_KEY_DEV DOCKERHUB_IMAGE \
+            DB_URL DB_USERNAME DB_PASSWORD \
+            APPLE_TEAM_ID APPLE_CLIENT_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
+            JWT_ISSUER JWT_SECRET JWT_ACCESS_TOKEN_EXPIRATION JWT_REFRESH_TOKEN_EXPIRATION
+          do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is required for dev deployment."
+              missing=1
+            fi
+          done
+
+          if [[ "$APPLE_PRIVATE_KEY" == *$'\n'* ]]; then
+            echo "::error::APPLE_PRIVATE_KEY_DEV must be stored as a single-line PKCS#8 PEM or base64 body for env_file delivery."
+            missing=1
+          fi
+
+          exit "$missing"
+
       # 시크릿은 run: 스크립트 문자열에 직접 넣지 않고 env:로만 전달한다(스크립트 인젝션 방지, cd.yml과 동일한 이유).
       - name: Configure SSH
-        env:
-          SSH_PRIVATE_KEY_DEV: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
         run: |
           mkdir -p ~/.ssh
           umask 077
@@ -108,7 +145,7 @@ jobs:
       # 이미지는 public이라 서버에서도 로그인 없이 pull 가능.
       # 서버의 authorized_keys에 dev 전용 forced command(`~/zipzip-deploy-dev.sh`)가 걸려 있어서
       # 실제로는 아래 커맨드 문자열('deploy')과 무관하게 그 스크립트만 실행된다.
-      # dev DB 접속정보는 GitHub Secrets(*_DEV)에 개별 등록해두고, stdin으로 흘려보내
+      # dev 런타임 환경변수는 GitHub Secrets(*_DEV)에 개별 등록해두고, stdin으로 흘려보내
       # 서버 스크립트가 그걸 그대로 .env.dev로 기록한 뒤 배포하게 한다.
       # .env.dev는 컨테이너 env_file이자 docker-compose.dev.yml의 ${DOCKERHUB_IMAGE} 치환용
       # 파일을 겸하므로, 매 배포마다 통째로 덮어써도 없어지지 않도록 DOCKERHUB_IMAGE도 함께 보낸다.
@@ -117,14 +154,6 @@ jobs:
       # 내용을 직접 보내면 배포키 유출 시 임의 compose 설정을 주입당할 위험이 있음).
       # (prod와 SSH 키, 시크릿, 서버 스크립트, 컨테이너/서비스명 전부 별개)
       - name: Deploy over SSH
-        env:
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          GIT_SHA: ${{ github.sha }}
-          DOCKERHUB_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/zipzip-be
-          DB_URL: ${{ secrets.SPRING_DATASOURCE_URL_DEV }}
-          DB_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME_DEV }}
-          DB_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD_DEV }}
         run: |
           ssh -i ~/.ssh/deploy_key_dev -o UserKnownHostsFile=~/.ssh/known_hosts \
             "$SSH_USER@$SSH_HOST" 'deploy' <<ENVEOF
@@ -133,4 +162,12 @@ jobs:
           SPRING_DATASOURCE_URL=$DB_URL
           SPRING_DATASOURCE_USERNAME=$DB_USERNAME
           SPRING_DATASOURCE_PASSWORD=$DB_PASSWORD
+          APPLE_TEAM_ID=$APPLE_TEAM_ID
+          APPLE_CLIENT_ID=$APPLE_CLIENT_ID
+          APPLE_KEY_ID=$APPLE_KEY_ID
+          APPLE_PRIVATE_KEY=$APPLE_PRIVATE_KEY
+          JWT_ISSUER=$JWT_ISSUER
+          JWT_SECRET=$JWT_SECRET
+          JWT_ACCESS_TOKEN_EXPIRATION=$JWT_ACCESS_TOKEN_EXPIRATION
+          JWT_REFRESH_TOKEN_EXPIRATION=$JWT_REFRESH_TOKEN_EXPIRATION
           ENVEOF
