@@ -74,7 +74,24 @@ class RefreshTokenValidatorTest {
         refreshToken.revoke(Instant.parse("2026-07-09T00:00:00Z"));
         givenStoredRefreshToken(appUser, refreshToken);
 
-        assertInvalidRefreshToken();
+        assertRefreshTokenError(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+    }
+
+    @Test
+    void 이미_폐기된_Refresh_Token도_로그아웃_용도로는_검증한다() {
+        AppUser appUser = AppUser.create("apple-subject", "사용자");
+        RefreshToken refreshToken =
+                RefreshToken.create(
+                        appUser,
+                        TOKEN_HASH,
+                        TOKEN_FAMILY_ID,
+                        Instant.parse("2999-01-01T00:00:00Z"));
+        refreshToken.revoke(Instant.parse("2026-07-09T00:00:00Z"));
+        givenStoredRefreshToken(appUser, refreshToken);
+
+        RefreshToken validatedRefreshToken = refreshTokenValidator.validateForLogout(REFRESH_TOKEN);
+
+        assertThat(validatedRefreshToken).isEqualTo(refreshToken);
     }
 
     @Test
@@ -88,7 +105,7 @@ class RefreshTokenValidatorTest {
                         Instant.parse("2000-01-01T00:00:00Z"));
         givenStoredRefreshToken(appUser, refreshToken);
 
-        assertInvalidRefreshToken();
+        assertRefreshTokenError(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
     }
 
     @Test
@@ -119,11 +136,13 @@ class RefreshTokenValidatorTest {
     }
 
     private void assertInvalidRefreshToken() {
+        assertRefreshTokenError(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    private void assertRefreshTokenError(AuthErrorCode authErrorCode) {
         assertThatThrownBy(() -> refreshTokenValidator.validate(REFRESH_TOKEN))
                 .isInstanceOfSatisfying(
                         BusinessException.class,
-                        exception ->
-                                assertThat(exception.getErrorCode())
-                                        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN));
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(authErrorCode));
     }
 }

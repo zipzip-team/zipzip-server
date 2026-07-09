@@ -27,6 +27,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return PublicEndpointRequestMatcher.matches(request);
+    }
+
+    @Override
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {

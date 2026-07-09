@@ -35,7 +35,6 @@ Apple 로그인과 토큰 갱신을 제외한 모든 API는 인증이 필요하�
 
 - AUTH-01 Apple 로그인
 - AUTH-02 토큰 갱신
-- DEVICE-02 내 기기 등록
 - GROUP-02 공유 그룹 생성
 - INVITE-02 초대 코드로 참여
 - ALBUM-02 앨범 생성
@@ -153,9 +152,6 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 401 | `REFRESH_TOKEN_EXPIRED` | Refresh Token 만료 |
 | 401 | `REFRESH_TOKEN_REUSE_DETECTED` | 폐기·회전된 Refresh Token 재사용 |
 | 404 | `USER_NOT_FOUND` | 사용자 |
-| 400 | `INVALID_DEVICE_NAME` | 기기명 검증 |
-| 404 | `DEVICE_NOT_FOUND` | 기기 |
-| 409 | `DEVICE_ALREADY_EXISTS` | 동일 사용자의 활성 기기명 중복 |
 | 400 | `INVALID_SHARED_GROUP_NAME` | 공유 그룹 이름 검증 |
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 |
 | 403 | `ONLY_HOST_CAN_UPDATE_SHARED_GROUP` | 방장이 아닌 사용자의 공유 그룹 수정 |
@@ -227,7 +223,7 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 한 요청의 최대 사진 수 | 20개 |
 | 사진 한 장 최대 크기 | 20 MiB. 업로드 URL 발급 요청에 선언한 크기가 초과하면 `FILE_TOO_LARGE`, 실제 업로드 바이트 크기 제한은 presigned URL 서명 조건으로 강제 |
 | 허용 MIME type | `image/*` |
-| 촬영일시·위치·이미지 크기 | iOS가 EXIF에서 추출해 업로드 완료 등록 요청에 실어 보낸다. 서버는 추론하지 않고 전달받은 값만 저장하며, 없으면 `null`로 보존한다 |
+| 촬영 기기명·촬영일시·위치·이미지 크기 | iOS가 EXIF에서 추출해 업로드 완료 등록 요청에 실어 보낸다. 서버는 추론하지 않고 전달받은 값만 저장하며, 없으면 `null`로 보존한다 |
 | 썸네일 | 완료 등록 직후 서버가 비동기로 생성한다. 재시작으로 작업이 유실되면 `thumbnailStatus=PENDING` 상태의 사진을 주기적 스윕이 재제출한다 |
 | 원본 이미지 형식 | iOS가 JPEG로 업로드해 서버의 HEIC 디코딩을 피한다 |
 

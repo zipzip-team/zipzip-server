@@ -97,6 +97,8 @@ public class JwtTokenProvider {
 
             return new RefreshTokenClaims(
                     UUID.fromString(claims.getSubject()), UUID.fromString(tokenFamilyId));
+        } catch (BusinessException exception) {
+            throw exception;
         } catch (Exception exception) {
             throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
@@ -158,8 +160,12 @@ public class JwtTokenProvider {
         }
 
         Date expirationTime = claims.getExpirationTime();
-        if (expirationTime == null || expirationTime.toInstant().isBefore(Instant.now(clock))) {
-            throw new IllegalArgumentException("JWT가 만료되었습니다.");
+        if (expirationTime == null) {
+            throw new IllegalArgumentException("JWT 만료 시각이 비어 있습니다.");
+        }
+
+        if (!expirationTime.toInstant().isAfter(Instant.now(clock))) {
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
         }
 
         if (claims.getSubject() == null || claims.getSubject().isBlank()) {

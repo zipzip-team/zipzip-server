@@ -17,11 +17,12 @@
 | DM-06 | 사진 소속 | 사진은 공유 그룹에 직접 속하지 않고, `shared_album_photo`로 하나 이상의 공유집(앨범)에 N:M으로 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진). 사진은 항상 1개 이상의 공유집(앨범)에 속해야 하며, 마지막 소속이 없어지면 사진도 함께 soft delete한다. |
 | DM-07 | 그룹 채팅 | 사진 댓글과 별도인 `shared_group_chat_message`를 사용한다. |
 | DM-08 | 초대 코드 | 공유 그룹이 존재하는 동안 `invite_code_reservation`으로 코드 점유를 보장하고, 공유 그룹 물리 삭제 시 예약 행도 삭제한다. |
-| DM-09 | 삭제 정책 | `app_user`, `shared_group`, `device`, `shared_album`, `photo`는 soft delete 후 30일 뒤 물리 정리한다. `shared_group_membership`, `shared_album_photo`, `photo_like`, `shared_group_chat_message`, `photo_comment`는 즉시 물리 삭제한다. 탈퇴한 사용자의 공유 콘텐츠는 보존하고 사용자 표시는 "탈퇴한 사용자"로 대체한다. |
+| DM-09 | 삭제 정책 | `app_user`, `shared_group`, `shared_album`, `photo`는 soft delete 후 30일 뒤 물리 정리한다. `shared_group_membership`, `shared_album_photo`, `photo_like`, `shared_group_chat_message`, `photo_comment`는 즉시 물리 삭제한다. 탈퇴한 사용자의 공유 콘텐츠는 보존하고 사용자 표시는 "탈퇴한 사용자"로 대체한다. |
 | DM-10 | 집계 | 공유집(앨범) 사진 수는 `shared_album_photo`와 `photo`를 조인해 활성 사진 기준으로 실시간 count한다. |
 | DM-11 | 시간 타입 | DB는 `timestamptz`, Java/JPA 엔티티는 `Instant`, API는 UTC ISO-8601 문자열을 사용한다. |
 | DM-12 | 사진 원본 저장 참조 | 사진 원본·썸네일은 URL이 아니라 Object Storage 객체 키(`original_object_key`, `thumbnail_object_key`)로 저장한다. API는 조회 시점에 presigned URL을 발급한다. 썸네일은 비동기로 생성하며 `thumbnail_status`(`PENDING`/`READY`/`FAILED`)로 진행 상태를 관리한다. |
 | DM-13 | 업로드 예약 | 업로드 URL 발급 시 `objectKey`를 요청 사용자·대상 공유집(앨범)·만료 시각과 함께 `photo_upload_reservation`에 기록한다. 완료 등록은 이 예약과 일치할 때만 `photo`를 생성하고 예약 행을 삭제해, 발급 대상 불일치와 재사용을 막는다. |
+| DM-14 | 촬영 기기 정보 | 사용자가 등록·관리하는 `device` 엔티티를 두지 않고, 사진마다 EXIF에서 추출한 촬영 기기명을 `photo.device_model` 문자열 컬럼에 저장한다. |
 
 ## 3. 현재 도메인 계층
 
@@ -117,12 +118,12 @@
 
 결정 (개정):
 
-- `app_user`, `shared_group`, `device`, `shared_album`, `photo`는 soft delete한다.
+- `app_user`, `shared_group`, `shared_album`, `photo`는 soft delete한다.
 - `shared_group_membership`, `shared_album_photo`, `photo_like`, `shared_group_chat_message`, `photo_comment`는 즉시 물리 삭제한다. 휴지통이나 복구 기능은 제공하지 않는다.
 - 사용자 탈퇴 시 활성 Refresh Token을 폐기하고 `app_user.deleted_at`을 기록한다.
 - 사용자 탈퇴 시 `app_user.display_name`을 "탈퇴한 사용자"로 갱신하고, `app_user` 행은 재가입 복구를 위해 물리 삭제하지 않는다.
 - 사용자 탈퇴 시 방장으로 만든 공유 그룹은 soft delete하고, `MEMBER`로 참여 중인 공유 그룹 멤버십은 물리 삭제한다.
-- 사용자 탈퇴 시 활성 기기는 soft delete하고 사진 좋아요는 물리 삭제한다.
+- 사용자 탈퇴 시 사진 좋아요는 물리 삭제한다.
 - 탈퇴한 사용자가 기존에 생성·작성·업로드한 공유 콘텐츠는 즉시 삭제하지 않고 사용자 표시는 "탈퇴한 사용자"로 대체한다.
 - 공유 그룹, 공유집(앨범), 사진은 삭제 즉시 조회에서 제외한다.
 - 공유집(앨범) 삭제(또는 사진의 명시적 제거)는 관련 `shared_album_photo` 매핑을 즉시 물리 삭제하고, 매핑이 0개가 된 사진도 함께 soft delete한다(DM-06 참고). 공유 그룹 삭제는 그 그룹의 모든 공유집(앨범)에 대해 이 과정을 적용한 결과와 같다.
@@ -134,6 +135,7 @@
 최초 결정은 `shared_group_chat_message`와 `photo_comment`도 다른 공유 콘텐츠와 함께 soft delete하는 것이었다.
 이후 배포·운영 계획에서 "휴지통 없는 즉시 영구 삭제"가 확정되면서, 기록성이 강하고 Object Storage 객체를 직접 참조하지 않는 이 두 테이블은 즉시 물리 삭제로 개정했다.
 반면 `photo`, `shared_album`, `shared_group`은 Object Storage 정리와 연동된 30일 유예 정책을 그대로 유지한다 — soft delete 유예가 필요한 이유가 파일 정리 순서 보장에 있고, 댓글·채팅 메시지는 그 문제가 없기 때문이다.
+이후 `device` 엔티티를 폐지하면서(DM-14) soft delete 대상 목록에서도 `device`를 제거했다. 사용자 탈퇴 시 처리 목록의 "활성 기기 soft delete" 항목도 함께 제거했다.
 
 근거:
 
@@ -199,6 +201,23 @@ PR 리뷰에서 PHOTO-02가 발급 이력을 저장하지 않아 PHOTO-03이 `ob
 HMAC 기반 무상태 completion token도 검토했지만, 재사용을 막으려면 결국 "사용됨" 상태를 어딘가에 저장해야 해 무상태의 이점이 사라지고, 만료된 발급 건에 대응하는 Object Storage 고아 객체를 찾는 스윕도 지원할 수 없다. 기존에 검증된 `invite_code_reservation` 패턴을 재사용하면 검증·재사용 방지·고아 객체 정리를 모두 하나의 테이블로 해결하면서 Redis 없이 PostgreSQL을 단일 진실 소스로 쓰는 기존 원칙과도 일관된다.
 `photo.thumbnail_status`는 `photo` 행이 이미 생성된 뒤의 비동기 썸네일 진행 상태를 추적하는 필드라 이 문제(행 생성 이전의 등록 요청 검증)와는 무관하다.
 
+### 4.11 DM-14. 촬영 기기 정보
+
+결정 (개정):
+
+- 사용자가 직접 등록·수정·삭제하는 `device` 엔티티는 두지 않는다.
+- 촬영 기기명은 사진 업로드 완료 등록(PHOTO-03) 요청에서 각 파일마다 `deviceModel`로 전달받아 `photo.device_model` nullable 문자열 컬럼에 그대로 저장한다.
+- 사용자 탈퇴 시 별도로 처리할 기기 데이터가 없으므로, 탈퇴 처리에서 "활성 기기 soft delete" 단계를 제거한다.
+
+이전 결정과 변경 사유:
+
+최초 결정은 `device`를 사용자 단위의 표시용 엔티티로 두고, 사용자가 기기를 직접 등록·수정·삭제하며 공유 그룹 멤버 목록에 사용자별 활성 기기를 태그로 노출하는 것이었다. 이 결정을 뒷받침한 전제는 "사용자마다 주로 쓰는 촬영 기기 하나를 표시한다"였다.
+이후 실제 요구가 "사진마다 그 사진을 찍은 기기명을 EXIF 메타데이터에서 그대로 보여준다"로 정리되면서 전제가 바뀌었다. 사용자 단위 "주 사용 기기"로는 사진마다 다른 기기로 촬영된 경우를 표현할 수 없고, 사용자가 직접 입력·수정하게 하면 실제 촬영 기기와 값이 어긋날 수 있다. 따라서 별도 엔티티·등록 API·중복 검증·soft delete 정책을 모두 제거하고, 사진이 업로드될 때 EXIF에서 추출한 값을 그대로 저장하는 표시용 컬럼(`photo.device_model`)으로 단순화했다.
+
+근거:
+
+기기명은 사용자가 관리하는 독립된 리소스가 아니라 사진 메타데이터의 일부다. 별도 엔티티로 분리하면 사진과 기기 사이에 존재하지 않는 참조 무결성(같은 사용자의 활성 기기인지 검증, 기기명 중복 방지, 탈퇴 시 soft delete)을 유지해야 하는데, 이 복잡성에 대응하는 실제 이점이 없다. 사진 한 장의 `device_model`은 그 사진의 EXIF 값을 그대로 보여주는 nullable 문자열이면 충분하다.
+
 ## 5. 서비스 계층 검증
 
 DB FK만으로 표현하지 않는 규칙은 서비스 계층과 통합 테스트로 강제한다.
@@ -222,7 +241,8 @@ DB FK만으로 표현하지 않는 규칙은 서비스 계층과 통합 테스�
 - [x] 초대 코드 예약과 공유 그룹 생명주기를 정리했다.
 - [x] soft delete와 30일 물리 정리 기준을 정리했다.
 - [x] 탈퇴한 사용자 표시와 탈퇴한 생성자·업로더 콘텐츠의 방장 삭제 권한을 정리했다.
-- [x] 사용자 탈퇴 시 기기 soft delete와 사진 좋아요 물리 삭제 정책을 정리했다.
+- [x] 사용자 탈퇴 시 사진 좋아요 물리 삭제 정책을 정리했다.
+- [x] `device` 엔티티를 폐지하고 촬영 기기명을 `photo.device_model` 문자열 컬럼으로 단순화했다(DM-14).
 - [x] `timestamptz`와 `Instant` 기반 시간 타입 기준을 정리했다.
 - [x] 사진 댓글과 그룹 채팅 메시지를 soft delete에서 즉시 물리 삭제로 개정했다.
 - [x] 사진 원본·썸네일을 Object Storage 객체 키 저장 + presigned URL 발급 방식으로 정리했다.

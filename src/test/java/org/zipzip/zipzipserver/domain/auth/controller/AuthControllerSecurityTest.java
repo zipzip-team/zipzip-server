@@ -126,4 +126,25 @@ class AuthControllerSecurityTest {
                 .andExpect(jsonPath("$.status").value(200))
                 .andExpect(jsonPath("$.code").value("AUTH_LOGIN_SUCCESS"));
     }
+
+    @Test
+    void Apple_로그인은_잘못된_Authorization_헤더가_있어도_호출할_수_있다() throws Exception {
+        mockMvc.perform(
+                        post("/api/v1/auth/apple")
+                                .header("Authorization", "Bearer invalid-access-token")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "identityToken": "identity-token",
+                                          "authorizationCode": "authorization-code",
+                                          "nonce": "nonce",
+                                          "displayName": "집집이"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("AUTH_LOGIN_SUCCESS"));
+
+        verify(jwtTokenProvider, never()).verifyAccessToken(any());
+    }
 }

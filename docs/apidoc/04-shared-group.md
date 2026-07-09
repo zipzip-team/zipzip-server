@@ -231,7 +231,7 @@
 
 ## 7. GROUP-06 공유 그룹 멤버 목록 조회
 
-활성 멤버십의 참여일시 오름차순으로 조회한다. 사용자의 활성 기기 태그를 함께 제공한다.
+활성 멤버십의 참여일시 오름차순으로 조회한다.
 
 ### Request
 
@@ -264,13 +264,7 @@
         "displayName": "집집이",
         "role": "HOST",
         "isMe": true,
-        "joinedAt": "2026-07-03T10:15:30Z",
-        "devices": [
-          {
-            "id": "2ec3f31f-22bd-46db-b255-43cab3da6c40",
-            "name": "iPhone 16 Pro"
-          }
-        ]
+        "joinedAt": "2026-07-03T10:15:30Z"
       }
     ],
     "nextCursor": null,

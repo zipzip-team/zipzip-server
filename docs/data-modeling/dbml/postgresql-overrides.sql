@@ -5,10 +5,6 @@ create unique index if not exists uk_shared_group_membership__host
     on shared_group_membership (shared_group_id)
     where role = 'HOST';
 
-create unique index if not exists uk_device__active_name
-    on device (app_user_id, lower(btrim(name)))
-    where deleted_at is null;
-
 create index if not exists idx_photo__active_display_at
     on photo ((coalesce(taken_at, created_at)), id)
     where deleted_at is null;

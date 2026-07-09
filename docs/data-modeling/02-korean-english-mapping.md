@@ -45,7 +45,7 @@
 | 인증 | Refresh Token | `refresh_token` | - | API, 문서 | 서버 자체 발급 JWT |
 | 인증 | 토큰 계열 | `token_family_id` | - | 컬럼 | 회전되는 Refresh Token의 로그인 세션 식별자 |
 | 저장소 | Object Storage | `object_storage` | - | 인프라, 파일 저장 설명 | OCI Object Storage 기준 |
-| 기기 | 기기 | `device` | - | 테이블, 컬럼, API | 사용자의 주 사용 촬영 기기를 나타내는 표시용 태그. 공유 그룹 멤버별 표시에 사용 |
+| 미디어 | 촬영 기기명 | `device_model` | - | 컬럼, API | iOS가 이미지 EXIF에서 추출해 전달하는 촬영 기기 표시용 문자열. 별도 엔티티 없이 `photo`의 nullable 컬럼에 저장 |
 
 ## 4. 공유 탭, 공유 그룹, 공유집(앨범)의 구분
 
@@ -74,7 +74,6 @@
 
 ```text
 app_user
-├── device
 └── shared_group_membership
     ├── HOST
     └── MEMBER
@@ -93,7 +92,6 @@ invite_code_reservation
 ```
 
 - `app_user`는 서버에 등록된 사용자이다.
-- `device`는 사용자가 주로 촬영에 사용하는 기기를 나타내며 사용자 단위로 저장하는 표시용 태그이다.
 - `shared_group`은 사용자들이 초대 코드로 참여하는 공유 그룹이다.
 - `invite_code_reservation`은 공유 그룹이 존재하는 동안 발급한 초대 코드를 점유하고, 공유 그룹 물리 삭제 시 함께 삭제된다.
 - `shared_group_membership`은 사용자가 특정 공유 그룹에 어떤 역할로 참여하는지를 표현한다.
@@ -101,7 +99,7 @@ invite_code_reservation
 - `MEMBER`는 공유 그룹에 초대받은 멤버 역할이다.
 - `shared_group_chat_message`는 공유 그룹 안에서 작성된 일반 채팅 메시지이다.
 - `shared_album`은 공유 그룹 안에서 공유집(앨범)을 표현하고 사진을 담는 단위이다.
-- `photo`는 공유 그룹 안에서 업로드된 사진 원본이며, 공유 그룹에 직접 속하지 않고 `shared_album_photo`를 통해서만 공유집(앨범)에 속한다.
+- `photo`는 공유 그룹 안에서 업로드된 사진 원본이며, 공유 그룹에 직접 속하지 않고 `shared_album_photo`를 통해서만 공유집(앨범)에 속한다. 촬영 기기명은 별도 엔티티 없이 `photo.device_model` 문자열로 저장한다.
 - `shared_album_photo`는 사진과 공유집(앨범)의 N:M 소속 관계를 표현한다.
 - `shared_group.created_by_app_user_id`는 공유 그룹 최초 생성자 이력이다.
 - `shared_album.created_by_app_user_id`는 공유집(앨범) 삭제 권한의 원칙적 기준이다. 생성자가 탈퇴한 경우 공유 그룹 방장이 삭제할 수 있다.

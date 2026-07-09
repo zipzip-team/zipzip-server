@@ -23,6 +23,15 @@ public class RefreshTokenValidator {
 
     @Transactional(readOnly = true)
     public RefreshToken validate(String refreshToken) {
+        return validate(refreshToken, false);
+    }
+
+    @Transactional(readOnly = true)
+    public RefreshToken validateForLogout(String refreshToken) {
+        return validate(refreshToken, true);
+    }
+
+    private RefreshToken validate(String refreshToken, boolean allowRevokedToken) {
         JwtTokenProvider.RefreshTokenClaims claims =
                 jwtTokenProvider.verifyRefreshToken(refreshToken);
         RefreshToken refreshTokenEntity =
@@ -31,13 +40,15 @@ public class RefreshTokenValidator {
                         .orElseThrow(
                                 () -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
 
-        validateStoredRefreshToken(refreshTokenEntity, claims);
+        validateStoredRefreshToken(refreshTokenEntity, claims, allowRevokedToken);
 
         return refreshTokenEntity;
     }
 
     private void validateStoredRefreshToken(
-            RefreshToken refreshToken, JwtTokenProvider.RefreshTokenClaims claims) {
+            RefreshToken refreshToken,
+            JwtTokenProvider.RefreshTokenClaims claims,
+            boolean allowRevokedToken) {
         if (!refreshToken.getAppUser().getId().equals(claims.appUserId())) {
             throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
@@ -46,13 +57,16 @@ public class RefreshTokenValidator {
             throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
         }
 
-        if (refreshToken.getRevokedAt() != null
-                || refreshToken.getReplacedByRefreshToken() != null) {
-            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        if (refreshToken.getReplacedByRefreshToken() != null) {
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
+        }
+
+        if (!allowRevokedToken && refreshToken.getRevokedAt() != null) {
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
         }
 
         if (!refreshToken.getExpiresAt().isAfter(Instant.now(clock))) {
-            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
         }
     }
 }

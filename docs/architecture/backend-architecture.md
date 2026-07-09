@@ -136,7 +136,7 @@
 - 공유집(앨범)에서 사진이 빠지는 경우(공유집(앨범) 삭제, 또는 사진을 특정 공유집(앨범)에서 명시적으로 제거) 는 하나의 규칙을 따른다: 대상 `shared_album_photo` 매핑을 즉시 물리 삭제하고, 그 결과 매핑이 0개가 된 사진(= 방금 없앤 것이 마지막 소속이었던 사진)은 원본도 함께 soft delete한다. 다른 공유집(앨범)에 남아 있는 사진은 원본을 그대로 유지한다.
 - 사진 원본 삭제(사용자가 직접 "삭제" 액션을 호출하는 경우)는 위 캐스케이드와 별개의 명시적 동작이지만 결과는 같다: `photo.deleted_at`을 기록하는 soft delete다.
 - 삭제 정책은 엔티티 성격에 따라 나뉜다.
-  - `app_user`, `shared_group`, `device`, `shared_album`, `photo`는 **soft delete 후 30일 뒤 물리 정리**한다. 휴지통이나 사용자 복구 UI는 제공하지 않지만, Object Storage 객체 정리와 순서를 맞추기 위한 유예 기간을 둔다.
+  - `app_user`, `shared_group`, `shared_album`, `photo`는 **soft delete 후 30일 뒤 물리 정리**한다. 휴지통이나 사용자 복구 UI는 제공하지 않지만, Object Storage 객체 정리와 순서를 맞추기 위한 유예 기간을 둔다.
   - `photo_comment`, `shared_group_chat_message`는 **유예 없이 즉시 물리 삭제**한다. 파일을 참조하지 않아 정리 순서 문제가 없고, 기록성 콘텐츠라 "삭제하면 바로 사라진다"는 사용자 기대에도 맞기 때문이다.
   - `shared_group_membership`, `shared_album_photo`, `photo_like`는 관계 테이블로서 원래도 즉시 물리 삭제 대상이었다.
 

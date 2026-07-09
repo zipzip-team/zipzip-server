@@ -35,7 +35,6 @@
 | 사진 | O | `photo` |
 | 사진 좋아요 | O | `photo_like` |
 | 사진 댓글 | O | `photo_comment` |
-| 기기 태그 | O | `device` |
 
 ## 4. 주요 화면 해석
 
@@ -107,7 +106,6 @@ refresh_token
 invite_code_reservation
 shared_group
 shared_group_membership
-device
 shared_group_chat_message
 shared_album
 photo
@@ -143,7 +141,7 @@ photo_comment
 14. 사진 댓글과 그룹 채팅 메시지는 작성자만 수정·삭제할 수 있다.
 15. 개별 삭제한 공유집(앨범)·사진과 삭제된 공유 그룹 데이터는 30일 뒤 물리 삭제한다.
 16. 사용자 탈퇴 시 `app_user.deleted_at`을 기록하고 `display_name`은 "탈퇴한 사용자"로 갱신한다.
-17. 사용자 탈퇴 시 활성 기기는 soft delete하고 사진 좋아요는 물리 삭제한다.
+17. 사용자 탈퇴 시 사진 좋아요는 물리 삭제한다.
 18. 활성 멤버십은 멤버십 행이 존재하고 상위 공유 그룹과 사용자가 모두 soft delete되지 않은 상태이다.
 
 ## 8. 사용자 흐름 요약
