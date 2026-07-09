@@ -21,7 +21,11 @@ public class JwtProperties {
 
     @NotBlank
     @Size(min = 32)
-    private String secret;
+    private String accessSecret;
+
+    @NotBlank
+    @Size(min = 32)
+    private String refreshSecret;
 
     @NotNull private Duration accessTokenExpiration;
 
