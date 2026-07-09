@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.zipzip.zipzipserver.global.code.ErrorCode;
@@ -45,6 +46,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<Void>> handleHttpMessageNotReadable(
             HttpMessageNotReadableException e) {
         log.warn("[HttpMessageNotReadableException] message={}", e.getMessage());
+
+        return ResponseEntity.status(GlobalErrorCode.INVALID_REQUEST.getHttpStatus())
+                .body(BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));
+    }
+
+    // 필수 요청 헤더가 누락된 경우 공통 잘못된 요청 응답으로 변환합니다.
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<BaseResponse<Void>> handleMissingRequestHeader(
+            MissingRequestHeaderException e) {
+        log.warn("[MissingRequestHeaderException] header={}", e.getHeaderName());
 
         return ResponseEntity.status(GlobalErrorCode.INVALID_REQUEST.getHttpStatus())
                 .body(BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));
