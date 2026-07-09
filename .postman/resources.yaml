@@ -22,7 +22,7 @@ localResources:
     - ../docs/apidoc/05-shared-group-invitation.md
     - ../docs/data-modeling/00-figma-midfi-wireframe-context.md
     - ../docs/apidoc/06-shared-album.md
-    - ../docs/apidoc/03-profile-device.md
+    - ../docs/apidoc/03-profile.md
     - ../docs/apidoc/02-authentication.md
     - ../docs/apidoc/01-common-spec.md
     - ../docs/apidoc/00-api-index.md
