@@ -28,13 +28,13 @@ public class AppleIdTokenVerifier {
 
     private final AppleOAuthProperties properties;
 
-    public AppleUserInfo verify(String idToken) {
+    public AppleUserInfo verify(String idToken, String expectedNonce) {
         try {
             SignedJWT signedJWT = SignedJWT.parse(idToken);
             validateAlgorithm(signedJWT);
             validateSignature(signedJWT);
             JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
-            validateClaims(claims);
+            validateClaims(claims, expectedNonce);
 
             return new AppleUserInfo(claims.getSubject(), claims.getStringClaim("email"));
         } catch (Exception exception) {
@@ -70,7 +70,7 @@ public class AppleIdTokenVerifier {
         }
     }
 
-    private void validateClaims(JWTClaimsSet claims) {
+    private void validateClaims(JWTClaimsSet claims, String expectedNonce) throws Exception {
         if (!APPLE_ISSUER.equals(claims.getIssuer())) {
             throw new IllegalArgumentException("Apple id_token issuer가 올바르지 않습니다.");
         }
@@ -86,6 +86,11 @@ public class AppleIdTokenVerifier {
 
         if (claims.getSubject() == null || claims.getSubject().isBlank()) {
             throw new IllegalArgumentException("Apple id_token subject가 비어 있습니다.");
+        }
+
+        String nonce = claims.getStringClaim("nonce");
+        if (expectedNonce == null || expectedNonce.isBlank() || !expectedNonce.equals(nonce)) {
+            throw new IllegalArgumentException("Apple id_token nonce가 올바르지 않습니다.");
         }
     }
 }

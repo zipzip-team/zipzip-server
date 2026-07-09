@@ -36,7 +36,8 @@ public class AuthService {
 
     @Transactional
     public LoginResponse loginWithApple(AppleLoginRequest request) {
-        AppleUserInfo requestUserInfo = appleIdTokenVerifier.verify(request.identityToken());
+        AppleUserInfo requestUserInfo =
+                appleIdTokenVerifier.verify(request.identityToken(), request.nonce());
         Optional<AppUser> foundAppUser =
                 appUserRepository.findByAppleSubject(requestUserInfo.subject());
         AppUser appUser = foundAppUser.orElse(null);
@@ -44,7 +45,8 @@ public class AuthService {
 
         AppleTokenResponse tokenResponse =
                 appleTokenClient.requestToken(request.authorizationCode());
-        AppleUserInfo tokenUserInfo = appleIdTokenVerifier.verify(tokenResponse.idToken());
+        AppleUserInfo tokenUserInfo =
+                appleIdTokenVerifier.verify(tokenResponse.idToken(), request.nonce());
         validateSameAppleUser(requestUserInfo, tokenUserInfo);
 
         AppUserLoginResult loginResult =

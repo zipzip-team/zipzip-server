@@ -37,6 +37,7 @@ class AuthServiceTest {
 
     private static final String IDENTITY_TOKEN = "identity-token";
     private static final String AUTHORIZATION_CODE = "authorization-code";
+    private static final String NONCE = "nonce";
     private static final String TOKEN_RESPONSE_ID_TOKEN = "token-response-id-token";
     private static final String APPLE_SUBJECT = "apple-subject";
     private static final String ACCESS_TOKEN = "access-token";
@@ -65,7 +66,7 @@ class AuthServiceTest {
 
         LoginResponse response =
                 authService.loginWithApple(
-                        new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, " 집집이 "));
+                        new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, NONCE, " 집집이 "));
 
         assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
         assertThat(response.refreshToken()).isEqualTo(REFRESH_TOKEN);
@@ -92,7 +93,7 @@ class AuthServiceTest {
 
         LoginResponse response =
                 authService.loginWithApple(
-                        new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, " 집집이 "));
+                        new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, NONCE, " 집집이 "));
 
         assertThat(response.isNewUser()).isFalse();
         assertThat(response.isRestoredUser()).isFalse();
@@ -110,7 +111,7 @@ class AuthServiceTest {
 
         LoginResponse response =
                 authService.loginWithApple(
-                        new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, null));
+                        new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, NONCE, null));
 
         assertThat(response.isNewUser()).isFalse();
         assertThat(response.isRestoredUser()).isFalse();
@@ -129,7 +130,8 @@ class AuthServiceTest {
 
         LoginResponse response =
                 authService.loginWithApple(
-                        new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, " 복구 사용자 "));
+                        new AppleLoginRequest(
+                                IDENTITY_TOKEN, AUTHORIZATION_CODE, NONCE, " 복구 사용자 "));
 
         assertThat(response.isNewUser()).isFalse();
         assertThat(response.isRestoredUser()).isTrue();
@@ -139,7 +141,7 @@ class AuthServiceTest {
 
     @Test
     void 신규_사용자_표시_이름이_없으면_예외가_발생한다() {
-        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN))
+        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN, NONCE))
                 .thenReturn(new AppleUserInfo(APPLE_SUBJECT, null));
         when(appUserRepository.findByAppleSubject(APPLE_SUBJECT)).thenReturn(Optional.empty());
 
@@ -147,7 +149,7 @@ class AuthServiceTest {
                         () ->
                                 authService.loginWithApple(
                                         new AppleLoginRequest(
-                                                IDENTITY_TOKEN, AUTHORIZATION_CODE, null)))
+                                                IDENTITY_TOKEN, AUTHORIZATION_CODE, NONCE, null)))
                 .isInstanceOfSatisfying(
                         BusinessException.class,
                         exception ->
@@ -162,7 +164,7 @@ class AuthServiceTest {
     void 탈퇴_사용자_표시_이름이_없으면_authorizationCode를_소비하지_않고_예외가_발생한다() {
         AppUser appUser = AppUser.create(APPLE_SUBJECT, "기존 사용자");
         appUser.withdraw(Instant.parse("2026-07-08T00:00:00Z"));
-        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN))
+        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN, NONCE))
                 .thenReturn(new AppleUserInfo(APPLE_SUBJECT, null));
         when(appUserRepository.findByAppleSubject(APPLE_SUBJECT)).thenReturn(Optional.of(appUser));
 
@@ -170,7 +172,7 @@ class AuthServiceTest {
                         () ->
                                 authService.loginWithApple(
                                         new AppleLoginRequest(
-                                                IDENTITY_TOKEN, AUTHORIZATION_CODE, null)))
+                                                IDENTITY_TOKEN, AUTHORIZATION_CODE, NONCE, null)))
                 .isInstanceOfSatisfying(
                         BusinessException.class,
                         exception ->
@@ -183,18 +185,18 @@ class AuthServiceTest {
 
     @Test
     void 요청_identityToken과_authorizationCode의_Apple_사용자가_다르면_예외가_발생한다() {
-        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN))
+        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN, NONCE))
                 .thenReturn(new AppleUserInfo("request-subject", null));
         when(appUserRepository.findByAppleSubject("request-subject")).thenReturn(Optional.empty());
         when(appleTokenClient.requestToken(AUTHORIZATION_CODE)).thenReturn(tokenResponse());
-        when(appleIdTokenVerifier.verify(TOKEN_RESPONSE_ID_TOKEN))
+        when(appleIdTokenVerifier.verify(TOKEN_RESPONSE_ID_TOKEN, NONCE))
                 .thenReturn(new AppleUserInfo("token-subject", null));
 
         assertThatThrownBy(
                         () ->
                                 authService.loginWithApple(
                                         new AppleLoginRequest(
-                                                IDENTITY_TOKEN, AUTHORIZATION_CODE, "집집이")))
+                                                IDENTITY_TOKEN, AUTHORIZATION_CODE, NONCE, "집집이")))
                 .isInstanceOfSatisfying(
                         BusinessException.class,
                         exception ->
@@ -218,7 +220,7 @@ class AuthServiceTest {
                 ArgumentCaptor.forClass(RefreshToken.class);
 
         authService.loginWithApple(
-                new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, "집집이"));
+                new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, NONCE, "집집이"));
 
         verify(refreshTokenHasher).hash(REFRESH_TOKEN);
         verify(refreshTokenRepository).save(refreshTokenCaptor.capture());
@@ -227,10 +229,10 @@ class AuthServiceTest {
     }
 
     private void givenAppleVerification(String appleSubject) {
-        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN))
+        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN, NONCE))
                 .thenReturn(new AppleUserInfo(appleSubject, null));
         when(appleTokenClient.requestToken(AUTHORIZATION_CODE)).thenReturn(tokenResponse());
-        when(appleIdTokenVerifier.verify(TOKEN_RESPONSE_ID_TOKEN))
+        when(appleIdTokenVerifier.verify(TOKEN_RESPONSE_ID_TOKEN, NONCE))
                 .thenReturn(new AppleUserInfo(appleSubject, null));
     }
 
