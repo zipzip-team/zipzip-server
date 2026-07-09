@@ -142,12 +142,24 @@ ENVEOF
    env 파일(prod: `zipzip-be.env`, dev: `.env.dev`)에 그대로 기록.
 2. `curl`로 `raw.githubusercontent.com/zipzip-team/zipzip-server/$GIT_SHA/deploy/...`에서
    해당 커밋의 `docker-compose.yml`과 `nginx/conf.d/*.conf`를 받아 로컬 파일을 덮어씀.
-3. `docker compose pull api`(또는 dev는 `api-dev`) → `docker compose up -d api` 로 새 이미지
-   컨테이너 교체.
-4. `docker compose exec -T nginx nginx -t`로 **문법 검증에 통과했을 때만** `nginx -s reload`.
+3. pull하기 전에 **현재 떠 있는 컨테이너가 쓰던 이미지 ID를 기록**(`docker inspect --format=
+   '{{.Image}}'`)해둔 뒤, `docker compose pull api`(또는 dev는 `api-dev`) → `docker compose up
+   -d api`로 새 이미지 컨테이너 교체.
+4. **헬스체크**: `api`/`api-dev`는 호스트에 포트를 안 열기 때문에, 실제 트래픽과 동일한 경로로
+   `nginx` 컨테이너 안에서 `wget`으로 `http://api:8080/actuator/health`(dev는
+   `http://api-dev:8080/...`)를 최대 60초(4초 x 15회) 재시도하며 확인한다.
+   `spring-boot-starter-actuator`가 이미 의존성에 있어 별도 설정 없이 `/actuator/health`가
+   노출된다.
+   - **성공** → 5번(nginx reload)으로 진행.
+   - **실패**(설정 누락, DB 접속 실패, 마이그레이션 충돌 등 원인 불문) → 3번에서 기록해둔
+     이전 이미지 ID를 다시 `:latest`(dev는 `:dev`) 태그로 되돌려 재pull 없이 그 이미지로
+     컨테이너를 재생성(롤백)하고, 스크립트가 `exit 1`로 끝나 SSH 커맨드/CD job이 실패로
+     표시된다. 서비스는 롤백된 이전 버전으로 계속 정상 동작한다. 최초 배포라 롤백할 이전
+     이미지가 없으면 그대로 실패만 알리고 끝난다.
+5. `docker compose exec -T nginx nginx -t`로 **문법 검증에 통과했을 때만** `nginx -s reload`.
    검증에 실패하면 reload하지 않고 에러만 출력 — 잘못된 nginx 설정 때문에 서비스 전체가
    죽는 것을 방지.
-5. certbot 컨테이너는 이 배포 흐름과 무관하게 별도로 12시간마다 인증서 갱신 루프를 돈다
+6. certbot 컨테이너는 이 배포 흐름과 무관하게 별도로 12시간마다 인증서 갱신 루프를 돈다
    (`certbot renew --webroot ... --quiet`).
 
 ## 4. PR 단계에서 필수 설정 누락을 잡는 안전장치
@@ -189,12 +201,10 @@ CD 빌드 단계(`./gradlew ... bootJar -x test`, 3-2절)는 Spring 컨텍스트
 ### 4-3. 이 방법이 남기는 한계
 
 - `cd.yml`이 해당 키를 **전달하겠다고 선언**했는지만 확인한다. `secrets.APPLE_CLIENT_ID`
-  자체가 GitHub에 등록 안 돼 있거나 값이 비어 있는 경우는 잡지 못한다 — 다만 `cd.yml`에
-  시크릿 참조를 추가하면서 등록만 빠뜨리는 실수는, 애초에 참조 자체를 빠뜨리는 실수보다
-  발생 빈도가 낮다고 판단해 감수하기로 했다.
-  실제 컨테이너 기동 실패까지 잡으려면 배포 스크립트에 헬스체크 + 롤백이 필요한데, 이건
-  서버(`~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh`, 5절 표 참고)에 직접 접근해야 적용할
-  수 있어 별도 과제로 보류했다.
+  자체가 GitHub에 등록 안 돼 있거나 값이 비어 있는 경우, 또는 값은 있지만 틀린 경우(오타,
+  만료 등)는 이 테스트로는 잡지 못한다. 이 잔여 리스크는 서버 배포 스크립트의 헬스체크 +
+  롤백(3-3절 (3) 4번 항목)이 원인 불문하고 커버한다 — 배포가 실제로 서버에 반영된 뒤 앱이
+  응답하는지까지 확인하는 건 PR 단계에서는 원천적으로 할 수 없는 검증이기 때문이다.
 - 중첩된(nested object) `@ConfigurationProperties` 필드는 지원하지 않는다 — 현재 코드에
   없는 케이스라 미리 만들지 않았다.
 
@@ -210,7 +220,7 @@ CD 빌드 단계(`./gradlew ... bootJar -x test`, 3-2절)는 Spring 컨텍스트
 | `~/zipzip-deploy/zipzip-be.env` | 서버(prod) | X | 실제 prod `SPRING_DATASOURCE_*` — 매 배포마다 GitHub Secrets 값으로 덮어써짐 |
 | `~/zipzip-deploy-dev/.env.dev` | 서버(dev) | X | 실제 dev `SPRING_DATASOURCE_*` + `DOCKERHUB_IMAGE` — 매 배포마다 덮어써짐 |
 | `~/zipzip-deploy/certbot/conf` | 서버(prod) | X | Let's Encrypt 발급 인증서 |
-| `~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh` | 서버 | X | forced command로 실행되는 배포 스크립트 본체 |
+| `~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh` | 서버 | X | forced command로 실행되는 배포 스크립트 본체(헬스체크 + 자동 롤백 포함) |
 
 ## 6. Docker Compose 스택 비교
 
@@ -298,6 +308,10 @@ main     --push-->  cd.yml      --build/push image(:latest, :{sha})-->  Docker H
 - **`nginx -t` 통과 시에만 reload**: 잘못된 nginx 설정으로 서비스 전체가 죽는 것을 방지.
 - **prod/dev 이미지 태그, SSH 키, 시크릿, 서버 스크립트, 컨테이너명 완전 분리**: 한쪽 파이프라인의
   문제가 다른 쪽에 번지지 않도록 격리.
+- **배포 스크립트의 헬스체크 + 자동 롤백**(3-3절 (3) 4번): 새 컨테이너가 60초 안에 응답하지
+  않으면 원인 불문 이전 이미지로 자동 복구하고 배포 자체는 실패로 표시한다. PR 단계
+  검증(4절)이 못 잡는 "값은 있지만 틀린 경우"까지 포함해 실제 서비스 중단을 방지하는
+  마지막 안전망이다.
 - **PR 단계에서 필수 설정 ↔ CD 전달 키 동기화 검증**(4절): CI가 더미 값으로 통과시키는 새
   필수 설정이 실제로는 `cd.yml`/`cd-dev.yml`에서 서버로 전달되지 않는 채로 머지되는 것을
   막는다.

@@ -54,23 +54,62 @@ mv zipzip-be.env.tmp zipzip-be.env
 curl -fsSL "$REPO_RAW/$GIT_SHA/deploy/docker-compose.yml" -o docker-compose.yml
 curl -fsSL "$REPO_RAW/$GIT_SHA/deploy/nginx/conf.d/api.conf" -o nginx/conf.d/api.conf
 
+# 롤백 대비: pull하기 전에 지금 떠 있는(=정상 동작 중이었을) 컨테이너가 실제로 쓰던
+# 이미지 ID를 기록해둔다. 최초 배포라 컨테이너가 없으면 빈 값으로 남는다.
+PREV_IMAGE_ID=$(docker inspect --format='{{.Image}}' zipzip-be 2>/dev/null || true)
+
 docker compose pull api
 docker compose up -d api
+
+# 헬스체크: api는 호스트에 포트를 안 열어서(expose만) 호스트에서 직접 접근할 수 없다.
+# 실제 트래픽이 지나가는 것과 동일한 경로(nginx 컨테이너 -> 내부망 -> api:8080)로 확인해서
+# 프록시 설정과 무관하게 앱이 실제로 응답하는지를 본다. spring-boot-starter-actuator가
+# 이미 의존성에 있어 /actuator/health는 별도 설정 없이 기본 노출된다.
+# 최대 60초(4초 x 15회) 기다려도 안 뜨면 실패로 간주한다.
+healthy=0
+for _ in $(seq 1 15); do
+  if docker compose exec -T nginx wget -qO- --timeout=3 http://api:8080/actuator/health 2>/dev/null \
+       | grep -q '"status":"UP"'; then
+    healthy=1
+    break
+  fi
+  sleep 4
+done
+
+if [ "$healthy" -ne 1 ]; then
+  echo "::error:: new api container failed health check within 60s." >&2
+  if [ -n "$PREV_IMAGE_ID" ]; then
+    echo "rolling back zipzip-be to previous image ($PREV_IMAGE_ID)" >&2
+    # pull이 :latest 태그를 새 이미지로 옮겨버렸으므로, 로컬에 남아있는 이전 이미지를
+    # 다시 :latest로 되돌려 태깅한 뒤(재pull 없이) 그 이미지로 컨테이너를 재생성한다.
+    DOCKERHUB_IMAGE=$(grep '^DOCKERHUB_IMAGE=' .env | cut -d= -f2)
+    docker tag "$PREV_IMAGE_ID" "${DOCKERHUB_IMAGE}:latest"
+    docker compose up -d api
+  else
+    echo "no previous image recorded (first deploy?) - nothing to roll back to." >&2
+  fi
+  exit 1
+fi
 
 if docker compose exec -T nginx nginx -t; then
   docker compose exec -T nginx nginx -s reload
 else
-  echo "nginx config test failed — not reloading." >&2
+  echo "nginx config test failed — not reloading. Check nginx/conf.d/*.conf on server." >&2
 fi
 ```
 
 nginx는 `nginx -t`(문법 검증)를 통과했을 때만 reload합니다 — 잘못된 설정으로 nginx가 죽는 걸 방지합니다.
+헬스체크가 실패하면(설정 누락, DB 접속 실패, 마이그레이션 충돌 등 원인 불문) 이전 이미지로 자동 롤백하고
+스크립트가 `exit 1`로 끝나 SSH 커맨드가 실패 처리되므로, GitHub Actions에서 그 배포가 실패했다는 게
+빨간불로 명확히 남는다 — 단, 서비스 자체는 롤백된 이전 버전으로 계속 정상 동작한다.
 certbot은 이 흐름에서 건드리지 않고, 인증서 갱신 루프만 별도로 계속 돕니다.
 
 ### dev 파이프라인도 동일한 방식
 
-`cd-dev.yml` → `~/zipzip-deploy-dev.sh`도 완전히 같은 패턴입니다. 다만 nginx는 prod가 쓰는 것을 그대로
-공유하므로, `dev-api.conf`는 `~/zipzip-deploy-dev`가 아니라 **`~/zipzip-deploy/nginx/conf.d/`에 씀**니다.
+`cd-dev.yml` → `~/zipzip-deploy-dev.sh`도 완전히 같은 패턴(헬스체크+롤백 포함)입니다. 다만 nginx는 prod가
+쓰는 것을 그대로 공유하므로, `dev-api.conf`는 `~/zipzip-deploy-dev`가 아니라
+**`~/zipzip-deploy/nginx/conf.d/`에 씀**니다. 헬스체크도 같은 이유로 `~/zipzip-deploy`로 돌아와
+`docker compose exec -T nginx`로 `http://api-dev:8080/actuator/health`를 확인합니다.
 
 ## 인증서 최초 발급 (1회성, 이미 완료됨)
 
