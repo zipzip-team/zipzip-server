@@ -23,19 +23,19 @@ import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupMember
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupMemberService;
 import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
-import org.zipzip.zipzipserver.global.config.CurrentAppUserIdArgumentResolver;
-import org.zipzip.zipzipserver.global.config.JwtAuthenticationFilter;
-import org.zipzip.zipzipserver.global.config.WebMvcConfig;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 import org.zipzip.zipzipserver.global.exception.GlobalExceptionHandler;
+import org.zipzip.zipzipserver.global.security.JwtAuthenticationFilter;
+import org.zipzip.zipzipserver.global.security.SecurityConfig;
+import org.zipzip.zipzipserver.global.security.SecurityExceptionResponseWriter;
 
 @WebMvcTest(
         controllers = SharedGroupMemberController.class,
         properties = "spring.config.import=optional:classpath:config/application-secret.yml")
 @Import({
+    SecurityConfig.class,
     JwtAuthenticationFilter.class,
-    CurrentAppUserIdArgumentResolver.class,
-    WebMvcConfig.class,
+    SecurityExceptionResponseWriter.class,
     GlobalExceptionHandler.class
 })
 class SharedGroupMemberControllerTest {
