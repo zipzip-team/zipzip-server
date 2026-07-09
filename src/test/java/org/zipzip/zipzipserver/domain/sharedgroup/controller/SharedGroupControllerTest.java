@@ -19,10 +19,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.zipzip.zipzipserver.domain.auth.jwt.JwtTokenProvider;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
@@ -53,9 +53,9 @@ class SharedGroupControllerTest {
 
     @Autowired private MockMvc mockMvc;
 
-    @MockBean private JwtTokenProvider jwtTokenProvider;
-    @MockBean private SharedGroupService sharedGroupService;
-    @MockBean private IdempotencyService idempotencyService;
+    @MockitoBean private JwtTokenProvider jwtTokenProvider;
+    @MockitoBean private SharedGroupService sharedGroupService;
+    @MockitoBean private IdempotencyService idempotencyService;
 
     @Test
     void 인증_토큰이_없으면_UNAUTHORIZED를_반환한다() throws Exception {
@@ -130,15 +130,39 @@ class SharedGroupControllerTest {
     }
 
     @Test
+    void 빈_공유_그룹_이름은_400을_반환한다() throws Exception {
+        givenAuthenticatedUser();
+
+        mockMvc.perform(
+                        post("/api/v1/shared-groups")
+                                .header("Authorization", bearerToken())
+                                .header("Idempotency-Key", UUID.randomUUID().toString())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\" \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void 목록_size가_범위를_벗어나면_400을_반환한다() throws Exception {
+        givenAuthenticatedUser();
+
+        mockMvc.perform(
+                        get("/api/v1/shared-groups")
+                                .header("Authorization", bearerToken())
+                                .queryParam("size", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
     void HOST의_이름_수정_요청은_성공_응답을_반환한다() throws Exception {
         UUID sharedGroupId = UUID.randomUUID();
         givenAuthenticatedUser();
         when(sharedGroupService.updateName(APP_USER_ID, sharedGroupId, "여름 여행"))
                 .thenReturn(
                         new SharedGroupUpdateResponse(
-                                sharedGroupId,
-                                "여름 여행",
-                                Instant.parse("2026-07-03T12:00:00Z")));
+                                sharedGroupId, "여름 여행", Instant.parse("2026-07-03T12:00:00Z")));
 
         mockMvc.perform(
                         patch("/api/v1/shared-groups/{sharedGroupId}", sharedGroupId)
