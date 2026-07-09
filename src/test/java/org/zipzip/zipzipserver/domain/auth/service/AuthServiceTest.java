@@ -54,11 +54,14 @@ class AuthServiceTest {
 
     @Test
     void 신규_사용자를_생성하고_토큰을_발급한다() {
+        AppUser insertedAppUser = AppUser.create(APPLE_SUBJECT, "집집이");
         givenAppleVerification(APPLE_SUBJECT);
         givenTokenIssue();
-        when(appUserRepository.findByAppleSubject(APPLE_SUBJECT)).thenReturn(Optional.empty());
-        when(appUserRepository.save(any(AppUser.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(appUserRepository.findByAppleSubject(APPLE_SUBJECT))
+                .thenReturn(Optional.empty(), Optional.of(insertedAppUser));
+        when(appUserRepository.insertIfAppleSubjectAbsent(
+                        any(UUID.class), eq(APPLE_SUBJECT), eq("집집이")))
+                .thenReturn(1);
 
         LoginResponse response =
                 authService.loginWithApple(
@@ -70,6 +73,30 @@ class AuthServiceTest {
         assertThat(response.expiresIn()).isEqualTo(1800L);
         assertThat(response.isNewUser()).isTrue();
         assertThat(response.isRestoredUser()).isFalse();
+        assertThat(response.user().displayName()).isEqualTo("집집이");
+        verify(appUserRepository)
+                .insertIfAppleSubjectAbsent(any(UUID.class), eq(APPLE_SUBJECT), eq("집집이"));
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void 첫_로그인_동시_요청에서_이미_생성된_사용자를_다시_조회해_로그인한다() {
+        AppUser appUser = AppUser.create(APPLE_SUBJECT, "집집이");
+        givenAppleVerification(APPLE_SUBJECT);
+        givenTokenIssue();
+        when(appUserRepository.findByAppleSubject(APPLE_SUBJECT))
+                .thenReturn(Optional.empty(), Optional.of(appUser));
+        when(appUserRepository.insertIfAppleSubjectAbsent(
+                        any(UUID.class), eq(APPLE_SUBJECT), eq("집집이")))
+                .thenReturn(0);
+
+        LoginResponse response =
+                authService.loginWithApple(
+                        new AppleLoginRequest(IDENTITY_TOKEN, AUTHORIZATION_CODE, " 집집이 "));
+
+        assertThat(response.isNewUser()).isFalse();
+        assertThat(response.isRestoredUser()).isFalse();
+        assertThat(response.user().id()).isEqualTo(appUser.getId());
         assertThat(response.user().displayName()).isEqualTo("집집이");
         verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
@@ -181,9 +208,12 @@ class AuthServiceTest {
     void Refresh_Token은_해시로_저장한다() {
         givenAppleVerification(APPLE_SUBJECT);
         givenTokenIssue();
-        when(appUserRepository.findByAppleSubject(APPLE_SUBJECT)).thenReturn(Optional.empty());
-        when(appUserRepository.save(any(AppUser.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        AppUser insertedAppUser = AppUser.create(APPLE_SUBJECT, "집집이");
+        when(appUserRepository.findByAppleSubject(APPLE_SUBJECT))
+                .thenReturn(Optional.empty(), Optional.of(insertedAppUser));
+        when(appUserRepository.insertIfAppleSubjectAbsent(
+                        any(UUID.class), eq(APPLE_SUBJECT), eq("집집이")))
+                .thenReturn(1);
         ArgumentCaptor<RefreshToken> refreshTokenCaptor =
                 ArgumentCaptor.forClass(RefreshToken.class);
 

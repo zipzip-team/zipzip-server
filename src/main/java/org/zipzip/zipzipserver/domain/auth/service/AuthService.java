@@ -93,9 +93,20 @@ public class AuthService {
     }
 
     private AppUserLoginResult createAppUser(String appleSubject, String displayName) {
-        AppUser appUser = AppUser.create(appleSubject, normalizeRequiredDisplayName(displayName));
+        String normalizedDisplayName = normalizeRequiredDisplayName(displayName);
+        int inserted =
+                appUserRepository.insertIfAppleSubjectAbsent(
+                        UUID.randomUUID(), appleSubject, normalizedDisplayName);
+        AppUser appUser =
+                appUserRepository
+                        .findByAppleSubject(appleSubject)
+                        .orElseThrow(() -> new IllegalStateException("Apple 사용자 생성 후 조회에 실패했습니다."));
 
-        return new AppUserLoginResult(appUserRepository.save(appUser), true, false);
+        if (inserted == 0) {
+            return restoreIfDeleted(appUser, displayName);
+        }
+
+        return new AppUserLoginResult(appUser, true, false);
     }
 
     private String normalizeRequiredDisplayName(String displayName) {
