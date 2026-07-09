@@ -54,4 +54,24 @@ class JwtTokenProviderTest {
                                 assertThat(exception.getErrorCode())
                                         .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN));
     }
+
+    @Test
+    void 만료된_Refresh_Token은_만료_오류로_거부한다() {
+        JwtProperties properties = new JwtProperties();
+        properties.setIssuer("zipzip-server-test");
+        properties.setAccessSecret(ACCESS_SECRET);
+        properties.setRefreshSecret(REFRESH_SECRET);
+        properties.setAccessTokenExpiration(Duration.ofMinutes(30));
+        properties.setRefreshTokenExpiration(Duration.ofSeconds(-1));
+        JwtTokenProvider expiredTokenProvider = new JwtTokenProvider(properties);
+        String refreshToken =
+                expiredTokenProvider.generateRefreshToken(UUID.randomUUID(), UUID.randomUUID());
+
+        assertThatThrownBy(() -> expiredTokenProvider.verifyRefreshToken(refreshToken))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(AuthErrorCode.REFRESH_TOKEN_EXPIRED));
+    }
 }

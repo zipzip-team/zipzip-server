@@ -5,11 +5,14 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest(
         properties = {
+            "spring.config.import=optional:classpath:config/application-secret.yml",
             "jwt.issuer=zipzip-server-test",
             "jwt.access-secret=test-access-secret-must-be-at-least-32-characters",
             "jwt.refresh-secret=test-refresh-secret-must-be-at-least-32-characters",
             "jwt.access-token-expiration=30m",
             "jwt.refresh-token-expiration=14d",
+            "idempotency.auth-response-encryption-key=test-idempotency-secret-must-be-at-least-32-characters",
+            "idempotency.auth-response-ttl=10m",
             "apple.team-id=test-apple-team-id",
             "apple.client-id=test-apple-client-id",
             "apple.key-id=test-apple-key-id",

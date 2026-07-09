@@ -74,7 +74,7 @@ class RefreshTokenValidatorTest {
         refreshToken.revoke(Instant.parse("2026-07-09T00:00:00Z"));
         givenStoredRefreshToken(appUser, refreshToken);
 
-        assertInvalidRefreshToken();
+        assertRefreshTokenError(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
     }
 
     @Test
@@ -88,7 +88,7 @@ class RefreshTokenValidatorTest {
                         Instant.parse("2000-01-01T00:00:00Z"));
         givenStoredRefreshToken(appUser, refreshToken);
 
-        assertInvalidRefreshToken();
+        assertRefreshTokenError(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
     }
 
     @Test
@@ -119,11 +119,13 @@ class RefreshTokenValidatorTest {
     }
 
     private void assertInvalidRefreshToken() {
+        assertRefreshTokenError(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    private void assertRefreshTokenError(AuthErrorCode authErrorCode) {
         assertThatThrownBy(() -> refreshTokenValidator.validate(REFRESH_TOKEN))
                 .isInstanceOfSatisfying(
                         BusinessException.class,
-                        exception ->
-                                assertThat(exception.getErrorCode())
-                                        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN));
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(authErrorCode));
     }
 }
