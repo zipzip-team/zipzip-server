@@ -1,6 +1,8 @@
 package org.zipzip.zipzipserver.domain.sharedgroup.repository;
+
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,6 +25,20 @@ public interface SharedGroupMembershipRepository
               and u.deletedAt is null
             """)
     boolean existsActiveMembership(
+            @Param("sharedGroupId") UUID sharedGroupId, @Param("appUserId") UUID appUserId);
+
+    @Query(
+            """
+            select membership
+            from SharedGroupMembership membership
+            join fetch membership.sharedGroup sharedGroup
+            join fetch membership.appUser appUser
+            where sharedGroup.id = :sharedGroupId
+              and appUser.id = :appUserId
+              and sharedGroup.deletedAt is null
+              and appUser.deletedAt is null
+            """)
+    Optional<SharedGroupMembership> findActiveBySharedGroupIdAndAppUserId(
             @Param("sharedGroupId") UUID sharedGroupId, @Param("appUserId") UUID appUserId);
 
     @Query(
