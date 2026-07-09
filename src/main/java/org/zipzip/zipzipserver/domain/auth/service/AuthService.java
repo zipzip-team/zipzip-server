@@ -14,6 +14,7 @@ import org.zipzip.zipzipserver.domain.auth.apple.AppleUserInfo;
 import org.zipzip.zipzipserver.domain.auth.code.AuthErrorCode;
 import org.zipzip.zipzipserver.domain.auth.code.AuthSuccessCode;
 import org.zipzip.zipzipserver.domain.auth.dto.request.AppleLoginRequest;
+import org.zipzip.zipzipserver.domain.auth.dto.request.LogoutRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.request.TokenRefreshRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.response.LoginResponse;
 import org.zipzip.zipzipserver.domain.auth.dto.response.TokenRefreshResponse;
@@ -45,6 +46,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenHasher refreshTokenHasher;
+    private final RefreshTokenValidator refreshTokenValidator;
     private final IdempotencyService idempotencyService;
     private final Clock clock = Clock.systemUTC();
 
@@ -103,6 +105,19 @@ public class AuthService {
         TokenRefreshResponse response =
                 rotateRefreshToken(refreshTokenHash, claims, idempotencyStart.record());
         return new TokenRefreshResult(response, false);
+    }
+
+    @Transactional
+    public void logout(UUID appUserId, LogoutRequest request) {
+        RefreshToken refreshToken = refreshTokenValidator.validateForLogout(request.refreshToken());
+
+        if (!refreshToken.getAppUser().getId().equals(appUserId)) {
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        if (refreshToken.getRevokedAt() == null) {
+            refreshToken.revoke(Instant.now(clock));
+        }
     }
 
     private void validateSameAppleUser(AppleUserInfo requestUserInfo, AppleUserInfo tokenUserInfo) {

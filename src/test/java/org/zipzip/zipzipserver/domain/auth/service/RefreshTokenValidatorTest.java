@@ -78,6 +78,23 @@ class RefreshTokenValidatorTest {
     }
 
     @Test
+    void 이미_폐기된_Refresh_Token도_로그아웃_용도로는_검증한다() {
+        AppUser appUser = AppUser.create("apple-subject", "사용자");
+        RefreshToken refreshToken =
+                RefreshToken.create(
+                        appUser,
+                        TOKEN_HASH,
+                        TOKEN_FAMILY_ID,
+                        Instant.parse("2999-01-01T00:00:00Z"));
+        refreshToken.revoke(Instant.parse("2026-07-09T00:00:00Z"));
+        givenStoredRefreshToken(appUser, refreshToken);
+
+        RefreshToken validatedRefreshToken = refreshTokenValidator.validateForLogout(REFRESH_TOKEN);
+
+        assertThat(validatedRefreshToken).isEqualTo(refreshToken);
+    }
+
+    @Test
     void 만료된_Refresh_Token은_거부한다() {
         AppUser appUser = AppUser.create("apple-subject", "사용자");
         RefreshToken refreshToken =

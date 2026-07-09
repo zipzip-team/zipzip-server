@@ -17,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.zipzip.zipzipserver.domain.auth.code.AuthErrorCode;
 import org.zipzip.zipzipserver.domain.auth.config.JwtProperties;
+import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 
 @Component
@@ -47,6 +48,28 @@ public class JwtTokenProvider {
                 REFRESH_TOKEN_TYPE,
                 tokenFamilyId,
                 properties.getRefreshSecret());
+    }
+
+    public UUID verifyAccessToken(String accessToken) {
+        try {
+            SignedJWT signedJWT = SignedJWT.parse(accessToken);
+            validateHeader(signedJWT);
+
+            boolean verified =
+                    signedJWT.verify(
+                            new MACVerifier(
+                                    properties.getAccessSecret().getBytes(StandardCharsets.UTF_8)));
+            if (!verified) {
+                throw new IllegalArgumentException("Access Token 서명 검증에 실패했습니다.");
+            }
+
+            JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
+            validateClaims(claims, ACCESS_TOKEN_TYPE);
+
+            return UUID.fromString(claims.getSubject());
+        } catch (Exception exception) {
+            throw new BusinessException(GlobalErrorCode.UNAUTHORIZED);
+        }
     }
 
     public RefreshTokenClaims verifyRefreshToken(String refreshToken) {

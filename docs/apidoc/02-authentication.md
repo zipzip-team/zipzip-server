@@ -120,7 +120,8 @@ Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token
 
 ## 4. AUTH-03 로그아웃
 
-현재 로그인 세션의 Refresh Token을 폐기한다. 다른 기기의 token family는 유지한다.
+현재 로그인 세션의 Refresh Token을 폐기한다. 다른 기기의 token family는 유지한다. 이미 발급된 Access Token은
+블랙리스트로 즉시 무효화하지 않으며, 설정된 만료 시각까지 사용할 수 있다.
 
 ### Request
 
