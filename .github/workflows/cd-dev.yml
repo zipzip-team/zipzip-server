@@ -110,26 +110,65 @@ jobs:
       JWT_ACCESS_TOKEN_EXPIRATION: ${{ secrets.JWT_ACCESS_TOKEN_EXPIRATION_DEV }}
       JWT_REFRESH_TOKEN_EXPIRATION: ${{ secrets.JWT_REFRESH_TOKEN_EXPIRATION_DEV }}
     steps:
-      - name: Validate required deployment secrets
+      - name: Validate deployment payload
         shell: bash
         run: |
           missing=0
-          for name in \
-            SSH_USER SSH_HOST SSH_PRIVATE_KEY_DEV DOCKERHUB_IMAGE \
-            DB_URL DB_USERNAME DB_PASSWORD \
-            APPLE_TEAM_ID APPLE_CLIENT_ID APPLE_KEY_ID APPLE_PRIVATE_KEY \
-            JWT_ISSUER JWT_SECRET JWT_ACCESS_TOKEN_EXPIRATION JWT_REFRESH_TOKEN_EXPIRATION
-          do
-            if [ -z "${!name}" ]; then
+          payload="$RUNNER_TEMP/zipzip-deployment.env"
+          : > "$payload"
+          chmod 600 "$payload"
+
+          require_non_empty() {
+            local name="$1"
+            local value="$2"
+
+            if [ -z "$value" ]; then
               echo "::error::$name is required for dev deployment."
               missing=1
             fi
-          done
+          }
 
-          if [[ "$APPLE_PRIVATE_KEY" == *$'\n'* ]]; then
-            echo "::error::APPLE_PRIVATE_KEY_DEV must be stored as a single-line PKCS#8 PEM or base64 body for env_file delivery."
+          append_required_payload() {
+            local key="$1"
+            local value="$2"
+
+            if [ -z "$value" ]; then
+              echo "::error::$key is required for dev deployment."
+              missing=1
+              return
+            fi
+
+            if [[ "$value" == *$'\n'* ]]; then
+              echo "::error::$key must be stored as a single-line value for env_file delivery."
+              missing=1
+              return
+            fi
+
+            printf '%s=%s\n' "$key" "$value" >> "$payload"
+          }
+
+          require_non_empty SSH_USER "$SSH_USER"
+          require_non_empty SSH_HOST "$SSH_HOST"
+          require_non_empty SSH_PRIVATE_KEY_DEV "$SSH_PRIVATE_KEY_DEV"
+
+          if [[ "$DOCKERHUB_IMAGE" == /* ]]; then
+            echo "::error::DOCKERHUB_USERNAME is required for dev deployment."
             missing=1
           fi
+
+          append_required_payload GIT_SHA "$GIT_SHA"
+          append_required_payload DOCKERHUB_IMAGE "$DOCKERHUB_IMAGE"
+          append_required_payload SPRING_DATASOURCE_URL "$DB_URL"
+          append_required_payload SPRING_DATASOURCE_USERNAME "$DB_USERNAME"
+          append_required_payload SPRING_DATASOURCE_PASSWORD "$DB_PASSWORD"
+          append_required_payload APPLE_TEAM_ID "$APPLE_TEAM_ID"
+          append_required_payload APPLE_CLIENT_ID "$APPLE_CLIENT_ID"
+          append_required_payload APPLE_KEY_ID "$APPLE_KEY_ID"
+          append_required_payload APPLE_PRIVATE_KEY "$APPLE_PRIVATE_KEY"
+          append_required_payload JWT_ISSUER "$JWT_ISSUER"
+          append_required_payload JWT_SECRET "$JWT_SECRET"
+          append_required_payload JWT_ACCESS_TOKEN_EXPIRATION "$JWT_ACCESS_TOKEN_EXPIRATION"
+          append_required_payload JWT_REFRESH_TOKEN_EXPIRATION "$JWT_REFRESH_TOKEN_EXPIRATION"
 
           exit "$missing"
 
@@ -156,18 +195,4 @@ jobs:
       - name: Deploy over SSH
         run: |
           ssh -i ~/.ssh/deploy_key_dev -o UserKnownHostsFile=~/.ssh/known_hosts \
-            "$SSH_USER@$SSH_HOST" 'deploy' <<ENVEOF
-          GIT_SHA=$GIT_SHA
-          DOCKERHUB_IMAGE=$DOCKERHUB_IMAGE
-          SPRING_DATASOURCE_URL=$DB_URL
-          SPRING_DATASOURCE_USERNAME=$DB_USERNAME
-          SPRING_DATASOURCE_PASSWORD=$DB_PASSWORD
-          APPLE_TEAM_ID=$APPLE_TEAM_ID
-          APPLE_CLIENT_ID=$APPLE_CLIENT_ID
-          APPLE_KEY_ID=$APPLE_KEY_ID
-          APPLE_PRIVATE_KEY=$APPLE_PRIVATE_KEY
-          JWT_ISSUER=$JWT_ISSUER
-          JWT_SECRET=$JWT_SECRET
-          JWT_ACCESS_TOKEN_EXPIRATION=$JWT_ACCESS_TOKEN_EXPIRATION
-          JWT_REFRESH_TOKEN_EXPIRATION=$JWT_REFRESH_TOKEN_EXPIRATION
-          ENVEOF
+            "$SSH_USER@$SSH_HOST" 'deploy' < "$RUNNER_TEMP/zipzip-deployment.env"
