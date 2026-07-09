@@ -1,5 +1,6 @@
 package org.zipzip.zipzipserver.domain.auth.service;
 
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -36,13 +37,18 @@ public class AuthService {
     @Transactional
     public LoginResponse loginWithApple(AppleLoginRequest request) {
         AppleUserInfo requestUserInfo = appleIdTokenVerifier.verify(request.identityToken());
+        Optional<AppUser> foundAppUser =
+                appUserRepository.findByAppleSubject(requestUserInfo.subject());
+        AppUser appUser = foundAppUser.orElse(null);
+        validateDisplayNameBeforeTokenExchange(appUser, request.displayName());
+
         AppleTokenResponse tokenResponse =
                 appleTokenClient.requestToken(request.authorizationCode());
         AppleUserInfo tokenUserInfo = appleIdTokenVerifier.verify(tokenResponse.idToken());
         validateSameAppleUser(requestUserInfo, tokenUserInfo);
 
         AppUserLoginResult loginResult =
-                findOrCreateAppUser(requestUserInfo.subject(), request.displayName());
+                findOrCreateAppUser(appUser, requestUserInfo.subject(), request.displayName());
         TokenIssueResult tokenIssueResult = issueTokens(loginResult.appUser());
 
         return new LoginResponse(
@@ -62,11 +68,19 @@ public class AuthService {
         }
     }
 
-    private AppUserLoginResult findOrCreateAppUser(String appleSubject, String displayName) {
-        return appUserRepository
-                .findByAppleSubject(appleSubject)
-                .map(appUser -> restoreIfDeleted(appUser, displayName))
-                .orElseGet(() -> createAppUser(appleSubject, displayName));
+    private void validateDisplayNameBeforeTokenExchange(AppUser appUser, String displayName) {
+        if (appUser == null || appUser.isDeleted()) {
+            normalizeRequiredDisplayName(displayName);
+        }
+    }
+
+    private AppUserLoginResult findOrCreateAppUser(
+            AppUser foundAppUser, String appleSubject, String displayName) {
+        if (foundAppUser != null) {
+            return restoreIfDeleted(foundAppUser, displayName);
+        }
+
+        return createAppUser(appleSubject, displayName);
     }
 
     private AppUserLoginResult restoreIfDeleted(AppUser appUser, String displayName) {

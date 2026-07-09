@@ -112,7 +112,8 @@ class AuthServiceTest {
 
     @Test
     void 신규_사용자_표시_이름이_없으면_예외가_발생한다() {
-        givenAppleVerification(APPLE_SUBJECT);
+        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN))
+                .thenReturn(new AppleUserInfo(APPLE_SUBJECT, null));
         when(appUserRepository.findByAppleSubject(APPLE_SUBJECT)).thenReturn(Optional.empty());
 
         assertThatThrownBy(
@@ -126,6 +127,30 @@ class AuthServiceTest {
                                 assertThat(exception.getErrorCode())
                                         .isEqualTo(AuthErrorCode.DISPLAY_NAME_REQUIRED));
 
+        verify(appleTokenClient, never()).requestToken(any());
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void 탈퇴_사용자_표시_이름이_없으면_authorizationCode를_소비하지_않고_예외가_발생한다() {
+        AppUser appUser = AppUser.create(APPLE_SUBJECT, "기존 사용자");
+        appUser.withdraw(Instant.parse("2026-07-08T00:00:00Z"));
+        when(appleIdTokenVerifier.verify(IDENTITY_TOKEN))
+                .thenReturn(new AppleUserInfo(APPLE_SUBJECT, null));
+        when(appUserRepository.findByAppleSubject(APPLE_SUBJECT)).thenReturn(Optional.of(appUser));
+
+        assertThatThrownBy(
+                        () ->
+                                authService.loginWithApple(
+                                        new AppleLoginRequest(
+                                                IDENTITY_TOKEN, AUTHORIZATION_CODE, null)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(AuthErrorCode.DISPLAY_NAME_REQUIRED));
+
+        verify(appleTokenClient, never()).requestToken(any());
         verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 
@@ -133,6 +158,7 @@ class AuthServiceTest {
     void 요청_identityToken과_authorizationCode의_Apple_사용자가_다르면_예외가_발생한다() {
         when(appleIdTokenVerifier.verify(IDENTITY_TOKEN))
                 .thenReturn(new AppleUserInfo("request-subject", null));
+        when(appUserRepository.findByAppleSubject("request-subject")).thenReturn(Optional.empty());
         when(appleTokenClient.requestToken(AUTHORIZATION_CODE)).thenReturn(tokenResponse());
         when(appleIdTokenVerifier.verify(TOKEN_RESPONSE_ID_TOKEN))
                 .thenReturn(new AppleUserInfo("token-subject", null));
@@ -148,7 +174,6 @@ class AuthServiceTest {
                                 assertThat(exception.getErrorCode())
                                         .isEqualTo(AuthErrorCode.INVALID_APPLE_AUTHORIZATION_CODE));
 
-        verify(appUserRepository, never()).findByAppleSubject(any());
         verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 
