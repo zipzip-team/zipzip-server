@@ -17,7 +17,11 @@ public enum AuthErrorCode implements ErrorCode {
             "INVALID_APPLE_AUTHORIZATION_CODE",
             "Apple authorization code가 올바르지 않습니다."),
     INVALID_REFRESH_TOKEN(
-            HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN", "Refresh Token이 올바르지 않습니다.");
+            HttpStatus.UNAUTHORIZED, "INVALID_REFRESH_TOKEN", "Refresh Token이 올바르지 않습니다."),
+    REFRESH_TOKEN_EXPIRED(
+            HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_EXPIRED", "Refresh Token이 만료되었습니다."),
+    REFRESH_TOKEN_REUSE_DETECTED(
+            HttpStatus.UNAUTHORIZED, "REFRESH_TOKEN_REUSE_DETECTED", "Refresh Token 재사용이 감지되었습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
