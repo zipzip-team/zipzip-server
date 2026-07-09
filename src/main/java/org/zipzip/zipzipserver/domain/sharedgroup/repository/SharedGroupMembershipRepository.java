@@ -29,6 +29,20 @@ public interface SharedGroupMembershipRepository
 
     @Query(
             """
+            select count(m) > 0
+            from SharedGroupMembership m
+            join m.sharedGroup g
+            join m.appUser u
+            where g.id = :sharedGroupId
+              and u.id = :appUserId
+              and g.deletedAt is null
+              and u.deletedAt is null
+            """)
+    boolean existsActiveBySharedGroupIdAndAppUserId(
+            @Param("sharedGroupId") UUID sharedGroupId, @Param("appUserId") UUID appUserId);
+
+    @Query(
+            """
             select membership
             from SharedGroupMembership membership
             join fetch membership.sharedGroup sharedGroup
