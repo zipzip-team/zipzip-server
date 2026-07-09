@@ -27,7 +27,7 @@ import org.springframework.core.type.filter.AnnotationTypeFilter;
  *
  * <p>CI는 테스트용 더미 프로퍼티로 {@code @ConfigurationProperties} 바인딩을 통과시키기 때문에, 새 필수 설정이 GitHub
  * Secrets/{@code cd.yml}/{@code cd-dev.yml}에 반영되지 않아도 PR check는 조용히 통과할 수 있다. 이 테스트는 두 목록(코드의
- * {@code @NotBlank}/{@code @NotNull} 필드, 워크플로우의 배포 heredoc)을 각자의 실제 목적으로부터 그대로 추출해 비교하므로, 새 설정이 생겨도
+ * {@code @NotBlank}/{@code @NotNull} 필드, 워크플로우의 배포 payload)을 각자의 실제 목적으로부터 그대로 추출해 비교하므로, 새 설정이 생겨도
  * 이 파일 자체는 손댈 필요가 없다.
  */
 class CdRequiredConfigSyncTests {
@@ -39,11 +39,9 @@ class CdRequiredConfigSyncTests {
 
     private static final Set<String> DEPLOY_META_KEYS = Set.of("GIT_SHA", "DOCKERHUB_IMAGE");
 
-    private static final Pattern HEREDOC_BLOCK =
-            Pattern.compile("<<ENVEOF\\R(.*?)\\R\\s*ENVEOF", Pattern.DOTALL);
-
-    private static final Pattern ENV_KEY_LINE =
-            Pattern.compile("^\\s*([A-Z_][A-Z0-9_]*)=", Pattern.MULTILINE);
+    private static final Pattern PAYLOAD_APPEND_LINE =
+            Pattern.compile(
+                    "^\\s*append_required_payload\\s+([A-Z_][A-Z0-9_]*)\\b", Pattern.MULTILINE);
 
     @Test
     void everyRequiredConfigPropertyIsForwardedByBothCdWorkflows() throws IOException {
@@ -56,14 +54,14 @@ class CdRequiredConfigSyncTests {
 
         assertThat(missingInProd)
                 .as(
-                        "cd.yml의 deploy 스텝이 서버로 전달하지 않는 필수 설정이 있습니다. heredoc에 <KEY>=$<VAR>"
-                                + " 줄을 추가하세요: %s",
+                        "cd.yml의 deploy payload가 서버로 전달하지 않는 필수 설정이 있습니다."
+                                + " append_required_payload <KEY> \"$<VAR>\" 줄을 추가하세요: %s",
                         missingInProd)
                 .isEmpty();
         assertThat(missingInDev)
                 .as(
-                        "cd-dev.yml의 deploy 스텝이 서버로 전달하지 않는 필수 설정이 있습니다. heredoc에"
-                                + " <KEY>=$<VAR> 줄을 추가하세요: %s",
+                        "cd-dev.yml의 deploy payload가 서버로 전달하지 않는 필수 설정이 있습니다."
+                                + " append_required_payload <KEY> \"$<VAR>\" 줄을 추가하세요: %s",
                         missingInDev)
                 .isEmpty();
     }
@@ -117,21 +115,20 @@ class CdRequiredConfigSyncTests {
 
     private static Set<String> forwardedEnvKeys(Path workflowFile) throws IOException {
         String content = Files.readString(workflowFile);
-        Matcher blockMatcher = HEREDOC_BLOCK.matcher(content);
-        if (!blockMatcher.find()) {
-            throw new IllegalStateException(
-                    workflowFile
-                            + "에서 deploy 스텝의 <<ENVEOF heredoc 블록을 찾지 못했습니다. 워크플로우 형식이"
-                            + " 바뀌었다면 이 테스트의 파싱 로직도 함께 갱신하세요.");
-        }
-
         Set<String> keys = new TreeSet<>();
-        Matcher keyMatcher = ENV_KEY_LINE.matcher(blockMatcher.group(1));
+        Matcher keyMatcher = PAYLOAD_APPEND_LINE.matcher(content);
         while (keyMatcher.find()) {
             String key = keyMatcher.group(1);
             if (!DEPLOY_META_KEYS.contains(key)) {
                 keys.add(key);
             }
+        }
+
+        if (keys.isEmpty()) {
+            throw new IllegalStateException(
+                    workflowFile
+                            + "에서 deploy payload 작성부를 찾지 못했습니다. 워크플로우 형식이 바뀌었다면"
+                            + " append_required_payload 파싱 로직도 함께 갱신하세요.");
         }
         return keys;
     }
