@@ -22,6 +22,9 @@ public class AppleIdTokenVerifier {
 
     private static final String APPLE_ISSUER = "https://appleid.apple.com";
     private static final String APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
+    private static final int APPLE_JWKS_CONNECT_TIMEOUT_MILLIS = 3_000;
+    private static final int APPLE_JWKS_READ_TIMEOUT_MILLIS = 5_000;
+    private static final int APPLE_JWKS_SIZE_LIMIT_BYTES = 50 * 1024;
 
     private final AppleOAuthProperties properties;
 
@@ -47,7 +50,12 @@ public class AppleIdTokenVerifier {
 
     private void validateSignature(SignedJWT signedJWT) throws Exception {
         String keyId = signedJWT.getHeader().getKeyID();
-        JWKSet jwkSet = JWKSet.load(URI.create(APPLE_JWKS_URL).toURL());
+        JWKSet jwkSet =
+                JWKSet.load(
+                        URI.create(APPLE_JWKS_URL).toURL(),
+                        APPLE_JWKS_CONNECT_TIMEOUT_MILLIS,
+                        APPLE_JWKS_READ_TIMEOUT_MILLIS,
+                        APPLE_JWKS_SIZE_LIMIT_BYTES);
         JWK jwk = jwkSet.getKeyByKeyId(keyId);
 
         if (jwk == null) {
