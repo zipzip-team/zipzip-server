@@ -94,7 +94,7 @@
 
 **(0) 필수 GitHub Secrets 검증**
 
-- `Validate required deployment secrets` 단계에서 SSH, DB, Apple Login, JWT 관련 값이 비어 있는지 확인한다.
+- `Validate deployment payload` 단계에서 SSH, DB, Apple Login, JWT 관련 값이 비어 있는지 확인한다.
 - `APPLE_PRIVATE_KEY`, `APPLE_PRIVATE_KEY_DEV`는 서버 env 파일에 줄 단위로 기록되므로 newline이 포함되어
   있으면 실패시킨다. 이 값은 단일 라인 PKCS#8 PEM 또는 base64 body 형태로 등록해야 한다.
 - 이 검증은 실제 값을 노출하지 않고, 누락된 env 변수 이름만 GitHub Actions 로그에 남긴다.
@@ -113,21 +113,17 @@
 
 **(2) SSH로 배포 명령 실행**
 
+`Validate deployment payload` 단계에서 실제 서버 stdin으로 넘길
+`$RUNNER_TEMP/zipzip-deployment.env` 파일을 먼저 만든다. 이때 `append_required_payload`가
+각 런타임 env 값을 검증하고 `KEY=value` 라인으로 payload 파일에 기록한다. 이후 배포 단계는
+그 파일을 그대로 SSH stdin으로 전달한다.
+
 ```bash
-ssh -i ~/.ssh/deploy_key ... "$SSH_USER@$SSH_HOST" 'deploy' <<ENVEOF
-GIT_SHA=$GIT_SHA
-SPRING_DATASOURCE_URL=$DB_URL
-SPRING_DATASOURCE_USERNAME=$DB_USERNAME
-SPRING_DATASOURCE_PASSWORD=$DB_PASSWORD
-APPLE_TEAM_ID=$APPLE_TEAM_ID
-APPLE_CLIENT_ID=$APPLE_CLIENT_ID
-APPLE_KEY_ID=$APPLE_KEY_ID
-APPLE_PRIVATE_KEY=$APPLE_PRIVATE_KEY
-JWT_ISSUER=$JWT_ISSUER
-JWT_SECRET=$JWT_SECRET
-JWT_ACCESS_TOKEN_EXPIRATION=$JWT_ACCESS_TOKEN_EXPIRATION
-JWT_REFRESH_TOKEN_EXPIRATION=$JWT_REFRESH_TOKEN_EXPIRATION
-ENVEOF
+append_required_payload SPRING_DATASOURCE_URL "$DB_URL"
+append_required_payload APPLE_TEAM_ID "$APPLE_TEAM_ID"
+append_required_payload JWT_SECRET "$JWT_SECRET"
+
+ssh -i ~/.ssh/deploy_key ... "$SSH_USER@$SSH_HOST" 'deploy' < "$RUNNER_TEMP/zipzip-deployment.env"
 ```
 
 몇 가지 설계 포인트:
@@ -157,12 +153,24 @@ ENVEOF
    env 파일(prod: `zipzip-be.env`, dev: `.env.dev`)에 그대로 기록.
 2. `curl`로 `raw.githubusercontent.com/zipzip-team/zipzip-server/$GIT_SHA/deploy/...`에서
    해당 커밋의 `docker-compose.yml`과 `nginx/conf.d/*.conf`를 받아 로컬 파일을 덮어씀.
-3. `docker compose pull api`(또는 dev는 `api-dev`) → `docker compose up -d api` 로 새 이미지
-   컨테이너 교체.
-4. `docker compose exec -T nginx nginx -t`로 **문법 검증에 통과했을 때만** `nginx -s reload`.
+3. pull하기 전에 **현재 떠 있는 컨테이너가 쓰던 이미지 ID를 기록**(`docker inspect --format=
+   '{{.Image}}'`)해둔 뒤, `docker compose pull api`(또는 dev는 `api-dev`) → `docker compose up
+   -d api`로 새 이미지 컨테이너 교체.
+4. **헬스체크**: `api`/`api-dev`는 호스트에 포트를 안 열기 때문에, 실제 트래픽과 동일한 경로로
+   `nginx` 컨테이너 안에서 `wget`으로 `http://api:8080/actuator/health`(dev는
+   `http://api-dev:8080/...`)를 최대 60초(4초 x 15회) 재시도하며 확인한다.
+   `spring-boot-starter-actuator`가 이미 의존성에 있어 별도 설정 없이 `/actuator/health`가
+   노출된다.
+   - **성공** → 5번(nginx reload)으로 진행.
+   - **실패**(설정 누락, DB 접속 실패, 마이그레이션 충돌 등 원인 불문) → 3번에서 기록해둔
+     이전 이미지 ID를 다시 `:latest`(dev는 `:dev`) 태그로 되돌려 재pull 없이 그 이미지로
+     컨테이너를 재생성(롤백)하고, 스크립트가 `exit 1`로 끝나 SSH 커맨드/CD job이 실패로
+     표시된다. 서비스는 롤백된 이전 버전으로 계속 정상 동작한다. 최초 배포라 롤백할 이전
+     이미지가 없으면 그대로 실패만 알리고 끝난다.
+5. `docker compose exec -T nginx nginx -t`로 **문법 검증에 통과했을 때만** `nginx -s reload`.
    검증에 실패하면 reload하지 않고 에러만 출력 — 잘못된 nginx 설정 때문에 서비스 전체가
    죽는 것을 방지.
-5. certbot 컨테이너는 이 배포 흐름과 무관하게 별도로 12시간마다 인증서 갱신 루프를 돈다
+6. certbot 컨테이너는 이 배포 흐름과 무관하게 별도로 12시간마다 인증서 갱신 루프를 돈다
    (`certbot renew --webroot ... --quiet`).
 
 ## 4. PR 단계에서 필수 설정 누락을 잡는 안전장치
@@ -176,9 +184,9 @@ ENVEOF
 
 CD 빌드 단계(`./gradlew ... bootJar -x test`, 3-2절)는 Spring 컨텍스트를 아예 띄우지
 않으므로 여기서도 걸러지지 않는다. 실패는 실제 `develop`/`main` push 이후 서버 컨테이너가
-기동하는 시점에야 `BindValidationException`으로 드러나고, `restart: unless-stopped` 때문에
-컨테이너가 재시작을 반복한다. 배포 스크립트에 헬스체크가 없어 CD 자체는 겉보기에 성공한
-것처럼 끝난다는 점이 더 위험하다.
+기동하는 시점에야 `BindValidationException`으로 드러난다. 서버 배포 스크립트의 헬스체크와
+롤백이 런타임 실패를 마지막 단계에서 방어하지만, 그런 배포 실패를 PR 단계에서 미리 줄이는
+안전장치가 필요하다.
 
 ### 4-2. 대응: `cd.yml`/`cd-dev.yml`을 손대지 않아도 되는 자동 비교 테스트
 
@@ -191,8 +199,9 @@ CD 빌드 단계(`./gradlew ... bootJar -x test`, 3-2절)는 Spring 컨텍스트
    `@ConfigurationProperties` 클래스를 스캔하고, `@NotBlank`/`@NotNull`/`@NotEmpty`가 붙은
    필드를 Spring Boot relaxed binding 규약대로 env var 이름으로 변환한다
    (`apple.team-id` → `APPLE_TEAM_ID`).
-2. `.github/workflows/cd.yml`, `cd-dev.yml`의 `deploy` 스텝 heredoc(3-3절의 `<<ENVEOF ...
-   ENVEOF` 블록)을 텍스트로 파싱해서 실제로 서버에 전달하는 키 목록을 뽑는다
+2. `.github/workflows/cd.yml`, `cd-dev.yml`의 `Validate deployment payload` 스텝에 있는
+   `append_required_payload <KEY> "$<VAR>"` 호출을 텍스트로 파싱해서 실제로 서버에 전달하는
+   키 목록을 뽑는다
    (`GIT_SHA`, `DOCKERHUB_IMAGE`는 배포 메타데이터라 제외).
 3. 필수 키 집합이 두 워크플로우 각각에서 뽑은 키 집합의 부분집합인지 AssertJ로 assert한다.
    빠진 키가 있으면 실패 메시지에 그 이름을 그대로 노출한다.
@@ -205,10 +214,11 @@ CD 빌드 단계(`./gradlew ... bootJar -x test`, 3-2절)는 Spring 컨텍스트
 
 - PR 단계에서는 `cd.yml`이 해당 키를 **전달하겠다고 선언**했는지만 확인한다. GitHub Secrets의
   실제 값은 PR에서 노출하거나 검증할 수 없기 때문이다. 대신 CD 실행 초반의
-  `Validate required deployment secrets` 단계가 필수 secret 값이 비어 있으면 SSH 전에 실패시킨다.
-- 실제 컨테이너 기동 실패까지 잡으려면 배포 스크립트에 헬스체크 + 롤백이 필요한데, 이건
-  서버(`~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh`, 5절 표 참고)에 직접 접근해야 적용할
-  수 있어 별도 과제로 보류했다.
+  `Validate deployment payload` 단계가 필수 secret 값이 비어 있으면 SSH 전에 실패시킨다.
+- 값은 있지만 틀린 경우(오타, 만료 등)는 이 테스트나 CD 초반 non-empty 검증으로는 잡지 못한다.
+  이 잔여 리스크는 서버 배포 스크립트의 헬스체크 + 롤백(3-3절 (3) 4번 항목)이 원인 불문하고
+  커버한다 — 배포가 실제로 서버에 반영된 뒤 앱이 응답하는지까지 확인하는 건 PR 단계에서는
+  원천적으로 할 수 없는 검증이기 때문이다.
 - 중첩된(nested object) `@ConfigurationProperties` 필드는 지원하지 않는다 — 현재 코드에
   없는 케이스라 미리 만들지 않았다.
 
@@ -224,7 +234,7 @@ CD 빌드 단계(`./gradlew ... bootJar -x test`, 3-2절)는 Spring 컨텍스트
 | `~/zipzip-deploy/zipzip-be.env` | 서버(prod) | X | 실제 prod `SPRING_DATASOURCE_*`, `APPLE_*`, `JWT_*` — 매 배포마다 GitHub Secrets 값으로 덮어써짐 |
 | `~/zipzip-deploy-dev/.env.dev` | 서버(dev) | X | 실제 dev `SPRING_DATASOURCE_*`, `APPLE_*`, `JWT_*` + `DOCKERHUB_IMAGE` — 매 배포마다 덮어써짐 |
 | `~/zipzip-deploy/certbot/conf` | 서버(prod) | X | Let's Encrypt 발급 인증서 |
-| `~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh` | 서버 | X | forced command로 실행되는 배포 스크립트 본체 |
+| `~/zipzip-deploy.sh`, `~/zipzip-deploy-dev.sh` | 서버 | X | forced command로 실행되는 배포 스크립트 본체(헬스체크 + 자동 롤백 포함) |
 
 ## 6. Docker Compose 스택 비교
 
@@ -290,9 +300,9 @@ dev 스택이 별도 nginx를 안 띄우고 prod의 `zipzip-net`(compose 프로�
 | `JWT_ACCESS_TOKEN_EXPIRATION_DEV` | cd-dev.yml | dev access token 만료 시간 |
 | `JWT_REFRESH_TOKEN_EXPIRATION_DEV` | cd-dev.yml | dev refresh token 만료 시간 |
 
-`APPLE_PRIVATE_KEY`, `APPLE_PRIVATE_KEY_DEV`는 SSH heredoc과 서버 env 파일이 줄 단위로 전달·기록되므로
+`APPLE_PRIVATE_KEY`, `APPLE_PRIVATE_KEY_DEV`는 deployment payload와 서버 env 파일이 줄 단위로 전달·기록되므로
 raw multiline PEM이 아니라 **단일 라인 PKCS#8 PEM** 또는 **base64 body** 형태로 등록해야 한다. CD의
-`Validate required deployment secrets` 단계는 값이 비어 있거나 newline을 포함하면 SSH 전에 실패한다.
+`Validate deployment payload` 단계는 값이 비어 있거나 newline을 포함하면 SSH 전에 실패한다.
 
 ## 9. 브랜치 → 배포 트리거 매핑 요약
 
@@ -332,6 +342,10 @@ main     --push-->  cd.yml      --build/push image(:latest, :{sha})-->  Docker H
 - **`nginx -t` 통과 시에만 reload**: 잘못된 nginx 설정으로 서비스 전체가 죽는 것을 방지.
 - **prod/dev 이미지 태그, SSH 키, 시크릿, 서버 스크립트, 컨테이너명 완전 분리**: 한쪽 파이프라인의
   문제가 다른 쪽에 번지지 않도록 격리.
+- **배포 스크립트의 헬스체크 + 자동 롤백**(3-3절 (3) 4번): 새 컨테이너가 60초 안에 응답하지
+  않으면 원인 불문 이전 이미지로 자동 복구하고 배포 자체는 실패로 표시한다. PR 단계
+  검증(4절)이 못 잡는 "값은 있지만 틀린 경우"까지 포함해 실제 서비스 중단을 방지하는
+  마지막 안전망이다.
 - **PR 단계에서 필수 설정 ↔ CD 전달 키 동기화 검증**(4절): CI가 더미 값으로 통과시키는 새
   필수 설정이 실제로는 `cd.yml`/`cd-dev.yml`에서 서버로 전달되지 않는 채로 머지되는 것을
   막는다.
