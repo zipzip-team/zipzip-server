@@ -427,6 +427,8 @@ class AuthServiceTest {
         when(jwtTokenProvider.getRefreshTokenExpiresAt())
                 .thenReturn(Instant.parse("2999-01-15T00:00:00Z"));
         when(refreshTokenHasher.hash(ROTATED_REFRESH_TOKEN)).thenReturn(ROTATED_REFRESH_TOKEN_HASH);
+        when(refreshTokenRepository.save(any(RefreshToken.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     private ApiIdempotencyRecord processingIdempotencyRecord(AppUser appUser) {

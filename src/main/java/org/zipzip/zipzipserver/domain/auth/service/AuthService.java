@@ -180,9 +180,9 @@ public class AuthService {
         String accessToken = jwtTokenProvider.generateAccessToken(appUser.getId());
         String refreshToken = jwtTokenProvider.generateRefreshToken(appUser.getId(), tokenFamilyId);
         RefreshToken refreshTokenEntity = createRefreshToken(appUser, refreshToken, tokenFamilyId);
-        refreshTokenRepository.save(refreshTokenEntity);
+        RefreshToken savedRefreshTokenEntity = refreshTokenRepository.save(refreshTokenEntity);
 
-        return new TokenIssueResult(accessToken, refreshToken, refreshTokenEntity);
+        return new TokenIssueResult(accessToken, refreshToken, savedRefreshTokenEntity);
     }
 
     private RefreshToken createRefreshToken(
