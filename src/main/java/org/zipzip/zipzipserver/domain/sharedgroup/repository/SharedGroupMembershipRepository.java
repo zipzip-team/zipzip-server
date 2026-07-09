@@ -57,6 +57,18 @@ public interface SharedGroupMembershipRepository
 
     @Query(
             """
+            select membership
+            from SharedGroupMembership membership
+            join fetch membership.sharedGroup sharedGroup
+            join fetch membership.appUser appUser
+            where sharedGroup.id = :sharedGroupId
+              and appUser.id = :appUserId
+            """)
+    Optional<SharedGroupMembership> findWithSharedGroupAndAppUserBySharedGroupIdAndAppUserId(
+            @Param("sharedGroupId") UUID sharedGroupId, @Param("appUserId") UUID appUserId);
+
+    @Query(
+            """
             select new org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMemberRow(
                 m.id,
                 u.id,

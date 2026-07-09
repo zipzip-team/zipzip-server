@@ -4,7 +4,9 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,9 +16,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupSuccessCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.request.CreateSharedGroupRequest;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.request.SharedGroupNameUpdateRequest;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.CreateSharedGroupResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupDetailResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupListResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUpdateResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupService;
 import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
@@ -76,6 +80,25 @@ public class SharedGroupController {
         return BaseResponse.success(
                 SharedGroupSuccessCode.SHARED_GROUP_FOUND,
                 sharedGroupService.findSharedGroup(authenticatedUser.appUserId(), sharedGroupId));
+    }
+
+    @PatchMapping("/{sharedGroupId}")
+    public BaseResponse<SharedGroupUpdateResponse> updateName(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @PathVariable UUID sharedGroupId,
+            @RequestBody SharedGroupNameUpdateRequest request) {
+        return BaseResponse.success(
+                SharedGroupSuccessCode.SHARED_GROUP_UPDATED,
+                sharedGroupService.updateName(
+                        authenticatedUser.appUserId(), sharedGroupId, request.name()));
+    }
+
+    @DeleteMapping("/{sharedGroupId}")
+    public BaseResponse<Void> delete(
+            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @PathVariable UUID sharedGroupId) {
+        sharedGroupService.delete(authenticatedUser.appUserId(), sharedGroupId);
+        return BaseResponse.success(SharedGroupSuccessCode.SHARED_GROUP_DELETED);
     }
 
     private ResponseEntity<?> createSharedGroupResponse(

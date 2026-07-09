@@ -1,5 +1,7 @@
 package org.zipzip.zipzipserver.domain.sharedgroup.service;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +13,7 @@ import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.CreateSharedGroup
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupDetailResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupListResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupSummaryResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUpdateResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUserSummaryResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
@@ -41,6 +44,7 @@ public class SharedGroupService {
     private final SharedGroupCursorCodec sharedGroupCursorCodec;
     private final SharedGroupNameValidator sharedGroupNameValidator;
     private final InviteCodeGenerator inviteCodeGenerator;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public SharedGroupListResponse findMySharedGroups(UUID appUserId, String cursor, Integer size) {
@@ -103,6 +107,48 @@ public class SharedGroupService {
                         () -> new BusinessException(SharedGroupErrorCode.SHARED_GROUP_NOT_FOUND));
     }
 
+    @Transactional
+    public SharedGroupUpdateResponse updateName(UUID appUserId, UUID sharedGroupId, String name) {
+        String normalizedName = sharedGroupNameValidator.normalize(name);
+        SharedGroupMembership membership = getActiveMembership(appUserId, sharedGroupId);
+        validateHost(membership, SharedGroupOperation.UPDATE);
+        SharedGroup sharedGroup = membership.getSharedGroup();
+        sharedGroup.updateName(normalizedName);
+        sharedGroupRepository.flush();
+        return SharedGroupUpdateResponse.from(sharedGroup);
+    }
+
+    @Transactional
+    public void delete(UUID appUserId, UUID sharedGroupId) {
+        SharedGroupMembership membership = getActiveMembership(appUserId, sharedGroupId);
+        validateHost(membership, SharedGroupOperation.DELETE);
+        membership.getSharedGroup().delete(Instant.now(clock));
+        sharedGroupRepository.flush();
+    }
+
+    private SharedGroupMembership getActiveMembership(UUID appUserId, UUID sharedGroupId) {
+        SharedGroupMembership membership =
+                sharedGroupMembershipRepository
+                        .findWithSharedGroupAndAppUserBySharedGroupIdAndAppUserId(
+                                sharedGroupId, appUserId)
+                        .orElseThrow(
+                                () ->
+                                        new BusinessException(
+                                                SharedGroupErrorCode.SHARED_GROUP_NOT_FOUND));
+        if (membership.getSharedGroup().getDeletedAt() != null
+                || membership.getAppUser().isDeleted()) {
+            throw new BusinessException(SharedGroupErrorCode.SHARED_GROUP_NOT_FOUND);
+        }
+        return membership;
+    }
+
+    private void validateHost(
+            SharedGroupMembership membership, SharedGroupOperation sharedGroupOperation) {
+        if (membership.getRole() != SharedGroupRole.HOST) {
+            throw new BusinessException(sharedGroupOperation.errorCode());
+        }
+    }
+
     private AppUser ensureActiveUser(UUID appUserId) {
         return appUserRepository
                 .findByIdAndDeletedAtIsNull(appUserId)
@@ -154,5 +200,20 @@ public class SharedGroupService {
                 row.photoCount(),
                 row.createdAt(),
                 row.updatedAt());
+    }
+
+    private enum SharedGroupOperation {
+        UPDATE(SharedGroupErrorCode.ONLY_HOST_CAN_UPDATE_SHARED_GROUP),
+        DELETE(SharedGroupErrorCode.ONLY_HOST_CAN_DELETE_SHARED_GROUP);
+
+        private final SharedGroupErrorCode errorCode;
+
+        SharedGroupOperation(SharedGroupErrorCode errorCode) {
+            this.errorCode = errorCode;
+        }
+
+        private SharedGroupErrorCode errorCode() {
+            return errorCode;
+        }
     }
 }
