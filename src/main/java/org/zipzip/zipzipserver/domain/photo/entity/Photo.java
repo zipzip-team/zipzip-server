@@ -16,7 +16,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.zipzip.zipzipserver.domain.device.entity.Device;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.global.jpa.BaseTimeEntity;
 
@@ -36,9 +35,8 @@ public class Photo extends BaseTimeEntity {
     @JoinColumn(name = "uploaded_by_app_user_id", nullable = false)
     private AppUser uploadedByAppUser;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "device_id")
-    private Device device;
+    @Column(length = 100)
+    private String deviceModel;
 
     @Column(nullable = false, unique = true, length = 500)
     private String originalObjectKey;
@@ -70,7 +68,7 @@ public class Photo extends BaseTimeEntity {
 
     public static Photo create(
             AppUser uploadedByAppUser,
-            Device device,
+            String deviceModel,
             String originalObjectKey,
             Instant takenAt,
             Integer width,
@@ -78,7 +76,7 @@ public class Photo extends BaseTimeEntity {
         return Photo.builder()
                 .id(UUID.randomUUID())
                 .uploadedByAppUser(uploadedByAppUser)
-                .device(device)
+                .deviceModel(deviceModel)
                 .originalObjectKey(originalObjectKey)
                 .thumbnailStatus(PhotoThumbnailStatus.PENDING)
                 .takenAt(takenAt)

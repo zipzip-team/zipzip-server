@@ -42,10 +42,7 @@
     "thumbnailUrl": "https://objectstorage.example.com/signed/385ff765-thumb.jpg",
     "thumbnailUrlExpiresAt": "2026-07-03T11:15:30Z",
     "thumbnailStatus": "READY",
-    "device": {
-      "deviceId": "6f1b2f0a-6c8a-4a9b-8f3e-8b6a2c1f9d10",
-      "name": "iPhone 15"
-    },
+    "deviceModel": "iPhone 15",
     "takenAt": "2026-06-30T04:20:00Z",
     "displayAt": "2026-06-30T04:20:00Z",
     "latitude": 33.450701,
@@ -71,7 +68,7 @@
 `sharedAlbumIds`는 사진이 현재 속한 모든 활성 공유집(앨범) 식별자 목록이다.
 `originalUrl`, `thumbnailUrl`은 조회 시점마다 새로 발급하는 presigned URL이며 영구 저장하지 않는다.
 `thumbnailStatus`가 `PENDING`이거나 `FAILED`면 `thumbnailUrl`, `thumbnailUrlExpiresAt`은 `null`이다.
-`device`, `takenAt`, `latitude`, `longitude`, `locationName`, `width`, `height`는 iOS가 전달하지 않았으면 `null`이다.
+`deviceModel`, `takenAt`, `latitude`, `longitude`, `locationName`, `width`, `height`는 iOS가 전달하지 않았으면 `null`이다.
 
 ### Fail Response Ⓧ
 

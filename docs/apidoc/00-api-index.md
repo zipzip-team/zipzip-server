@@ -22,7 +22,7 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | 순서 | index | 포함 범위 |
 |---:|---|---|
 | 1 | 인증 | Apple 로그인, 토큰 갱신, 로그아웃 |
-| 2 | 사용자·기기 | 내 프로필, 사용자 탈퇴, 사용자 단위 기기 태그 |
+| 2 | 사용자 | 내 프로필, 사용자 탈퇴 |
 | 3 | 공유 그룹 | 공유 그룹 CRUD, 멤버 조회, 초대 코드, 참여, 나가기 |
 | 4 | 앨범 | 공유집(앨범) CRUD |
 | 5 | 사진 | 공유집(앨범) 사진 목록, 업로드 URL 발급·완료 등록, 메타데이터 수정, 단건·일괄 삭제, 앨범 추가·제거 |
@@ -41,17 +41,13 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | AUTH-02 | POST | `/api/v1/auth/refresh` | 토큰 갱신 | [02-authentication.md](02-authentication.md) |
 | AUTH-03 | POST | `/api/v1/auth/logout` | 로그아웃 | [02-authentication.md](02-authentication.md) |
 
-### 3.2 사용자·기기
+### 3.2 사용자
 
 | ID | Method | API Path | 이름 | 문서 |
 |---|---|---|---|---|
-| USER-01 | GET | `/api/v1/users/me` | 내 프로필 조회 | [03-profile-device.md](03-profile-device.md) |
-| USER-02 | PATCH | `/api/v1/users/me` | 내 프로필 수정 | [03-profile-device.md](03-profile-device.md) |
-| USER-03 | DELETE | `/api/v1/users/me` | 사용자 탈퇴 | [03-profile-device.md](03-profile-device.md) |
-| DEVICE-01 | GET | `/api/v1/users/me/devices` | 내 기기 목록 조회 | [03-profile-device.md](03-profile-device.md) |
-| DEVICE-02 | POST | `/api/v1/users/me/devices` | 내 기기 등록 | [03-profile-device.md](03-profile-device.md) |
-| DEVICE-03 | PATCH | `/api/v1/users/me/devices/{deviceId}` | 내 기기 수정 | [03-profile-device.md](03-profile-device.md) |
-| DEVICE-04 | DELETE | `/api/v1/users/me/devices/{deviceId}` | 내 기기 삭제 | [03-profile-device.md](03-profile-device.md) |
+| USER-01 | GET | `/api/v1/users/me` | 내 프로필 조회 | [03-profile.md](03-profile.md) |
+| USER-02 | PATCH | `/api/v1/users/me` | 내 프로필 수정 | [03-profile.md](03-profile.md) |
+| USER-03 | DELETE | `/api/v1/users/me` | 사용자 탈퇴 | [03-profile.md](03-profile.md) |
 
 ### 3.3 공유 그룹 목록·관리
 

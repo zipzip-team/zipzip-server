@@ -99,26 +99,6 @@ Table shared_group_membership {
   Note: '사용자와 공유 그룹의 현재 참여 관계. 멤버 나가기 또는 Zipzip 서비스 탈퇴 시 MEMBER 행을 물리 삭제한다. 멤버십 행이 있고 상위 공유 그룹과 사용자가 모두 soft delete되지 않은 경우에만 활성 멤버십으로 판단한다. PostgreSQL DDL에서는 공유 그룹별 HOST 한 명 partial unique를 추가한다.'
 }
 
-Table device {
-  id uuid [pk, not null, note: '애플리케이션에서 생성하는 기기 태그 식별자']
-  app_user_id uuid [not null, note: '기기 태그를 소유한 사용자 식별자']
-  name varchar(100) [not null, note: '화면에 표시하는 주 사용 촬영 기기 이름']
-  created_at timestamptz [not null, default: `now()`, note: '기기 태그 등록 시각']
-  updated_at timestamptz [not null, default: `now()`, note: '기기 태그 마지막 수정 시각']
-  deleted_at timestamptz [note: '기기 태그 삭제 시각. null이면 활성 태그']
-
-  indexes {
-    (app_user_id, deleted_at, created_at) [name: 'idx_device__app_user_id_deleted_at_created_at']
-    (app_user_id, name, deleted_at) [name: 'idx_device__user_name_deleted']
-  }
-
-  checks {
-    `char_length(btrim(name)) > 0` [name: 'chk_device__name_not_blank']
-  }
-
-  Note: '물리 장비 식별자가 아닌 사용자의 주 사용 촬영 기기 표시용 태그. 사용자 탈퇴 시 활성 기기는 soft delete한다. postgresql-overrides.sql에서 lower(btrim(name)) 표현식과 deleted_at is null 조건으로 활성 태그의 중복을 방지한다.'
-}
-
 Table shared_group_chat_message {
   id uuid [pk, not null, note: '애플리케이션에서 생성하는 그룹 채팅 메시지 식별자']
   shared_group_id uuid [not null, note: '메시지가 속한 공유 그룹 식별자']
@@ -180,7 +160,7 @@ Table photo_upload_reservation {
 Table photo {
   id uuid [pk, not null, note: '애플리케이션에서 생성하는 사진 식별자']
   uploaded_by_app_user_id uuid [not null, note: '사진을 업로드한 사용자이며 원본 수정과 삭제 권한의 원칙적 기준']
-  device_id uuid [note: '촬영 기기가 식별된 경우의 기기 식별자']
+  device_model varchar(100) [note: 'iOS가 EXIF에서 추출해 전달한 촬영 기기명. 없으면 null']
   original_object_key varchar(500) [not null, unique, note: 'OCI Object Storage 원본 이미지 객체 키. API가 조회 시점에 presigned GET URL을 발급하는 데 사용']
   thumbnail_object_key varchar(500) [note: '썸네일 이미지 객체 키. 비동기 생성 전에는 null']
   thumbnail_status varchar(20) [not null, note: '썸네일 생성 진행 상태. PENDING, READY, FAILED']
@@ -266,8 +246,6 @@ Ref fk_shared_group__created_by_app_user: app_user.id < shared_group.created_by_
 Ref fk_shared_group_membership__shared_group: shared_group.id < shared_group_membership.shared_group_id [delete: cascade, update: no action]
 Ref fk_shared_group_membership__app_user: app_user.id < shared_group_membership.app_user_id [delete: restrict, update: no action]
 
-Ref fk_device__app_user: app_user.id < device.app_user_id [delete: cascade, update: no action]
-
 Ref fk_shared_group_chat_message__shared_group: shared_group.id < shared_group_chat_message.shared_group_id [delete: cascade, update: no action]
 Ref fk_shared_group_chat_message__app_user: app_user.id < shared_group_chat_message.app_user_id [delete: restrict, update: no action]
 
@@ -278,7 +256,6 @@ Ref fk_photo_upload_reservation__shared_album: shared_album.id < photo_upload_re
 Ref fk_photo_upload_reservation__requested_by_app_user: app_user.id < photo_upload_reservation.requested_by_app_user_id [delete: restrict, update: no action]
 
 Ref fk_photo__uploaded_by_app_user: app_user.id < photo.uploaded_by_app_user_id [delete: restrict, update: no action]
-Ref fk_photo__device: device.id < photo.device_id [delete: set null, update: no action]
 
 Ref fk_shared_album_photo__shared_album: shared_album.id < shared_album_photo.shared_album_id [delete: cascade, update: no action]
 Ref fk_shared_album_photo__photo: photo.id < shared_album_photo.photo_id [delete: cascade, update: no action]
@@ -294,11 +271,10 @@ TableGroup authentication [note: '사용자 인증과 세션'] {
   refresh_token
 }
 
-TableGroup shared_group_domain [note: '공유 그룹, 참여 관계, 표시용 기기, 그룹 채팅'] {
+TableGroup shared_group_domain [note: '공유 그룹, 참여 관계, 그룹 채팅'] {
   invite_code_reservation
   shared_group
   shared_group_membership
-  device
   shared_group_chat_message
 }
 

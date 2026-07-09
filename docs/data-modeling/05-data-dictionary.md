@@ -14,7 +14,6 @@
 | `invite_code_reservation` | 초대 코드 예약 원장 | 발급된 초대 코드의 점유 예약 테이블 |
 | `shared_group` | 공유 그룹 | 초대 코드, 멤버십, 채팅, 공유집(앨범)을 묶는 최상위 공유 공간 |
 | `shared_group_membership` | 공유 그룹 멤버십 | 사용자와 공유 그룹의 참여 관계 및 역할 |
-| `device` | 기기 | 사용자의 주 사용 촬영 기기 표시용 태그 |
 | `shared_group_chat_message` | 그룹 채팅 메시지 | 공유 그룹 안에서 작성하는 일반 채팅 메시지 |
 | `shared_album` | 공유집(앨범) | 공유 그룹 안에서 사진을 담는 단위 |
 | `photo_upload_reservation` | 사진 업로드 예약 원장 | 발급된 업로드 `objectKey`의 발급 대상(사용자·공유집(앨범)) 점유 예약 테이블 |
@@ -133,26 +132,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - PostgreSQL 보완 SQL에서 공유 그룹별 `HOST` 한 명 partial unique 적용
 - 멤버 나가기 시 `MEMBER` 행은 물리 삭제
 
-### 3.6 `device`
-
-사용자의 주 사용 촬영 기기를 표시하기 위한 태그이다.
-
-| 컬럼 | 타입 | 필수 | 설명 |
-|---|---|---|---|
-| `id` | `uuid` | O | 기기 태그 식별자 |
-| `app_user_id` | `uuid` | O | 소유 사용자 |
-| `name` | `varchar(100)` | O | 표시용 기기명 |
-| `created_at` | `timestamptz` | O | 생성 시각 |
-| `updated_at` | `timestamptz` | O | 수정 시각 |
-| `deleted_at` | `timestamptz` | X | 삭제 시각 |
-
-주요 제약:
-
-- `name` 공백 불가
-- PostgreSQL 보완 SQL에서 사용자별 활성 기기명 중복 방지
-- 사용자 탈퇴 시 활성 기기는 soft delete
-
-### 3.7 `shared_group_chat_message`
+### 3.6 `shared_group_chat_message`
 
 공유 그룹 안에서 사진 컨텍스트 없이 작성하는 일반 채팅 메시지이다.
 1차 구현은 폴링으로 새 메시지를 조회한다.
@@ -174,7 +154,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - 삭제는 `deleted_at` 기록 없이 행을 즉시 물리 삭제
 - 폴링 조회는 `created_at`, `id` 커서 기준
 
-### 3.8 `shared_album`
+### 3.7 `shared_album`
 
 공유 그룹 안에서 사진을 담는 공유집(앨범)이다.
 기존 `shared_house` 물리 테이블의 역할은 이 테이블로 통합한다.
@@ -195,7 +175,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - 생성과 수정은 활성 공유 그룹 멤버만 가능
 - 삭제는 생성자 또는 탈퇴한 생성자의 공유 그룹 방장만 가능
 
-### 3.9 `photo_upload_reservation`
+### 3.8 `photo_upload_reservation`
 
 PHOTO-02에서 발급한 업로드 `objectKey`의 발급 대상 점유를 예약하는 테이블이다.
 PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 공유집(앨범)과 일치하고 만료되지 않은 행을 찾아야만 진행하며, 성공하면 해당 행을 물리 삭제한다.
@@ -214,7 +194,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 - 만료된 미완료 행은 정기 스윕이 물리 삭제하고, 대응하는 Object Storage 객체가 있으면 함께 정리
 - 상위 `shared_album` 삭제 시 cascade로 함께 삭제
 
-### 3.10 `photo`
+### 3.9 `photo`
 
 사진 원본의 파일 참조 정보를 저장한다.
 사진은 공유 그룹에 직접 속하지 않고, `shared_album_photo`를 통해서만 하나 이상의 공유집(앨범)에 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진).
@@ -223,7 +203,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 |---|---|---|---|
 | `id` | `uuid` | O | 사진 식별자 |
 | `uploaded_by_app_user_id` | `uuid` | O | 업로드 사용자 |
-| `device_id` | `uuid` | X | 촬영 기기가 식별된 경우의 기기 |
+| `device_model` | `varchar(100)` | X | iOS가 EXIF에서 추출해 전달한 촬영 기기명 |
 | `original_object_key` | `varchar(500)` | O | OCI Object Storage 원본 이미지 객체 키. API는 조회 시점에 이 키로 presigned GET URL을 발급 |
 | `thumbnail_object_key` | `varchar(500)` | X | 썸네일 이미지 객체 키. 비동기 생성 전에는 `null` |
 | `thumbnail_status` | `varchar(20)` | O | 썸네일 생성 상태. `PENDING`, `READY`, `FAILED` |
@@ -247,7 +227,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 - 항상 1개 이상의 `shared_album_photo` 매핑을 가져야 한다(서비스 계층에서 강제)
 - 업로드 완료 등록 시 `thumbnail_status`는 `PENDING`으로 시작하고, 백그라운드 썸네일 생성 결과에 따라 `READY` 또는 `FAILED`로 갱신
 
-### 3.11 `shared_album_photo`
+### 3.10 `shared_album_photo`
 
 사진과 공유집(앨범)의 N:M 소속 관계를 저장한다.
 
@@ -265,7 +245,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 - 매핑 삭제(공유집(앨범) 삭제, 사진 제거)로 어떤 사진의 매핑이 0개가 되면 그 사진도 함께 soft delete한다
 - 같은 사진을 같은 공유집(앨범)에 중복으로 담을 수 없음
 
-### 3.12 `photo_like`
+### 3.11 `photo_like`
 
 사용자가 특정 사진에 좋아요를 누른 상태이다.
 
@@ -282,7 +262,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 - `photo_id`, `app_user_id` unique
 - 좋아요 취소 또는 사용자 탈퇴 시 행을 물리 삭제
 
-### 3.13 `photo_comment`
+### 3.12 `photo_comment`
 
 단일 사진에 달리는 댓글이다.
 
@@ -312,7 +292,6 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 | `fk_shared_group__created_by_app_user` | `shared_group.created_by_app_user_id` -> `app_user.id` | restrict |
 | `fk_shared_group_membership__shared_group` | `shared_group_membership.shared_group_id` -> `shared_group.id` | cascade |
 | `fk_shared_group_membership__app_user` | `shared_group_membership.app_user_id` -> `app_user.id` | restrict |
-| `fk_device__app_user` | `device.app_user_id` -> `app_user.id` | cascade |
 | `fk_shared_group_chat_message__shared_group` | `shared_group_chat_message.shared_group_id` -> `shared_group.id` | cascade |
 | `fk_shared_group_chat_message__app_user` | `shared_group_chat_message.app_user_id` -> `app_user.id` | restrict |
 | `fk_shared_album__shared_group` | `shared_album.shared_group_id` -> `shared_group.id` | cascade |
@@ -320,7 +299,6 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 | `fk_photo_upload_reservation__shared_album` | `photo_upload_reservation.shared_album_id` -> `shared_album.id` | cascade |
 | `fk_photo_upload_reservation__requested_by_app_user` | `photo_upload_reservation.requested_by_app_user_id` -> `app_user.id` | restrict |
 | `fk_photo__uploaded_by_app_user` | `photo.uploaded_by_app_user_id` -> `app_user.id` | restrict |
-| `fk_photo__device` | `photo.device_id` -> `device.id` | set null |
 | `fk_shared_album_photo__shared_album` | `shared_album_photo.shared_album_id` -> `shared_album.id` | cascade |
 | `fk_shared_album_photo__photo` | `shared_album_photo.photo_id` -> `photo.id` | cascade |
 | `fk_photo_like__photo` | `photo_like.photo_id` -> `photo.id` | cascade |
@@ -341,7 +319,6 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 | `shared_album_photo` | `idx_shared_album_photo__shared_album_id_created_at` | 공유집(앨범)별 사진 목록 |
 | `photo_like` | `uk_photo_like__photo_id_app_user_id` | 중복 좋아요 방지 |
 | `photo_comment` | `idx_photo_comment__photo_id_created_at` | 사진별 댓글 목록 |
-| `device` | `uk_device__active_name` | 사용자별 활성 기기명 중복 방지 |
 | `photo_upload_reservation` | `idx_photo_upload_reservation__shared_album_id` | 공유집(앨범)별 예약 조회 |
 | `photo_upload_reservation` | `idx_photo_upload_reservation__requested_by_app_user_id` | 사용자별 예약 조회 |
 | `photo_upload_reservation` | `idx_photo_upload_reservation__expires_at` | 만료된 미완료 예약 스윕 |
@@ -379,7 +356,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 4. 사용자 탈퇴 시 활성 Refresh Token을 폐기하고 `app_user.deleted_at`을 기록한다.
 5. 사용자 탈퇴 시 `app_user.display_name`을 "탈퇴한 사용자"로 갱신하고 `app_user` 행은 물리 삭제하지 않는다.
 6. 사용자 탈퇴 시 방장으로 만든 공유 그룹은 soft delete하고(위 3번 절차를 그대로 따른다), `MEMBER`로 참여 중인 공유 그룹 멤버십은 물리 삭제한다.
-7. 사용자 탈퇴 시 활성 기기는 soft delete하고 사진 좋아요는 물리 삭제한다.
+7. 사용자 탈퇴 시 사진 좋아요는 물리 삭제한다.
 8. 탈퇴한 사용자가 기존에 생성·작성·업로드한 공유 콘텐츠는 즉시 삭제하지 않고 사용자 표시는 "탈퇴한 사용자"로 대체한다.
 9. 개별 삭제하거나 캐스케이드로 soft delete된 사진은 30일 뒤 Object Storage 원본·썸네일 객체 삭제가 끝난 뒤 `photo` 행을 물리 삭제한다.
 10. 개별 삭제한 공유집(앨범)은 30일 뒤 `shared_album` 행을 물리 삭제한다. 관련 `shared_album_photo` 매핑은 3번에서 이미 정리되어 있다.

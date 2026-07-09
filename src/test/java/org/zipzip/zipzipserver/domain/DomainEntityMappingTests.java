@@ -11,7 +11,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.chat.entity.SharedGroupChatMessage;
-import org.zipzip.zipzipserver.domain.device.entity.Device;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.entity.PhotoUploadReservation;
@@ -68,22 +67,20 @@ class DomainEntityMappingTests {
         InviteCodeReservation inviteCodeReservation = InviteCodeReservation.create("INVITE1");
         SharedGroup sharedGroup = SharedGroup.create(user, "공유 그룹", inviteCodeReservation);
         SharedAlbum sharedAlbum = SharedAlbum.create(sharedGroup, user, "앨범");
-        Device device = Device.create(user, "iPhone 15");
-        Photo photo = Photo.create(user, device, "photos/385ff765/original.jpg", null, 1080, 1920);
+        Photo photo =
+                Photo.create(user, "iPhone 15", "photos/385ff765/original.jpg", null, 1080, 1920);
         SharedAlbumPhoto sharedAlbumPhoto = SharedAlbumPhoto.create(sharedAlbum, photo);
 
         user.withdraw(deletedAt);
         sharedGroup.delete(deletedAt);
         sharedAlbum.delete(deletedAt);
         photo.delete(deletedAt);
-        device.delete(deletedAt);
 
         assertThat(user.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(user.getDisplayName()).isEqualTo(AppUser.WITHDRAWN_DISPLAY_NAME);
         assertThat(sharedGroup.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(sharedAlbum.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(photo.getDeletedAt()).isEqualTo(deletedAt);
-        assertThat(device.getDeletedAt()).isEqualTo(deletedAt);
         assertThat(sharedAlbumPhoto.getSharedAlbum()).isEqualTo(sharedAlbum);
         assertThat(sharedAlbumPhoto.getPhoto()).isEqualTo(photo);
     }

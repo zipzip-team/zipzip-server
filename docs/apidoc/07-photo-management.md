@@ -23,7 +23,7 @@
 원본 이미지는 서버를 거치지 않고 iOS와 OCI Object Storage 사이에서 직접 오간다.
 서버는 `photo.original_object_key`, `photo.thumbnail_object_key`만 저장하고, API 조회 시점마다 presigned URL을 새로 발급한다.
 썸네일은 업로드 완료 등록 직후 서버가 원본을 다운로드해 비동기로 생성하며, 진행 상태는 `thumbnailStatus`로 노출한다.
-촬영일시·위치·이미지 크기 같은 메타데이터는 iOS가 EXIF에서 추출해 완료 등록 요청에 실어 보내고, 서버는 이를 그대로 저장한다.
+촬영 기기명·촬영일시·위치·이미지 크기 같은 메타데이터는 iOS가 EXIF에서 추출해 완료 등록 요청에 실어 보내고, 서버는 이를 그대로 저장한다.
 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
 ## 2. PHOTO-01 공유집(앨범) 사진 목록 조회
@@ -67,10 +67,7 @@
         "thumbnailUrl": "https://objectstorage.example.com/signed/385ff765-thumb.jpg",
         "thumbnailUrlExpiresAt": "2026-07-03T10:25:30Z",
         "thumbnailStatus": "READY",
-        "device": {
-          "deviceId": "6f1b2f0a-6c8a-4a9b-8f3e-8b6a2c1f9d10",
-          "name": "iPhone 15"
-        },
+        "deviceModel": "iPhone 15",
         "takenAt": "2026-06-30T04:20:00Z",
         "displayAt": "2026-06-30T04:20:00Z",
         "latitude": 33.450701,
@@ -97,7 +94,7 @@
 ```
 
 `thumbnailStatus`가 `PENDING`이면 `thumbnailUrl`, `thumbnailUrlExpiresAt`은 `null`이다. `FAILED`면 썸네일 없이 `originalUrl`만 표시한다.
-`device`, `takenAt`, `latitude`, `longitude`, `locationName`, `width`, `height`는 iOS가 전달하지 않았으면 `null`이다.
+`deviceModel`, `takenAt`, `latitude`, `longitude`, `locationName`, `width`, `height`는 iOS가 전달하지 않았으면 `null`이다.
 `originalUrl`, `thumbnailUrl`은 매 요청마다 새로 발급하는 presigned URL이므로 영구 저장하지 않는다. 만료되면 이 API 또는 사진 상세 API를 다시 호출한다.
 
 ### Fail Response
@@ -186,7 +183,7 @@
 예약 행이 없으면(발급된 적이 없거나, 다른 사용자·다른 공유집(앨범)에 발급됐거나, 이미 등록에 사용됐거나, 만료됨) `objectKey`를 신뢰하지 않는다.
 생성된 사진의 `thumbnailStatus`는 `PENDING`으로 시작하며, 서버가 즉시 비동기 썸네일 생성 작업에 제출한다.
 전체 요청은 원자적으로 처리하며 한 파일이라도 검증에 실패하면 전체를 실패 처리한다(이미 Object Storage에 올라간 원본 객체는 남아있을 수 있으며 정기 스윕이 정리한다).
-촬영일시·위치·이미지 크기는 iOS가 EXIF에서 추출해 값을 넘긴 경우에만 저장하고, 넘기지 않으면 `null`로 보존한다.
+촬영 기기명·촬영일시·위치·이미지 크기는 iOS가 EXIF에서 추출해 값을 넘긴 경우에만 저장하고, 넘기지 않으면 `null`로 보존한다.
 
 ### Request
 
@@ -206,9 +203,9 @@
 
 | 필드 | 타입 | 필수 | 제약 | 설명 |
 |---|---|---:|---|---|
-| `deviceId` | UUID | X | 요청 사용자의 활성 기기 | 촬영에 사용한 기기. 생략하면 `device`는 `null` |
 | `files` | Object[] | O | 중복 없이 1~20개 | 등록할 파일 목록 |
 | `files[].objectKey` | String | O | PHOTO-02에서 발급받은 값 | 업로드를 완료한 객체 키 |
+| `files[].deviceModel` | String, null | X | trim 후 100자 이하 | EXIF에서 추출한 촬영 기기명. 없으면 생략 |
 | `files[].takenAt` | String, null | X | UTC ISO-8601 | EXIF 촬영일시. 없으면 생략 |
 | `files[].latitude` | Number, null | X | `longitude`, `locationName`과 함께 사용 | 촬영 위치 위도 |
 | `files[].longitude` | Number, null | X | `latitude`, `locationName`과 함께 사용 | 촬영 위치 경도 |
@@ -219,10 +216,10 @@
 
 ```json
 {
-  "deviceId": "6f1b2f0a-6c8a-4a9b-8f3e-8b6a2c1f9d10",
   "files": [
     {
       "objectKey": "photos/2026/07/08/9c3d1e2a-4b7f-4e2a-8c8e-2f5666f25d32.jpg",
+      "deviceModel": "iPhone 15",
       "takenAt": "2026-06-30T04:20:00Z",
       "latitude": 33.450701,
       "longitude": 126.570667,
@@ -255,10 +252,7 @@
         "thumbnailUrl": null,
         "thumbnailUrlExpiresAt": null,
         "thumbnailStatus": "PENDING",
-        "device": {
-          "deviceId": "6f1b2f0a-6c8a-4a9b-8f3e-8b6a2c1f9d10",
-          "name": "iPhone 15"
-        },
+        "deviceModel": "iPhone 15",
         "takenAt": "2026-06-30T04:20:00Z",
         "latitude": 33.450701,
         "longitude": 126.570667,
@@ -277,9 +271,8 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
-| 400 | `INVALID_UPLOAD_METADATA` | `files`가 비었거나 20개를 초과하거나 필드 형식이 잘못됨 |
+| 400 | `INVALID_UPLOAD_METADATA` | `files`가 비었거나 20개를 초과하거나 필드 형식이 잘못됨(`deviceModel`이 100자를 초과하는 경우 포함) |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 공유집(앨범) 또는 활성 멤버십이 없음 |
-| 404 | `DEVICE_NOT_FOUND` | `deviceId`가 요청 사용자의 활성 기기가 아님 |
 | 404 | `UPLOAD_OBJECT_NOT_FOUND` | `objectKey`에 대응하는 `photo_upload_reservation`이 없음(발급받은 적 없음, 다른 사용자·다른 공유집(앨범)에 발급됨, 이미 등록에 사용함, 만료됨을 모두 포함) |
 | 409 | `UPLOAD_NOT_COMPLETED` | 예약은 유효하지만 `objectKey`로 원본이 아직 Object Storage에 업로드되지 않음 |
 
