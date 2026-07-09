@@ -21,6 +21,14 @@
 - PostgreSQL 전용 기능인 partial index, expression index, check constraint, FK, unique 제약은 H2 대신 PostgreSQL 기반 테스트에서 검증할 것.
 - Repository 테스트는 `@DataJpaTest` 또는 필요한 최소 Spring context를 사용하고, Service 권한 정책은 `@SpringBootTest` 또는 통합 테스트로 검증할 것.
 
+## Swagger/OpenAPI 문서화 규칙
+
+- iOS 클라이언트가 Swagger 문서를 API 명세로 사용하므로, 새 컨트롤러와 엔드포인트에는 Swagger 어노테이션을 반드시 작성할 것.
+- 컨트롤러에는 `@Tag`, 각 API 메서드에는 `@Operation`과 주요 성공/실패 `@ApiResponse`를 작성할 것.
+- 필수 헤더, 인증 헤더, 멱등성 헤더는 `@Parameter`로 필수 여부와 형식 예시를 명시할 것.
+- 요청/응답 DTO의 public contract 필드에는 `@Schema`로 설명, 예시, 필수 여부 또는 제약을 명시할 것.
+- Swagger 설명은 `docs/apidoc/`의 API 명세와 충돌하지 않게 작성하고, 오류 코드는 실제 `ErrorCode`의 문자열과 동일하게 표기할 것.
+
 ## Flyway 마이그레이션 규칙
 
 - 엔티티 변경으로 테이블, 컬럼, 인덱스, 제약조건 등 DB 스키마가 변경되면 새 Flyway 마이그레이션 스크립트를 추가할 것.
