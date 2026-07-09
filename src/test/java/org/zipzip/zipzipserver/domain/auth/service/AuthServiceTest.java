@@ -23,6 +23,7 @@ import org.zipzip.zipzipserver.domain.auth.apple.AppleTokenResponse;
 import org.zipzip.zipzipserver.domain.auth.apple.AppleUserInfo;
 import org.zipzip.zipzipserver.domain.auth.code.AuthErrorCode;
 import org.zipzip.zipzipserver.domain.auth.dto.request.AppleLoginRequest;
+import org.zipzip.zipzipserver.domain.auth.dto.request.LogoutRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.response.LoginResponse;
 import org.zipzip.zipzipserver.domain.auth.entity.RefreshToken;
 import org.zipzip.zipzipserver.domain.auth.jwt.JwtTokenProvider;
@@ -226,6 +227,83 @@ class AuthServiceTest {
         verify(refreshTokenRepository).save(refreshTokenCaptor.capture());
         assertThat(refreshTokenCaptor.getValue().getTokenHash()).isEqualTo(REFRESH_TOKEN_HASH);
         assertThat(refreshTokenCaptor.getValue().getTokenFamilyId()).isNotNull();
+    }
+
+    @Test
+    void 로그아웃은_현재_사용자_소유_Refresh_Token을_폐기한다() {
+        AppUser appUser = AppUser.create(APPLE_SUBJECT, "집집이");
+        RefreshToken refreshToken =
+                RefreshToken.create(
+                        appUser,
+                        REFRESH_TOKEN_HASH,
+                        UUID.randomUUID(),
+                        Instant.parse("2026-07-22T00:00:00Z"));
+        when(refreshTokenHasher.hash(REFRESH_TOKEN)).thenReturn(REFRESH_TOKEN_HASH);
+        when(refreshTokenRepository.findByTokenHash(REFRESH_TOKEN_HASH))
+                .thenReturn(Optional.of(refreshToken));
+
+        authService.logout(appUser.getId(), new LogoutRequest(REFRESH_TOKEN));
+
+        assertThat(refreshToken.getRevokedAt()).isNotNull();
+    }
+
+    @Test
+    void 이미_폐기된_현재_사용자_소유_Refresh_Token으로_로그아웃하면_성공한다() {
+        AppUser appUser = AppUser.create(APPLE_SUBJECT, "집집이");
+        Instant revokedAt = Instant.parse("2026-07-09T00:00:00Z");
+        RefreshToken refreshToken =
+                RefreshToken.create(
+                        appUser,
+                        REFRESH_TOKEN_HASH,
+                        UUID.randomUUID(),
+                        Instant.parse("2026-07-22T00:00:00Z"));
+        refreshToken.revoke(revokedAt);
+        when(refreshTokenHasher.hash(REFRESH_TOKEN)).thenReturn(REFRESH_TOKEN_HASH);
+        when(refreshTokenRepository.findByTokenHash(REFRESH_TOKEN_HASH))
+                .thenReturn(Optional.of(refreshToken));
+
+        authService.logout(appUser.getId(), new LogoutRequest(REFRESH_TOKEN));
+
+        assertThat(refreshToken.getRevokedAt()).isEqualTo(revokedAt);
+    }
+
+    @Test
+    void 존재하지_않는_Refresh_Token으로_로그아웃하면_예외가_발생한다() {
+        UUID appUserId = UUID.randomUUID();
+        when(refreshTokenHasher.hash(REFRESH_TOKEN)).thenReturn(REFRESH_TOKEN_HASH);
+        when(refreshTokenRepository.findByTokenHash(REFRESH_TOKEN_HASH))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.logout(appUserId, new LogoutRequest(REFRESH_TOKEN)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN));
+    }
+
+    @Test
+    void 다른_사용자_소유_Refresh_Token으로_로그아웃하면_예외가_발생한다() {
+        AppUser owner = AppUser.create(APPLE_SUBJECT, "집집이");
+        RefreshToken refreshToken =
+                RefreshToken.create(
+                        owner,
+                        REFRESH_TOKEN_HASH,
+                        UUID.randomUUID(),
+                        Instant.parse("2026-07-22T00:00:00Z"));
+        when(refreshTokenHasher.hash(REFRESH_TOKEN)).thenReturn(REFRESH_TOKEN_HASH);
+        when(refreshTokenRepository.findByTokenHash(REFRESH_TOKEN_HASH))
+                .thenReturn(Optional.of(refreshToken));
+
+        assertThatThrownBy(
+                        () ->
+                                authService.logout(
+                                        UUID.randomUUID(), new LogoutRequest(REFRESH_TOKEN)))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN));
     }
 
     private void givenAppleVerification(String appleSubject) {
