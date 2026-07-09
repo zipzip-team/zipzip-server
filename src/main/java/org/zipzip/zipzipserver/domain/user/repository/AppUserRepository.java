@@ -12,6 +12,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
 
     Optional<AppUser> findByAppleSubject(String appleSubject);
 
+    Optional<AppUser> findByIdAndDeletedAtIsNull(UUID id);
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
             value =
