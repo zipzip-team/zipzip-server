@@ -17,8 +17,81 @@ env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/zipzip-be
 
 jobs:
+  preflight:
+    name: Validate deployment secrets
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PRIVATE_KEY_DEV: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
+      DB_URL: ${{ secrets.SPRING_DATASOURCE_URL_DEV }}
+      DB_USERNAME: ${{ secrets.SPRING_DATASOURCE_USERNAME_DEV }}
+      DB_PASSWORD: ${{ secrets.SPRING_DATASOURCE_PASSWORD_DEV }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID_DEV }}
+      APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID_DEV }}
+      APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID_DEV }}
+      APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY_DEV }}
+      JWT_ISSUER: ${{ secrets.JWT_ISSUER_DEV }}
+      JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET_DEV }}
+      JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET_DEV }}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${{ secrets.JWT_ACCESS_TOKEN_EXPIRATION_DEV }}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${{ secrets.JWT_REFRESH_TOKEN_EXPIRATION_DEV }}
+      IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY: ${{ secrets.IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY_DEV }}
+    steps:
+      - name: Validate required secrets before build
+        shell: bash
+        run: |
+          missing=0
+
+          require_non_empty() {
+            local name="$1"
+            local value="$2"
+
+            if [ -z "$value" ]; then
+              echo "::error::$name is required for dev deployment."
+              missing=1
+            fi
+          }
+
+          require_single_line() {
+            local name="$1"
+            local value="$2"
+
+            require_non_empty "$name" "$value"
+
+            if [[ "$value" == *$'\n'* ]]; then
+              echo "::error::$name must be stored as a single-line value for env_file delivery."
+              missing=1
+            fi
+          }
+
+          require_non_empty DOCKERHUB_USERNAME "$DOCKERHUB_USERNAME"
+          require_non_empty DOCKERHUB_TOKEN "$DOCKERHUB_TOKEN"
+          require_non_empty SSH_USER "$SSH_USER"
+          require_non_empty SSH_HOST "$SSH_HOST"
+          require_non_empty SSH_PRIVATE_KEY_DEV "$SSH_PRIVATE_KEY_DEV"
+
+          require_single_line SPRING_DATASOURCE_URL "$DB_URL"
+          require_single_line SPRING_DATASOURCE_USERNAME "$DB_USERNAME"
+          require_single_line SPRING_DATASOURCE_PASSWORD "$DB_PASSWORD"
+          require_single_line APPLE_TEAM_ID "$APPLE_TEAM_ID"
+          require_single_line APPLE_CLIENT_ID "$APPLE_CLIENT_ID"
+          require_single_line APPLE_KEY_ID "$APPLE_KEY_ID"
+          require_single_line APPLE_PRIVATE_KEY "$APPLE_PRIVATE_KEY"
+          require_single_line JWT_ISSUER "$JWT_ISSUER"
+          require_single_line JWT_ACCESS_SECRET "$JWT_ACCESS_SECRET"
+          require_single_line JWT_REFRESH_SECRET "$JWT_REFRESH_SECRET"
+          require_single_line JWT_ACCESS_TOKEN_EXPIRATION "$JWT_ACCESS_TOKEN_EXPIRATION"
+          require_single_line JWT_REFRESH_TOKEN_EXPIRATION "$JWT_REFRESH_TOKEN_EXPIRATION"
+          require_single_line IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY "$IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY"
+
+          exit "$missing"
+
   build-and-push:
     name: Build & push dev image
+    needs: preflight
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
