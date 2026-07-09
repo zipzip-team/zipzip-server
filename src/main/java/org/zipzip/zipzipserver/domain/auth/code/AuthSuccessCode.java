@@ -8,7 +8,8 @@ import org.zipzip.zipzipserver.global.code.SuccessCode;
 @Getter
 @RequiredArgsConstructor
 public enum AuthSuccessCode implements SuccessCode {
-    AUTH_LOGIN_SUCCESS(HttpStatus.OK, "AUTH_LOGIN_SUCCESS", "로그인에 성공했습니다.");
+    AUTH_LOGIN_SUCCESS(HttpStatus.OK, "AUTH_LOGIN_SUCCESS", "로그인에 성공했습니다."),
+    AUTH_LOGOUT_SUCCESS(HttpStatus.OK, "AUTH_LOGOUT_SUCCESS", "로그아웃했습니다.");
 
     private final HttpStatus httpStatus;
     private final String code;

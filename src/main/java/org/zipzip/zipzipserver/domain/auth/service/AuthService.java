@@ -1,5 +1,7 @@
 package org.zipzip.zipzipserver.domain.auth.service;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +13,7 @@ import org.zipzip.zipzipserver.domain.auth.apple.AppleTokenResponse;
 import org.zipzip.zipzipserver.domain.auth.apple.AppleUserInfo;
 import org.zipzip.zipzipserver.domain.auth.code.AuthErrorCode;
 import org.zipzip.zipzipserver.domain.auth.dto.request.AppleLoginRequest;
+import org.zipzip.zipzipserver.domain.auth.dto.request.LogoutRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.response.LoginResponse;
 import org.zipzip.zipzipserver.domain.auth.entity.RefreshToken;
 import org.zipzip.zipzipserver.domain.auth.jwt.JwtTokenProvider;
@@ -33,6 +36,7 @@ public class AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenHasher refreshTokenHasher;
+    private final Clock clock = Clock.systemUTC();
 
     @Transactional
     public LoginResponse loginWithApple(AppleLoginRequest request) {
@@ -62,6 +66,23 @@ public class AuthService {
                 loginResult.isRestoredUser(),
                 new LoginResponse.UserSummary(
                         loginResult.appUser().getId(), loginResult.appUser().getDisplayName()));
+    }
+
+    @Transactional
+    public void logout(UUID appUserId, LogoutRequest request) {
+        RefreshToken refreshToken =
+                refreshTokenRepository
+                        .findByTokenHash(refreshTokenHasher.hash(request.refreshToken()))
+                        .orElseThrow(
+                                () -> new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN));
+
+        if (!refreshToken.getAppUser().getId().equals(appUserId)) {
+            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        if (refreshToken.getRevokedAt() == null) {
+            refreshToken.revoke(Instant.now(clock));
+        }
     }
 
     private void validateSameAppleUser(AppleUserInfo requestUserInfo, AppleUserInfo tokenUserInfo) {
