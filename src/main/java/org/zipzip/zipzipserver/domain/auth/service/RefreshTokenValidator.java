@@ -48,11 +48,11 @@ public class RefreshTokenValidator {
 
         if (refreshToken.getRevokedAt() != null
                 || refreshToken.getReplacedByRefreshToken() != null) {
-            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_REUSE_DETECTED);
         }
 
         if (!refreshToken.getExpiresAt().isAfter(Instant.now(clock))) {
-            throw new BusinessException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_EXPIRED);
         }
     }
 }

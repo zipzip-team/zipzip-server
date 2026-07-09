@@ -60,6 +60,20 @@ jobs:
               username: ${CI_DB_USERNAME}
               password: ${CI_DB_PASSWORD}
               driver-class-name: org.postgresql.Driver
+          jwt:
+            issuer: zipzip-server-ci
+            access-secret: ci-access-secret-must-be-at-least-32-characters
+            refresh-secret: ci-refresh-secret-must-be-at-least-32-characters
+            access-token-expiration: 30m
+            refresh-token-expiration: 14d
+          apple:
+            team-id: ci-apple-team-id
+            client-id: ci-apple-client-id
+            key-id: ci-apple-key-id
+            private-key: ci-apple-private-key
+          idempotency:
+            auth-response-encryption-key: ci-idempotency-secret-must-be-at-least-32-characters
+            auth-response-ttl: 10m
           EOF
 
       - name: Run verification

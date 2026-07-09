@@ -49,6 +49,20 @@ jobs:
               username: placeholder
               password: placeholder
               driver-class-name: org.postgresql.Driver
+          jwt:
+            issuer: zipzip-server-placeholder
+            access-secret: placeholder-access-secret-must-be-at-least-32-characters
+            refresh-secret: placeholder-refresh-secret-must-be-at-least-32-characters
+            access-token-expiration: 30m
+            refresh-token-expiration: 14d
+          apple:
+            team-id: placeholder-apple-team-id
+            client-id: placeholder-apple-client-id
+            key-id: placeholder-apple-key-id
+            private-key: placeholder-apple-private-key
+          idempotency:
+            auth-response-encryption-key: placeholder-idempotency-secret-must-be-at-least-32-characters
+            auth-response-ttl: 10m
           YAML
 
       # JAR은 러너 네이티브(x86) 아키텍처로 빌드한다. 바이트코드는 아키텍처 무관이라
@@ -108,6 +122,7 @@ jobs:
       JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
       JWT_ACCESS_TOKEN_EXPIRATION: ${{ secrets.JWT_ACCESS_TOKEN_EXPIRATION }}
       JWT_REFRESH_TOKEN_EXPIRATION: ${{ secrets.JWT_REFRESH_TOKEN_EXPIRATION }}
+      IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY: ${{ secrets.IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY }}
     steps:
       - name: Validate deployment payload
         shell: bash
@@ -163,6 +178,7 @@ jobs:
           append_required_payload JWT_REFRESH_SECRET "$JWT_REFRESH_SECRET"
           append_required_payload JWT_ACCESS_TOKEN_EXPIRATION "$JWT_ACCESS_TOKEN_EXPIRATION"
           append_required_payload JWT_REFRESH_TOKEN_EXPIRATION "$JWT_REFRESH_TOKEN_EXPIRATION"
+          append_required_payload IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY "$IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY"
 
           exit "$missing"
 
