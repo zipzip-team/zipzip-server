@@ -1,0 +1,42 @@
+# Use this workspace to collaborate
+workspace:
+  id: 675ac7a7-a5f8-456f-a920-25c3029924e1
+
+# All resources in the `postman/` folder are automatically registered in Local View.
+# Point to additional files outside the `postman/` folder to register them individually. Example:
+
+localResources:
+  docs:
+    - ../src/main/resources/config/README.md
+    - ../docs/apidoc/decisions/api-design-decision-log.md
+    - ../docs/data-modeling/05-data-dictionary.md
+    - ../src/main/resources/config/AGENTS.md
+    - ../docs/data-modeling/decisions/data-model-decision-log.md
+    - ../docs/data-modeling/04-data-modeling.md
+    - ../docs/apidoc/09-chat-realtime.md
+    - ../docs/apidoc/08-photo-reaction.md
+    - ../docs/apidoc/07-photo-management.md
+    - ../docs/data-modeling/03-data-standardization.md
+    - ../docs/data-modeling/01-domain-terminology.md
+    - ../docs/data-modeling/02-korean-english-mapping.md
+    - ../docs/apidoc/05-shared-group-invitation.md
+    - ../docs/data-modeling/00-figma-midfi-wireframe-context.md
+    - ../docs/apidoc/06-shared-album.md
+    - ../docs/apidoc/03-profile-device.md
+    - ../docs/apidoc/02-authentication.md
+    - ../docs/apidoc/01-common-spec.md
+    - ../docs/apidoc/00-api-index.md
+    - ../deploy/README.md
+    - ../docs/git-submodule-config.md
+    - ../docs/code-formatting.md
+    - ../AGENTS.md
+    - ../docs/ci-environment-config.md
+    - ../README.md
+    - ../docs/apidoc/04-shared-folder.md
+    - ../docs/apidoc/04-shared-group.md
+
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+
+cloudResources:
+  collections:
+    ../postman/collections/ZipZip Auth: 4e90bf8b-09ed-49a8-9712-613d372b5d58
