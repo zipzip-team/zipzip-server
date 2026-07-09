@@ -30,6 +30,7 @@ import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupListRe
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUpdateResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupService;
+import org.zipzip.zipzipserver.global.exception.BusinessException;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyResult;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
