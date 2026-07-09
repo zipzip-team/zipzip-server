@@ -121,7 +121,8 @@
 ```bash
 append_required_payload SPRING_DATASOURCE_URL "$DB_URL"
 append_required_payload APPLE_TEAM_ID "$APPLE_TEAM_ID"
-append_required_payload JWT_SECRET "$JWT_SECRET"
+append_required_payload JWT_ACCESS_SECRET "$JWT_ACCESS_SECRET"
+append_required_payload JWT_REFRESH_SECRET "$JWT_REFRESH_SECRET"
 
 ssh -i ~/.ssh/deploy_key ... "$SSH_USER@$SSH_HOST" 'deploy' < "$RUNNER_TEMP/zipzip-deployment.env"
 ```
@@ -288,7 +289,7 @@ dev 스택이 별도 nginx를 안 띄우고 prod의 `zipzip-net`(compose 프로�
 | `APPLE_KEY_ID` | cd.yml | prod Apple private key id |
 | `APPLE_PRIVATE_KEY` | cd.yml | prod Apple client secret 서명용 private key |
 | `JWT_ISSUER` | cd.yml | prod JWT issuer |
-| `JWT_SECRET` | cd.yml | prod JWT 서명 secret |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | cd.yml | prod JWT 서명 secret |
 | `JWT_ACCESS_TOKEN_EXPIRATION` | cd.yml | prod access token 만료 시간 |
 | `JWT_REFRESH_TOKEN_EXPIRATION` | cd.yml | prod refresh token 만료 시간 |
 | `APPLE_TEAM_ID_DEV` | cd-dev.yml | dev Apple Developer Team ID |
@@ -296,7 +297,7 @@ dev 스택이 별도 nginx를 안 띄우고 prod의 `zipzip-net`(compose 프로�
 | `APPLE_KEY_ID_DEV` | cd-dev.yml | dev Apple private key id |
 | `APPLE_PRIVATE_KEY_DEV` | cd-dev.yml | dev Apple client secret 서명용 private key |
 | `JWT_ISSUER_DEV` | cd-dev.yml | dev JWT issuer |
-| `JWT_SECRET_DEV` | cd-dev.yml | dev JWT 서명 secret |
+| `JWT_ACCESS_SECRET_DEV`, `JWT_REFRESH_SECRET_DEV` | cd-dev.yml | dev JWT 서명 secret |
 | `JWT_ACCESS_TOKEN_EXPIRATION_DEV` | cd-dev.yml | dev access token 만료 시간 |
 | `JWT_REFRESH_TOKEN_EXPIRATION_DEV` | cd-dev.yml | dev refresh token 만료 시간 |
 

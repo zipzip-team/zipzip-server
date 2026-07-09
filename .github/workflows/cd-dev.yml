@@ -106,7 +106,8 @@ jobs:
       APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID_DEV }}
       APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY_DEV }}
       JWT_ISSUER: ${{ secrets.JWT_ISSUER_DEV }}
-      JWT_SECRET: ${{ secrets.JWT_SECRET_DEV }}
+      JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET_DEV }}
+      JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET_DEV }}
       JWT_ACCESS_TOKEN_EXPIRATION: ${{ secrets.JWT_ACCESS_TOKEN_EXPIRATION_DEV }}
       JWT_REFRESH_TOKEN_EXPIRATION: ${{ secrets.JWT_REFRESH_TOKEN_EXPIRATION_DEV }}
     steps:
@@ -166,7 +167,8 @@ jobs:
           append_required_payload APPLE_KEY_ID "$APPLE_KEY_ID"
           append_required_payload APPLE_PRIVATE_KEY "$APPLE_PRIVATE_KEY"
           append_required_payload JWT_ISSUER "$JWT_ISSUER"
-          append_required_payload JWT_SECRET "$JWT_SECRET"
+          append_required_payload JWT_ACCESS_SECRET "$JWT_ACCESS_SECRET"
+          append_required_payload JWT_REFRESH_SECRET "$JWT_REFRESH_SECRET"
           append_required_payload JWT_ACCESS_TOKEN_EXPIRATION "$JWT_ACCESS_TOKEN_EXPIRATION"
           append_required_payload JWT_REFRESH_TOKEN_EXPIRATION "$JWT_REFRESH_TOKEN_EXPIRATION"
 

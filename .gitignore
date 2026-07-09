@@ -20,6 +20,7 @@ build/
 !.env.example
 !.env.*.example
 deploy/zipzip-be.env
+*.p8
 
 ### JVM ###
 hs_err_pid*

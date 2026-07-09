@@ -1,0 +1,29 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/auth/apple"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "identityToken": "{{appleIdentityToken}}",
+      "authorizationCode": "{{appleAuthorizationCode}}",
+      "displayName": "{{appleDisplayName}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('로그인 응답 상태가 200이다', function () {
+        pm.response.to.have.status(200);
+      });
+
+      const response = pm.response.json();
+      if (response?.data?.accessToken) {
+        pm.collectionVariables.set('accessToken', response.data.accessToken);
+      }
+      if (response?.data?.refreshToken) {
+        pm.collectionVariables.set('refreshToken', response.data.refreshToken);
+      }
+    language: text/javascript
+order: 1000
