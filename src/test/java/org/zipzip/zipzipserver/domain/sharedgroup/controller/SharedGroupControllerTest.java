@@ -2,8 +2,12 @@ package org.zipzip.zipzipserver.domain.sharedgroup.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -21,7 +25,9 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.zipzip.zipzipserver.domain.auth.jwt.JwtTokenProvider;
+import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupListResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUpdateResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupService;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyResult;
@@ -120,6 +126,87 @@ class SharedGroupControllerTest {
                                 .content("{\"name\":\"우리 집\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void HOST의_이름_수정_요청은_성공_응답을_반환한다() throws Exception {
+        UUID sharedGroupId = UUID.randomUUID();
+        givenAuthenticatedUser();
+        when(sharedGroupService.updateName(APP_USER_ID, sharedGroupId, "여름 여행"))
+                .thenReturn(
+                        new SharedGroupUpdateResponse(
+                                sharedGroupId,
+                                "여름 여행",
+                                Instant.parse("2026-07-03T12:00:00Z")));
+
+        mockMvc.perform(
+                        patch("/api/v1/shared-groups/{sharedGroupId}", sharedGroupId)
+                                .header("Authorization", bearerToken())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"여름 여행\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SHARED_GROUP_UPDATED"))
+                .andExpect(jsonPath("$.data.id").value(sharedGroupId.toString()))
+                .andExpect(jsonPath("$.data.name").value("여름 여행"));
+
+        verify(sharedGroupService).updateName(APP_USER_ID, sharedGroupId, "여름 여행");
+    }
+
+    @Test
+    void HOST의_삭제_요청은_성공_응답을_반환한다() throws Exception {
+        UUID sharedGroupId = UUID.randomUUID();
+        givenAuthenticatedUser();
+
+        mockMvc.perform(
+                        delete("/api/v1/shared-groups/{sharedGroupId}", sharedGroupId)
+                                .header("Authorization", bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SHARED_GROUP_DELETED"));
+
+        verify(sharedGroupService).delete(APP_USER_ID, sharedGroupId);
+    }
+
+    @Test
+    void 수정_요청에_인증_정보가_없으면_401을_반환한다() throws Exception {
+        mockMvc.perform(
+                        patch("/api/v1/shared-groups/{sharedGroupId}", UUID.randomUUID())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"새 이름\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void MEMBER의_수정_요청은_403을_반환한다() throws Exception {
+        UUID sharedGroupId = UUID.randomUUID();
+        givenAuthenticatedUser();
+        when(sharedGroupService.updateName(APP_USER_ID, sharedGroupId, "새 이름"))
+                .thenThrow(
+                        new BusinessException(
+                                SharedGroupErrorCode.ONLY_HOST_CAN_UPDATE_SHARED_GROUP));
+
+        mockMvc.perform(
+                        patch("/api/v1/shared-groups/{sharedGroupId}", sharedGroupId)
+                                .header("Authorization", bearerToken())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"새 이름\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ONLY_HOST_CAN_UPDATE_SHARED_GROUP"));
+    }
+
+    @Test
+    void 공유_그룹을_찾을_수_없으면_404를_반환한다() throws Exception {
+        UUID sharedGroupId = UUID.randomUUID();
+        givenAuthenticatedUser();
+        doThrow(new BusinessException(SharedGroupErrorCode.SHARED_GROUP_NOT_FOUND))
+                .when(sharedGroupService)
+                .delete(APP_USER_ID, sharedGroupId);
+
+        mockMvc.perform(
+                        delete("/api/v1/shared-groups/{sharedGroupId}", sharedGroupId)
+                                .header("Authorization", bearerToken()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SHARED_GROUP_NOT_FOUND"));
     }
 
     private void givenAuthenticatedUser() {
