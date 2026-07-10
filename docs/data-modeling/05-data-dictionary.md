@@ -14,13 +14,13 @@
 | `invite_code_reservation` | 초대 코드 예약 원장 | 발급된 초대 코드의 점유 예약 테이블 |
 | `shared_group` | 공유 그룹 | 초대 코드, 멤버십, 채팅, 공유집(앨범)을 묶는 최상위 공유 공간 |
 | `shared_group_membership` | 공유 그룹 멤버십 | 사용자와 공유 그룹의 참여 관계 및 역할 |
-| `shared_group_chat_message` | 그룹 채팅 메시지 | 공유 그룹 안에서 작성하는 일반 채팅 메시지 |
+| `shared_group_chat_message` | 그룹 채팅 메시지 | 공유 그룹 채팅 타임라인에 포함되는 일반 채팅 메시지 |
 | `shared_album` | 공유집(앨범) | 공유 그룹 안에서 사진을 담는 단위 |
 | `photo_upload_reservation` | 사진 업로드 예약 원장 | 발급된 업로드 `objectKey`의 발급 대상(사용자·공유집(앨범)) 점유 예약 테이블 |
 | `photo` | 사진 | 공유 그룹에 업로드된 사진 원본의 Object Storage 참조 |
 | `shared_album_photo` | 앨범-사진 매핑 | 사진과 공유집(앨범)의 N:M 소속 관계 |
 | `photo_like` | 사진 좋아요 | 사용자가 사진에 좋아요를 누른 상태 |
-| `photo_comment` | 사진 댓글 | 단일 사진에 달리는 댓글 |
+| `photo_comment` | 사진 댓글 | 단일 사진에 달리며 해당 공유 그룹 채팅 타임라인에도 포함되는 댓글 |
 
 ### 2.1 Java 타입 매핑
 
@@ -134,7 +134,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 
 ### 3.6 `shared_group_chat_message`
 
-공유 그룹 안에서 사진 컨텍스트 없이 작성하는 일반 채팅 메시지이다.
+공유 그룹 안에서 사진 컨텍스트 없이 작성하는 일반 채팅 메시지이다. 공유 그룹 하나가 하나의 채팅방이며, 이 테이블의 메시지는 사진 댓글과 병합한 채팅 타임라인에 표시된다.
 1차 구현은 폴링으로 새 메시지를 조회한다.
 
 | 컬럼 | 타입 | 필수 | 설명 |
@@ -152,7 +152,7 @@ Refresh Token 원문을 저장하지 않고 해시와 회전 상태만 저장한
 - 메시지 작성과 조회는 활성 공유 그룹 멤버십 필요
 - 메시지 수정과 삭제는 작성자만 가능
 - 삭제는 `deleted_at` 기록 없이 행을 즉시 물리 삭제
-- 폴링 조회는 `created_at`, `id` 커서 기준
+- 일반 메시지 구간은 `created_at`, `id` 기준으로 조회하며, 최종 채팅 타임라인 커서는 `created_at`, 항목 타입, 항목 ID를 함께 사용
 
 ### 3.7 `shared_album`
 
@@ -312,13 +312,13 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 |---|---|---|
 | `shared_group_membership` | `uk_shared_group_membership__group_user` | 사용자 중복 참여 방지 |
 | `shared_group_membership` | `uk_shared_group_membership__host` | 공유 그룹별 방장 1명 보장 |
-| `shared_group_chat_message` | `idx_shared_group_chat_message__group_created_id` | 폴링 메시지 조회 |
+| `shared_group_chat_message` | `idx_shared_group_chat_message__group_created_id` | 공유 그룹 일반 메시지 구간 조회 |
 | `shared_album` | `idx_shared_album__shared_group_id_deleted_at_created_at` | 공유 그룹별 공유집(앨범) 목록 |
 | `photo` | `idx_photo__active_display_at` | 촬영일 우선 사진 정렬 |
 | `shared_album_photo` | `uk_shared_album_photo__shared_album_id_photo_id` | 앨범-사진 중복 매핑 방지 |
 | `shared_album_photo` | `idx_shared_album_photo__shared_album_id_created_at` | 공유집(앨범)별 사진 목록 |
 | `photo_like` | `uk_photo_like__photo_id_app_user_id` | 중복 좋아요 방지 |
-| `photo_comment` | `idx_photo_comment__photo_id_created_at` | 사진별 댓글 목록 |
+| `photo_comment` | `idx_photo_comment__photo_id_created_at` | 사진별 댓글 목록 및 채팅 타임라인 병합 조회 |
 | `photo_upload_reservation` | `idx_photo_upload_reservation__shared_album_id` | 공유집(앨범)별 예약 조회 |
 | `photo_upload_reservation` | `idx_photo_upload_reservation__requested_by_app_user_id` | 사용자별 예약 조회 |
 | `photo_upload_reservation` | `idx_photo_upload_reservation__expires_at` | 만료된 미완료 예약 스윕 |
@@ -344,7 +344,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 | 사진 좋아요 생성·취소 | 요청 사용자의 활성 멤버십 확인. 취소는 본인 좋아요만 허용 |
 | 사진 댓글 작성 | 요청 사용자의 활성 멤버십 확인 |
 | 사진 댓글 수정·삭제 | 활성 멤버십과 `photo_comment.app_user_id` 일치 확인 |
-| 그룹 채팅 메시지 조회 | 요청 사용자의 해당 공유 그룹 활성 멤버십 확인 |
+| 그룹 채팅 타임라인 조회 | 요청 사용자의 해당 공유 그룹 활성 멤버십 확인. 일반 메시지와 활성 사진 댓글을 병합하고, 사진의 공유 그룹 소속은 `shared_album_photo`와 `shared_album` 조인으로 확인 |
 | 그룹 채팅 메시지 작성 | 요청 사용자의 해당 공유 그룹 활성 멤버십 확인 |
 | 그룹 채팅 메시지 수정·삭제 | 활성 멤버십과 `shared_group_chat_message.app_user_id` 일치 확인 |
 

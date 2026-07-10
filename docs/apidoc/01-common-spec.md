@@ -176,6 +176,7 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 400 | `INVALID_PHOTO_COMMENT_CONTENT` | 사진 댓글 내용 검증 |
 | 404 | `PHOTO_COMMENT_NOT_FOUND` | 사진 댓글 |
 | 403 | `NOT_PHOTO_COMMENT_AUTHOR` | 작성자가 아닌 사용자의 댓글 수정·삭제 |
+| 400 | `INVALID_CURSOR` | 채팅 타임라인 cursor 검증 |
 | 400 | `INVALID_CHAT_MESSAGE_CONTENT` | 그룹 채팅 메시지 내용 검증 |
 | 404 | `CHAT_MESSAGE_NOT_FOUND` | 그룹 채팅 메시지 |
 | 403 | `NOT_CHAT_MESSAGE_AUTHOR` | 작성자가 아닌 사용자의 그룹 채팅 메시지 수정·삭제 |
