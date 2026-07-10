@@ -182,7 +182,7 @@ class PhotoServiceTest {
         UUID hostId = UUID.randomUUID();
         when(photoRepository.findById(photo.getId())).thenReturn(Optional.of(photo));
         when(photoAccessGuard.resolveActiveSharedGroupId(photo)).thenReturn(sharedGroup.getId());
-        when(sharedGroupMembershipRepository.findBySharedGroupIdAndAppUserId(
+        when(sharedGroupMembershipRepository.findActiveBySharedGroupIdAndAppUserId(
                         sharedGroup.getId(), hostId))
                 .thenReturn(
                         Optional.of(
@@ -201,7 +201,7 @@ class PhotoServiceTest {
         UUID memberId = UUID.randomUUID();
         when(photoRepository.findById(photo.getId())).thenReturn(Optional.of(photo));
         when(photoAccessGuard.resolveActiveSharedGroupId(photo)).thenReturn(sharedGroup.getId());
-        when(sharedGroupMembershipRepository.findBySharedGroupIdAndAppUserId(
+        when(sharedGroupMembershipRepository.findActiveBySharedGroupIdAndAppUserId(
                         sharedGroup.getId(), memberId))
                 .thenReturn(
                         Optional.of(
