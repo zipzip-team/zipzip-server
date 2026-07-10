@@ -13,7 +13,7 @@ class OpaqueCursorTest {
 
     @Test
     void 인코딩한_cursor를_디코딩하면_원래_값을_복원한다() {
-        Instant timestamp = Instant.parse("2026-06-30T04:20:00Z");
+        Instant timestamp = Instant.parse("2026-06-30T04:20:00.123456Z");
         UUID id = UUID.randomUUID();
 
         String cursor = OpaqueCursor.encode(timestamp, id);
