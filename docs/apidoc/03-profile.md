@@ -6,9 +6,9 @@
 
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
-| USER-01 | 사용자 | 내 프로필 조회 | GET | `/api/v1/users/me` | 시작 전 | false | false |
-| USER-02 | 사용자 | 내 프로필 수정 | PATCH | `/api/v1/users/me` | 시작 전 | false | false |
-| USER-03 | 사용자 | 사용자 탈퇴 | DELETE | `/api/v1/users/me` | 시작 전 | false | false |
+| USER-01 | 사용자 | 내 프로필 조회 | GET | `/api/v1/users/me` | 완료 | true | false |
+| USER-02 | 사용자 | 내 프로필 수정 | PATCH | `/api/v1/users/me` | 완료 | true | false |
+| USER-03 | 사용자 | 사용자 탈퇴 | DELETE | `/api/v1/users/me` | 완료 | true | false |
 
 모든 API는 Bearer 인증이 필요하며 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
@@ -32,9 +32,7 @@
   "code": "USER_PROFILE_FOUND",
   "message": "내 프로필을 조회했습니다.",
   "data": {
-    "id": "018f0c3e-2c77-7d72-a37e-2f5666f25d32",
-    "displayName": "집집이",
-    "createdAt": "2026-07-03T10:15:30Z"
+    "displayName": "집집이"
   }
 }
 ```
@@ -66,9 +64,7 @@
   "code": "USER_PROFILE_UPDATED",
   "message": "내 프로필을 수정했습니다.",
   "data": {
-    "id": "018f0c3e-2c77-7d72-a37e-2f5666f25d32",
-    "displayName": "새 집집이",
-    "updatedAt": "2026-07-03T11:00:00Z"
+    "displayName": "새 집집이"
   }
 }
 ```
