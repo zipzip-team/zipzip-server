@@ -10,7 +10,5 @@ spring:
 
     datasource:
         driver-class-name: org.postgresql.Driver
-
 idempotency:
-    auth-response-encryption-key: ${IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY:local-idempotency-response-encryption-key-change-me-32}
     auth-response-ttl: 10m

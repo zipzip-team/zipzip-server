@@ -12,7 +12,8 @@ import org.springframework.context.annotation.Configuration;
         name = "bearerAuth",
         type = SecuritySchemeType.HTTP,
         scheme = "bearer",
-        bearerFormat = "JWT")
+        bearerFormat = "JWT",
+        description = "Apple 로그인으로 발급받은 Access Token")
 public class SwaggerConfig {
 
     @Bean

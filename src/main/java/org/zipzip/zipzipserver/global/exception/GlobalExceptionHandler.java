@@ -1,5 +1,6 @@
 package org.zipzip.zipzipserver.global.exception;
 
+import jakarta.validation.ConstraintViolationException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +47,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<Void>> handleHttpMessageNotReadable(
             HttpMessageNotReadableException e) {
         log.warn("[HttpMessageNotReadableException] message={}", e.getMessage());
+
+        return ResponseEntity.status(GlobalErrorCode.INVALID_REQUEST.getHttpStatus())
+                .body(BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<BaseResponse<Void>> handleConstraintViolation(
+            ConstraintViolationException e) {
+        log.warn("[ConstraintViolationException] message={}", e.getMessage());
 
         return ResponseEntity.status(GlobalErrorCode.INVALID_REQUEST.getHttpStatus())
                 .body(BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));

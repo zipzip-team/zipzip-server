@@ -8,9 +8,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
 import org.zipzip.zipzipserver.global.code.SuccessCode;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
@@ -31,6 +33,34 @@ public class IdempotencyService {
 
     public String hashAuthRefreshRequest(String refreshTokenHash) {
         return sha256Hex(AUTH_REFRESH_CANONICAL_REQUEST_FORMAT.formatted(refreshTokenHash));
+    }
+
+    @Transactional
+    public <T> IdempotencyExecution<T> execute(
+            String scope,
+            UUID idempotencyKey,
+            String httpMethod,
+            String apiPath,
+            Object request,
+            Class<T> responseType,
+            SuccessCode successCode,
+            Supplier<T> operation) {
+        IdempotencyStart<T> idempotencyStart =
+                start(
+                        scope,
+                        idempotencyKey,
+                        httpMethod,
+                        apiPath,
+                        hashRequest(request),
+                        responseType);
+
+        if (idempotencyStart.replayed()) {
+            return new IdempotencyExecution<>(idempotencyStart.replayResponse(), true);
+        }
+
+        T response = operation.get();
+        complete(idempotencyStart.record(), successCode, response);
+        return new IdempotencyExecution<>(response, false);
     }
 
     public <T> IdempotencyStart<T> start(
@@ -145,6 +175,16 @@ public class IdempotencyService {
         }
     }
 
+    private String hashRequest(Object request) {
+        try {
+            return sha256Hex(objectMapper.writeValueAsString(request));
+        } catch (Exception exception) {
+            throw new IllegalStateException("멱등성 요청 해시에 실패했습니다.", exception);
+        }
+    }
+
     public record IdempotencyStart<T>(
             ApiIdempotencyRecord record, T replayResponse, boolean replayed) {}
+
+    public record IdempotencyExecution<T>(T response, boolean replayed) {}
 }
