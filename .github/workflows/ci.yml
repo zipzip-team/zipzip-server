@@ -74,6 +74,12 @@ jobs:
           idempotency:
             auth-response-encryption-key: ci-idempotency-secret-must-be-at-least-32-characters
             auth-response-ttl: 10m
+          storage:
+            endpoint: https://ci.compat.objectstorage.ci.oraclecloud.com
+            region: ci-region
+            bucket: ci-bucket
+            access-key: ci-access-key
+            secret-key: ci-secret-key
           EOF
 
       - name: Run verification

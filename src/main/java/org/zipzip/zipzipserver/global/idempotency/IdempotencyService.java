@@ -35,6 +35,18 @@ public class IdempotencyService {
         return sha256Hex(AUTH_REFRESH_CANONICAL_REQUEST_FORMAT.formatted(refreshTokenHash));
     }
 
+    public String hashCanonicalRequest(Object request) {
+        try {
+            return sha256Hex(objectMapper.writeValueAsString(request));
+        } catch (Exception exception) {
+            throw new IllegalStateException("멱등성 요청 해시에 실패했습니다.", exception);
+        }
+    }
+
+    public UUID parseIdempotencyKey(String idempotencyKeyHeader) {
+        return IdempotencyResponseSupport.parseKey(idempotencyKeyHeader);
+    }
+
     @Transactional
     public <T> IdempotencyExecution<T> execute(
             String scope,
@@ -51,7 +63,7 @@ public class IdempotencyService {
                         idempotencyKey,
                         httpMethod,
                         apiPath,
-                        hashRequest(request),
+                        hashCanonicalRequest(request),
                         responseType);
 
         if (idempotencyStart.replayed()) {
@@ -170,14 +182,6 @@ public class IdempotencyService {
                     MessageDigest.getInstance("SHA-256")
                             .digest(plainText.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
-        } catch (Exception exception) {
-            throw new IllegalStateException("멱등성 요청 해시에 실패했습니다.", exception);
-        }
-    }
-
-    private String hashRequest(Object request) {
-        try {
-            return sha256Hex(objectMapper.writeValueAsString(request));
         } catch (Exception exception) {
             throw new IllegalStateException("멱등성 요청 해시에 실패했습니다.", exception);
         }

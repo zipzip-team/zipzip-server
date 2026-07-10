@@ -33,6 +33,11 @@ prod CD에 필요한 Secrets:
 - `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
 - `APPLE_TEAM_ID`, `APPLE_CLIENT_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY`
 - `JWT_ISSUER`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_TOKEN_EXPIRATION`, `JWT_REFRESH_TOKEN_EXPIRATION`
+- `IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY`
+- `STORAGE_ENDPOINT`(OCI Object Storage S3 호환 엔드포인트, 예:
+  `https://<namespace>.compat.objectstorage.<region>.oraclecloud.com`), `STORAGE_REGION`,
+  `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`(Customer Secret Key — 코드·이미지·git에
+  절대 포함하지 않고 GitHub Secrets에만 등록)
 
 dev CD는 동일한 애플리케이션 env key를 서버 `.env.dev`에 기록하되, GitHub Secrets 이름은
 `*_DEV` 접미사를 사용합니다.
@@ -40,6 +45,9 @@ dev CD는 동일한 애플리케이션 env key를 서버 `.env.dev`에 기록하
 - `SPRING_DATASOURCE_URL_DEV`, `SPRING_DATASOURCE_USERNAME_DEV`, `SPRING_DATASOURCE_PASSWORD_DEV`
 - `APPLE_TEAM_ID_DEV`, `APPLE_CLIENT_ID_DEV`, `APPLE_KEY_ID_DEV`, `APPLE_PRIVATE_KEY_DEV`
 - `JWT_ISSUER_DEV`, `JWT_ACCESS_SECRET_DEV`, `JWT_REFRESH_SECRET_DEV`, `JWT_ACCESS_TOKEN_EXPIRATION_DEV`, `JWT_REFRESH_TOKEN_EXPIRATION_DEV`
+- `IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY_DEV`
+- `STORAGE_ENDPOINT_DEV`, `STORAGE_REGION_DEV`, `STORAGE_BUCKET_DEV`, `STORAGE_ACCESS_KEY_DEV`, `STORAGE_SECRET_KEY_DEV`
+  (dev도 별도 버킷 사용을 권장하되, MVP에서 같은 버킷을 쓴다면 prod와 동일 값을 등록해도 됨)
 
 `APPLE_PRIVATE_KEY(_DEV)`는 서버 env 파일과 deployment payload 전달 경로가 줄 단위로 동작하므로 raw multiline
 PEM이 아니라 **단일 라인 PKCS#8 PEM** 또는 **base64 body** 형태로 등록해야 합니다.
