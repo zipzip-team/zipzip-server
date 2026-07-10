@@ -7,6 +7,10 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
+import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
+import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumRepository;
+import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.request.CreateSharedGroupRequest;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.CreateSharedGroupResponse;
@@ -41,6 +45,8 @@ public class SharedGroupService {
     private final SharedGroupRepository sharedGroupRepository;
     private final SharedGroupMembershipRepository sharedGroupMembershipRepository;
     private final SharedGroupQueryRepository sharedGroupQueryRepository;
+    private final SharedAlbumRepository sharedAlbumRepository;
+    private final SharedAlbumPhotoRepository sharedAlbumPhotoRepository;
     private final SharedGroupCursorCodec sharedGroupCursorCodec;
     private final SharedGroupNameValidator sharedGroupNameValidator;
     private final InviteCodeGenerator inviteCodeGenerator;
@@ -122,7 +128,15 @@ public class SharedGroupService {
     public void delete(UUID appUserId, UUID sharedGroupId) {
         SharedGroupMembership membership = getActiveMembership(appUserId, sharedGroupId);
         validateHost(membership, SharedGroupOperation.DELETE);
-        membership.getSharedGroup().delete(Instant.now(clock));
+        Instant deletedAt = Instant.now(clock);
+        List<SharedAlbum> albums =
+                sharedAlbumRepository.findBySharedGroupIdAndDeletedAtIsNull(sharedGroupId);
+        List<Photo> photos =
+                sharedAlbumPhotoRepository.findActivePhotosBySharedGroupId(sharedGroupId);
+
+        albums.forEach(album -> album.delete(deletedAt));
+        photos.forEach(photo -> photo.delete(deletedAt));
+        membership.getSharedGroup().delete(deletedAt);
         sharedGroupRepository.flush();
     }
 

@@ -4,12 +4,12 @@
 
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
-| GROUP-01 | 공유 그룹 | 내 공유 그룹 목록 조회 | GET | `/api/v1/shared-groups` | 시작 전 | false | false |
-| GROUP-02 | 공유 그룹 | 공유 그룹 생성 | POST | `/api/v1/shared-groups` | 시작 전 | false | false |
-| GROUP-03 | 공유 그룹 | 공유 그룹 상세 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}` | 시작 전 | false | false |
-| GROUP-04 | 공유 그룹 | 공유 그룹 이름 수정 | PATCH | `/api/v1/shared-groups/{sharedGroupId}` | 시작 전 | false | false |
-| GROUP-05 | 공유 그룹 | 공유 그룹 삭제 | DELETE | `/api/v1/shared-groups/{sharedGroupId}` | 시작 전 | false | false |
-| GROUP-06 | 공유 그룹 | 공유 그룹 멤버 목록 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/members` | 시작 전 | false | false |
+| GROUP-01 | 공유 그룹 | 내 공유 그룹 목록 조회 | GET | `/api/v1/shared-groups` | 완료 | true | false |
+| GROUP-02 | 공유 그룹 | 공유 그룹 생성 | POST | `/api/v1/shared-groups` | 완료 | true | false |
+| GROUP-03 | 공유 그룹 | 공유 그룹 상세 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}` | 완료 | true | false |
+| GROUP-04 | 공유 그룹 | 공유 그룹 이름 수정 | PATCH | `/api/v1/shared-groups/{sharedGroupId}` | 완료 | true | false |
+| GROUP-05 | 공유 그룹 | 공유 그룹 삭제 | DELETE | `/api/v1/shared-groups/{sharedGroupId}` | 완료 | true | false |
+| GROUP-06 | 공유 그룹 | 공유 그룹 멤버 목록 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/members` | 완료 | true | false |
 
 모든 API는 Bearer 인증이 필요하다. 조회는 활성 멤버십을 요구하고, 공유 그룹 정보 수정·삭제는 활성 `HOST`만 가능하다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
@@ -199,7 +199,7 @@
 
 ## 6. GROUP-05 공유 그룹 삭제
 
-방장만 실행할 수 있다. 공유 그룹과 하위 데이터 접근을 즉시 차단하고 30일 뒤 자식 데이터부터 물리 정리한다. 사용자 복구 API는 제공하지 않는다.
+방장만 실행할 수 있다. 요청 시 공유 그룹·하위 공유집(앨범)·사진을 같은 시각에 soft delete해 접근을 즉시 차단한다. 사진-공유집(앨범) 매핑은 30일 물리 정리 전까지 유지하며, 배치는 원본·썸네일 Object Storage 객체를 먼저 삭제한다. 모든 사진 정리에 성공한 경우에만 사진 관련 행, 공유 그룹과 초대 코드 예약을 순서대로 물리 삭제한다. 스토리지 삭제에 실패하면 공유 그룹과 초대 코드 예약을 유지해 다음 배치에서 재시도한다. 사용자 복구 API는 제공하지 않는다.
 
 ### Request
 

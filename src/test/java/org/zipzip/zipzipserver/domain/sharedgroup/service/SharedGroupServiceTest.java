@@ -18,6 +18,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
+import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
+import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumRepository;
+import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.request.CreateSharedGroupRequest;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.CreateSharedGroupResponse;
@@ -44,6 +48,8 @@ class SharedGroupServiceTest {
     @Mock private SharedGroupRepository sharedGroupRepository;
     @Mock private SharedGroupMembershipRepository sharedGroupMembershipRepository;
     @Mock private SharedGroupQueryRepository sharedGroupQueryRepository;
+    @Mock private SharedAlbumRepository sharedAlbumRepository;
+    @Mock private SharedAlbumPhotoRepository sharedAlbumPhotoRepository;
     @Mock private SharedGroupCursorCodec sharedGroupCursorCodec;
     @Spy private SharedGroupNameValidator sharedGroupNameValidator = new SharedGroupNameValidator();
     @Mock private InviteCodeGenerator inviteCodeGenerator;
@@ -172,16 +178,31 @@ class SharedGroupServiceTest {
     }
 
     @Test
-    void HOST는_공유_그룹을_soft_delete할_수_있다() {
+    void HOST는_공유_그룹과_하위_공유집_사진을_같은_시각에_soft_delete할_수_있다() {
         AppUser host = AppUser.create("host-subject", "방장");
         SharedGroup sharedGroup = createSharedGroup(host);
+        SharedAlbum sharedAlbum = SharedAlbum.create(sharedGroup, host, "여행 앨범");
+        Photo photo =
+                Photo.create(
+                        host,
+                        "iPhone 15",
+                        "photos/original.jpg",
+                        Instant.parse("2026-07-01T00:00:00Z"),
+                        100,
+                        100);
         givenMembership(host, sharedGroup, SharedGroupRole.HOST);
         Instant deletedAt = Instant.parse("2026-07-10T00:00:00Z");
         when(clock.instant()).thenReturn(deletedAt);
+        when(sharedAlbumRepository.findBySharedGroupIdAndDeletedAtIsNull(sharedGroup.getId()))
+                .thenReturn(java.util.List.of(sharedAlbum));
+        when(sharedAlbumPhotoRepository.findActivePhotosBySharedGroupId(sharedGroup.getId()))
+                .thenReturn(java.util.List.of(photo));
 
         sharedGroupService.delete(host.getId(), sharedGroup.getId());
 
         assertThat(sharedGroup.getDeletedAt()).isEqualTo(deletedAt);
+        assertThat(sharedAlbum.getDeletedAt()).isEqualTo(deletedAt);
+        assertThat(photo.getDeletedAt()).isEqualTo(deletedAt);
         verify(sharedGroupRepository).flush();
     }
 

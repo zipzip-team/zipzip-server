@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
@@ -15,7 +16,9 @@ public interface SharedAlbumPhotoRepository extends JpaRepository<SharedAlbumPho
 
     List<SharedAlbumPhoto> findByPhotoId(UUID photoId);
 
-    void deleteByPhotoId(UUID photoId);
+    @Modifying(flushAutomatically = true)
+    @Query("delete from SharedAlbumPhoto mapping where mapping.photo.id = :photoId")
+    void deleteByPhotoId(@Param("photoId") UUID photoId);
 
     boolean existsBySharedAlbumIdAndPhotoId(UUID sharedAlbumId, UUID photoId);
 
@@ -26,6 +29,24 @@ public interface SharedAlbumPhotoRepository extends JpaRepository<SharedAlbumPho
     long countBySharedAlbumIdAndPhotoDeletedAtIsNull(UUID sharedAlbumId);
 
     List<SharedAlbumPhoto> findBySharedAlbumId(UUID sharedAlbumId);
+
+    @Query(
+            """
+            select distinct mapping.photo
+            from SharedAlbumPhoto mapping
+            join mapping.sharedAlbum album
+            where album.sharedGroup.id = :sharedGroupId
+              and mapping.photo.deletedAt is null
+            """)
+    List<Photo> findActivePhotosBySharedGroupId(@Param("sharedGroupId") UUID sharedGroupId);
+
+    @Query(
+            """
+            select distinct mapping.photo.id
+            from SharedAlbumPhoto mapping
+            where mapping.sharedAlbum.sharedGroup.id = :sharedGroupId
+            """)
+    List<UUID> findDistinctPhotoIdsBySharedGroupId(@Param("sharedGroupId") UUID sharedGroupId);
 
     void deleteBySharedAlbumId(UUID sharedAlbumId);
 

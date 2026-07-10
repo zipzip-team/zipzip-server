@@ -13,6 +13,8 @@ public interface SharedAlbumRepository extends JpaRepository<SharedAlbum, UUID> 
 
     long deleteByDeletedAtIsNotNullAndDeletedAtLessThanEqual(Instant deletedAt);
 
+    List<SharedAlbum> findBySharedGroupIdAndDeletedAtIsNull(UUID sharedGroupId);
+
     @Query(
             """
             select album

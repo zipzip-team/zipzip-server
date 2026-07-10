@@ -4,9 +4,9 @@
 
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
-| INVITE-01 | 공유 그룹 | 초대 코드 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/invite-code` | 시작 전 | false | false |
-| INVITE-02 | 공유 그룹 | 초대 코드로 참여 | POST | `/api/v1/shared-groups/join` | 시작 전 | false | false |
-| INVITE-03 | 공유 그룹 | 공유 그룹 나가기 | DELETE | `/api/v1/shared-groups/{sharedGroupId}/members/me` | 시작 전 | false | false |
+| INVITE-01 | 공유 그룹 | 초대 코드 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/invite-code` | 완료 | true | false |
+| INVITE-02 | 공유 그룹 | 초대 코드로 참여 | POST | `/api/v1/shared-groups/join` | 완료 | true | false |
+| INVITE-03 | 공유 그룹 | 공유 그룹 나가기 | DELETE | `/api/v1/shared-groups/{sharedGroupId}/members/me` | 완료 | true | false |
 
 모든 API는 Bearer 인증이 필요하며 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다. 초대 코드는 공유 그룹 생성 시 고정되며, 공유 그룹이 활성 또는 soft delete 상태인 동안 만료·재발급·재사용하지 않는다. 공유 그룹 물리 삭제 시 초대 코드 예약도 정리되어 이후 재사용될 수 있다.
 

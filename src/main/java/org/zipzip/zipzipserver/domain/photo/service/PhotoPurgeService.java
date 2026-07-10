@@ -42,6 +42,7 @@ public class PhotoPurgeService {
         objectStorageService.deleteAll(objectKeys);
 
         sharedAlbumPhotoRepository.deleteByPhotoId(photoId);
+        sharedAlbumPhotoRepository.flush();
         photoCommentRepository.deleteByPhotoId(photoId);
         photoLikeRepository.deleteByPhotoId(photoId);
         photoRepository.delete(photo);

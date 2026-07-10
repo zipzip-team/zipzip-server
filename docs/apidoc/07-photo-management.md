@@ -9,14 +9,14 @@
 
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
-| PHOTO-01 | 사진 | 공유집(앨범) 사진 목록 조회 | GET | `/api/v1/shared-albums/{sharedAlbumId}/photos` | 시작 전 | false | false |
-| PHOTO-02 | 사진 | 사진 업로드 URL 발급 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls` | 시작 전 | false | false |
-| PHOTO-03 | 사진 | 사진 업로드 완료 등록 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/complete` | 시작 전 | false | false |
-| PHOTO-04 | 사진 | 사진 메타데이터 수정 | PATCH | `/api/v1/photos/{photoId}` | 시작 전 | false | false |
-| PHOTO-05 | 사진 | 사진 삭제 | DELETE | `/api/v1/photos/{photoId}` | 시작 전 | false | false |
-| PHOTO-06 | 사진 | 공유집(앨범) 사진 일괄 삭제 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/bulk-delete` | 시작 전 | false | false |
-| PHOTO-07 | 사진 | 공유집(앨범)에 기존 사진 추가 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/attach` | 시작 전 | false | false |
-| PHOTO-08 | 사진 | 공유집(앨범)에서 사진 제거 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/detach` | 시작 전 | false | false |
+| PHOTO-01 | 사진 | 공유집(앨범) 사진 목록 조회 | GET | `/api/v1/shared-albums/{sharedAlbumId}/photos` | 완료 | true | false |
+| PHOTO-02 | 사진 | 사진 업로드 URL 발급 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls` | 완료 | true | false |
+| PHOTO-03 | 사진 | 사진 업로드 완료 등록 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/complete` | 완료 | true | false |
+| PHOTO-04 | 사진 | 사진 메타데이터 수정 | PATCH | `/api/v1/photos/{photoId}` | 완료 | true | false |
+| PHOTO-05 | 사진 | 사진 삭제 | DELETE | `/api/v1/photos/{photoId}` | 완료 | true | false |
+| PHOTO-06 | 사진 | 공유집(앨범) 사진 일괄 삭제 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/bulk-delete` | 완료 | true | false |
+| PHOTO-07 | 사진 | 공유집(앨범)에 기존 사진 추가 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/attach` | 완료 | true | false |
+| PHOTO-08 | 사진 | 공유집(앨범)에서 사진 제거 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/detach` | 완료 | true | false |
 
 모든 API는 대상 공유집(앨범) 또는 사진이 속한 공유 그룹의 활성 멤버십을 요구한다.
 사진 메타데이터 수정은 업로더만 가능하다. 사진 삭제는 원칙적으로 업로더만 가능하며, 업로더가 탈퇴한 사용자인 경우 상위 공유 그룹 방장도 삭제할 수 있다.

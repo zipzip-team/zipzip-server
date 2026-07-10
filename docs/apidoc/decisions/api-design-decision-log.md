@@ -272,15 +272,15 @@ PHOTO-02가 발급 이력을 저장하지 않으면 PHOTO-03이 `objectKey`의 �
 
 ## 16. 후속 구현 체크리스트
 
-- [ ] PostgreSQL `api_idempotency_record` 마이그레이션과 정리 배치 구현
+- [x] PostgreSQL `api_idempotency_record` 마이그레이션과 정리 배치 구현
 - [ ] 인증 응답 snapshot 암호화와 민감 정보 로그 마스킹 적용
 - [ ] API DTO의 모든 시간 필드가 `Instant`로 직렬화되는지 테스트
 - [ ] 공유 그룹 상세 응답의 최초 생성자와 현재 방장 구분 테스트
 - [ ] 공유집(앨범) 삭제 후 앨범-사진 매핑 접근 차단과 30일 정리, 사진 원본 보존 테스트
-- [ ] PHOTO-07/PHOTO-08 추가·제거 API의 멱등성과 공유 그룹 일치 검증 테스트
+- [x] PHOTO-07/PHOTO-08 추가·제거 API의 멱등성과 공유 그룹 일치 검증 테스트
 - [ ] PHOTO-02/PHOTO-03 presigned 업로드 흐름의 만료·재시도·부분 실패 시나리오 테스트
 - [ ] `photo_upload_reservation` 발급 대상 불일치(다른 사용자·다른 공유집(앨범))와 재사용 시도에 대한 PHOTO-03 거부 테스트
-- [ ] 만료된 `photo_upload_reservation`과 대응 Object Storage 고아 객체 정리 스윕 배치 구현
+- [x] 만료된 `photo_upload_reservation`과 대응 Object Storage 고아 객체 정리 스윕 배치 구현
 - [ ] 조회 시점마다 새로 발급하는 `originalUrl`/`thumbnailUrl`과 만료 시각 응답 계약 테스트
 - [x] 일반 메시지와 사진 댓글을 병합한 그룹 채팅 타임라인의 정렬·cursor·권한 통합 테스트
 - [ ] WebSocket 실시간 전달을 도입할 경우 별도 API 의사결정 작성

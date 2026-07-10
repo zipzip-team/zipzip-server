@@ -4,11 +4,11 @@
 
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
-| REACTION-01 | 사진 반응·댓글 | 사진 상세 조회 | GET | `/api/v1/photos/{photoId}` | 시작 전 | false | false |
-| REACTION-02 | 사진 반응·댓글 | 사진 좋아요 설정 | PUT | `/api/v1/photos/{photoId}/like` | 시작 전 | false | false |
-| REACTION-03 | 사진 반응·댓글 | 사진 좋아요 취소 | DELETE | `/api/v1/photos/{photoId}/like` | 시작 전 | false | false |
-| COMMENT-01 | 사진 반응·댓글 | 사진 댓글 목록 조회 | GET | `/api/v1/photos/{photoId}/comments` | 시작 전 | false | false |
-| COMMENT-02 | 사진 반응·댓글 | 사진 댓글 작성 | POST | `/api/v1/photos/{photoId}/comments` | 시작 전 | false | false |
+| REACTION-01 | 사진 반응·댓글 | 사진 상세 조회 | GET | `/api/v1/photos/{photoId}` | 완료 | true | false |
+| REACTION-02 | 사진 반응·댓글 | 사진 좋아요 설정 | PUT | `/api/v1/photos/{photoId}/like` | 완료 | true | false |
+| REACTION-03 | 사진 반응·댓글 | 사진 좋아요 취소 | DELETE | `/api/v1/photos/{photoId}/like` | 완료 | true | false |
+| COMMENT-01 | 사진 반응·댓글 | 사진 댓글 목록 조회 | GET | `/api/v1/photos/{photoId}/comments` | 완료 | true | false |
+| COMMENT-02 | 사진 반응·댓글 | 사진 댓글 작성 | POST | `/api/v1/photos/{photoId}/comments` | 완료 | true | false |
 
 모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다. 사진 댓글은 사진 상세에서 독립적으로 조회할 수 있으며, 같은 공유 그룹의 채팅 타임라인 조회(CHAT-01)에도 일반 채팅 메시지와 함께 시간순으로 표시된다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 

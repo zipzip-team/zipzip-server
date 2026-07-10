@@ -6,8 +6,6 @@
 |---|---|---|---|---|---|---|---|
 | CHAT-01 | 채팅 | 그룹 채팅 타임라인 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/chat-messages` | 완료 | true | false |
 | CHAT-02 | 채팅 | 그룹 채팅 메시지 작성 | POST | `/api/v1/shared-groups/{sharedGroupId}/chat-messages` | 완료 | true | false |
-| CHAT-03 | 채팅 | 그룹 채팅 메시지 수정 | PATCH | `/api/v1/shared-group-chat-messages/{messageId}` | 시작 전 | false | false |
-| CHAT-04 | 채팅 | 그룹 채팅 메시지 삭제 | DELETE | `/api/v1/shared-group-chat-messages/{messageId}` | 시작 전 | false | false |
 
 공유 그룹 하나가 하나의 채팅방이다. 따라서 별도 `chat_room` 테이블이나 채팅방 조회 API는 두지 않고, `sharedGroupId`를 채팅방 식별자로 사용한다.
 일반 채팅 메시지는 `shared_group_chat_message`, 사진 댓글은 `photo_comment`에 각각 저장한다. CHAT-01은 대상 공유 그룹의 일반 채팅 메시지와 활성 사진 댓글을 하나의 타임라인으로 병합해 반환한다.
@@ -145,79 +143,3 @@
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십이 없음 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 키가 다른 메시지 작성 요청에 이미 사용됨 |
 | 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 키의 메시지 작성 요청을 처리 중임 |
-
-## 4. CHAT-03 그룹 채팅 메시지 수정
-
-작성자만 수정할 수 있다.
-
-### Request
-
-#### Path
-
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---:|---|
-| `messageId` | UUID | O | 그룹 채팅 메시지 식별자 |
-
-#### Body
-
-| 필드 | 타입 | 필수 | 제약 | 설명 |
-|---|---|---:|---|---|
-| `content` | String | O | trim 후 1~1,000자 | 새 메시지 본문 |
-
-### Success Response
-
-#### HTTP Status Code: `200 OK`
-
-```json
-{
-  "status": 200,
-  "code": "SHARED_GROUP_CHAT_MESSAGE_UPDATED",
-  "message": "그룹 채팅 메시지를 수정했습니다.",
-  "data": {
-    "id": "22b50c69-ce29-4715-9825-dd27f4868bea",
-    "content": "이번 여행 사진 올려줘!",
-    "updatedAt": "2026-07-03T10:20:30Z"
-  }
-}
-```
-
-### Fail Response
-
-| HTTP Status | code | 조건 |
-|---:|---|---|
-| 400 | `INVALID_CHAT_MESSAGE_CONTENT` | 본문이 공백이거나 1,000자를 초과함 |
-| 403 | `NOT_CHAT_MESSAGE_AUTHOR` | 활성 멤버지만 작성자가 아님 |
-| 404 | `CHAT_MESSAGE_NOT_FOUND` | 메시지 또는 상위 활성 리소스·멤버십이 없음 |
-
-## 5. CHAT-04 그룹 채팅 메시지 삭제
-
-작성자만 삭제할 수 있다.
-휴지통 없이 `shared_group_chat_message` 행을 즉시 물리 삭제한다. 복구할 수 없다.
-
-### Request
-
-#### Path
-
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---:|---|
-| `messageId` | UUID | O | 그룹 채팅 메시지 식별자 |
-
-### Success Response
-
-#### HTTP Status Code: `200 OK`
-
-```json
-{
-  "status": 200,
-  "code": "SHARED_GROUP_CHAT_MESSAGE_DELETED",
-  "message": "그룹 채팅 메시지를 삭제했습니다.",
-  "data": null
-}
-```
-
-### Fail Response
-
-| HTTP Status | code | 조건 |
-|---:|---|---|
-| 403 | `NOT_CHAT_MESSAGE_AUTHOR` | 활성 멤버지만 작성자가 아님 |
-| 404 | `CHAT_MESSAGE_NOT_FOUND` | 메시지 또는 상위 활성 리소스·멤버십이 없음 |
