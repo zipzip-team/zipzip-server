@@ -5,6 +5,8 @@
 사진은 공유 그룹에 직접 속하지 않고, `shared_album_photo`를 통해서만 하나 이상의 공유집(앨범)에 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진). 사진은 항상 1개 이상의 공유집(앨범)에 속해야 한다.
 사진 목록 조회와 업로드 API는 공유집(앨범) 식별자인 `sharedAlbumId`를 기준으로 한다.
 
+> 엔드포인트별 백엔드 동작·iOS 연동 가이드(3단계 업로드 흐름 포함)는 [shared-album-photo-ios-integration-guide.md](shared-album-photo-ios-integration-guide.md) 참고.
+
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
 | PHOTO-01 | 사진 | 공유집(앨범) 사진 목록 조회 | GET | `/api/v1/shared-albums/{sharedAlbumId}/photos` | 시작 전 | false | false |

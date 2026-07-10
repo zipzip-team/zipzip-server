@@ -7,6 +7,8 @@
 기존 사진을 공유집(앨범)에 추가·제거하는 API는 [07-photo-management.md](07-photo-management.md)의 PHOTO-07, PHOTO-08을 따른다.
 `photoCount`는 활성 `shared_album_photo` 매핑과 활성 사진 기준으로 실시간 count한다.
 
+> 엔드포인트별 백엔드 동작·iOS 연동 가이드는 [shared-album-photo-ios-integration-guide.md](shared-album-photo-ios-integration-guide.md) 참고.
+
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
 | ALBUM-01 | 앨범 | 공유집(앨범) 목록 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/shared-albums` | 시작 전 | false | false |
