@@ -63,6 +63,12 @@ jobs:
           idempotency:
             auth-response-encryption-key: placeholder-idempotency-secret-must-be-at-least-32-characters
             auth-response-ttl: 10m
+          storage:
+            endpoint: https://placeholder.compat.objectstorage.placeholder.oraclecloud.com
+            region: placeholder-region
+            bucket: placeholder-bucket
+            access-key: placeholder-access-key
+            secret-key: placeholder-secret-key
           YAML
 
       # JAR은 러너 네이티브(x86) 아키텍처로 빌드한다. 바이트코드는 아키텍처 무관이라
@@ -123,6 +129,11 @@ jobs:
       JWT_ACCESS_TOKEN_EXPIRATION: ${{ secrets.JWT_ACCESS_TOKEN_EXPIRATION }}
       JWT_REFRESH_TOKEN_EXPIRATION: ${{ secrets.JWT_REFRESH_TOKEN_EXPIRATION }}
       IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY: ${{ secrets.IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY }}
+      STORAGE_ENDPOINT: ${{ secrets.STORAGE_ENDPOINT }}
+      STORAGE_REGION: ${{ secrets.STORAGE_REGION }}
+      STORAGE_BUCKET: ${{ secrets.STORAGE_BUCKET }}
+      STORAGE_ACCESS_KEY: ${{ secrets.STORAGE_ACCESS_KEY }}
+      STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}
     steps:
       - name: Validate deployment payload
         shell: bash
@@ -179,6 +190,11 @@ jobs:
           append_required_payload JWT_ACCESS_TOKEN_EXPIRATION "$JWT_ACCESS_TOKEN_EXPIRATION"
           append_required_payload JWT_REFRESH_TOKEN_EXPIRATION "$JWT_REFRESH_TOKEN_EXPIRATION"
           append_required_payload IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY "$IDEMPOTENCY_AUTH_RESPONSE_ENCRYPTION_KEY"
+          append_required_payload STORAGE_ENDPOINT "$STORAGE_ENDPOINT"
+          append_required_payload STORAGE_REGION "$STORAGE_REGION"
+          append_required_payload STORAGE_BUCKET "$STORAGE_BUCKET"
+          append_required_payload STORAGE_ACCESS_KEY "$STORAGE_ACCESS_KEY"
+          append_required_payload STORAGE_SECRET_KEY "$STORAGE_SECRET_KEY"
 
           exit "$missing"
 
