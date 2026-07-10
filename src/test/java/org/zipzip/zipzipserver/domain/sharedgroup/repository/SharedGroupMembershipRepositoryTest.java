@@ -18,10 +18,12 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.zipzip.zipzipserver.domain.device.repository.DeviceRepository;
-import org.zipzip.zipzipserver.domain.device.repository.DeviceRow;
 
-@DataJpaTest(properties = "spring.config.import=optional:classpath:config/application-secret.yml")
+@DataJpaTest(
+        properties = {
+            "spring.config.import=optional:classpath:config/application-secret.yml",
+            "spring.flyway.enabled=true"
+        })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers(disabledWithoutDocker = true)
 class SharedGroupMembershipRepositoryTest {
@@ -53,14 +55,11 @@ class SharedGroupMembershipRepositoryTest {
 
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private SharedGroupMembershipRepository sharedGroupMembershipRepository;
-    @Autowired private DeviceRepository deviceRepository;
-
     @BeforeEach
     void setUp() {
         jdbcTemplate.execute(
                 """
                 truncate table
-                    device,
                     shared_group_membership,
                     shared_group,
                     invite_code_reservation,
@@ -100,24 +99,6 @@ class SharedGroupMembershipRepositoryTest {
                 STRANGER_ID,
                 "HOST",
                 BASE_TIME);
-        insertDevice(
-                UUID.fromString("30000000-0000-0000-0000-000000000001"),
-                HOST_ID,
-                "iPhone 16 Pro",
-                BASE_TIME,
-                null);
-        insertDevice(
-                UUID.fromString("30000000-0000-0000-0000-000000000002"),
-                HOST_ID,
-                "삭제된 기기",
-                BASE_TIME.plusSeconds(30),
-                BASE_TIME.plusSeconds(300));
-        insertDevice(
-                UUID.fromString("30000000-0000-0000-0000-000000000003"),
-                MEMBER_ID,
-                "iPad",
-                BASE_TIME.plusSeconds(60),
-                null);
     }
 
     @Test
@@ -159,14 +140,6 @@ class SharedGroupMembershipRepositoryTest {
                         PageRequest.of(0, 10));
 
         assertThat(rows).extracting(SharedGroupMemberRow::userId).containsExactly(MEMBER_ID);
-    }
-
-    @Test
-    void 활성_기기만_사용자별_생성일과_id_오름차순으로_조회한다() {
-        List<DeviceRow> rows =
-                deviceRepository.findActiveDevicesByAppUserIds(List.of(HOST_ID, MEMBER_ID));
-
-        assertThat(rows).extracting(DeviceRow::name).containsExactly("iPhone 16 Pro", "iPad");
     }
 
     private void insertUser(UUID id, String appleSubject, String displayName, Instant deletedAt) {
@@ -223,21 +196,6 @@ class SharedGroupMembershipRepositoryTest {
                 role,
                 timestamp(createdAt),
                 timestamp(createdAt));
-    }
-
-    private void insertDevice(
-            UUID id, UUID appUserId, String name, Instant createdAt, Instant deletedAt) {
-        jdbcTemplate.update(
-                """
-                insert into device (id, app_user_id, name, created_at, updated_at, deleted_at)
-                values (?, ?, ?, ?, ?, ?)
-                """,
-                id,
-                appUserId,
-                name,
-                timestamp(createdAt),
-                timestamp(createdAt),
-                timestamp(deletedAt));
     }
 
     private Timestamp timestamp(Instant instant) {

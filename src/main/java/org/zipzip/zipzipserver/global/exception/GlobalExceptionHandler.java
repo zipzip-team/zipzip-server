@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -46,6 +47,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<BaseResponse<Void>> handleHttpMessageNotReadable(
             HttpMessageNotReadableException e) {
         log.warn("[HttpMessageNotReadableException] message={}", e.getMessage());
+
+        return ResponseEntity.status(GlobalErrorCode.INVALID_REQUEST.getHttpStatus())
+                .body(BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<BaseResponse<Void>> handleConstraintViolation(
+            ConstraintViolationException e) {
+        log.warn("[ConstraintViolationException] message={}", e.getMessage());
 
         return ResponseEntity.status(GlobalErrorCode.INVALID_REQUEST.getHttpStatus())
                 .body(BaseResponse.failure(GlobalErrorCode.INVALID_REQUEST));

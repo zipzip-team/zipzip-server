@@ -19,8 +19,6 @@ import org.mockito.Mock;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
-import org.zipzip.zipzipserver.domain.device.repository.DeviceRepository;
-import org.zipzip.zipzipserver.domain.device.repository.DeviceRow;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupMemberListResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
@@ -39,8 +37,6 @@ class SharedGroupMemberServiceTest {
             UUID.fromString("30000000-0000-0000-0000-000000000000");
 
     @Mock private SharedGroupMembershipRepository sharedGroupMembershipRepository;
-    @Mock private DeviceRepository deviceRepository;
-
     @Spy
     private SharedGroupMemberCursorCodec cursorCodec =
             new SharedGroupMemberCursorCodec(new ObjectMapper());
@@ -62,7 +58,7 @@ class SharedGroupMemberServiceTest {
     }
 
     @Test
-    void 멤버_목록과_기기_태그를_묶어_응답한다() {
+    void 멤버_목록을_커서_페이지로_응답한다() {
         Instant joinedAt = Instant.parse("2026-07-03T10:15:30Z");
         SharedGroupMemberRow me =
                 new SharedGroupMemberRow(
@@ -91,29 +87,12 @@ class SharedGroupMemberServiceTest {
         when(sharedGroupMembershipRepository.findActiveMembers(
                         eq(SHARED_GROUP_ID), any(Pageable.class)))
                 .thenReturn(List.of(me, other, extra));
-        when(deviceRepository.findActiveDevicesByAppUserIds(
-                        List.of(CURRENT_USER_ID, OTHER_USER_ID)))
-                .thenReturn(
-                        List.of(
-                                new DeviceRow(
-                                        CURRENT_USER_ID,
-                                        UUID.fromString("50000000-0000-0000-0000-000000000001"),
-                                        "iPhone 16 Pro"),
-                                new DeviceRow(
-                                        OTHER_USER_ID,
-                                        UUID.fromString("50000000-0000-0000-0000-000000000002"),
-                                        "iPad")));
-
         SharedGroupMemberListResponse response =
                 service.findMembers(SHARED_GROUP_ID, CURRENT_USER_ID, null, 2);
 
         assertThat(response.items()).hasSize(2);
         assertThat(response.items().get(0).isMe()).isTrue();
-        assertThat(response.items().get(0).devices())
-                .extracting("name")
-                .containsExactly("iPhone 16 Pro");
         assertThat(response.items().get(1).isMe()).isFalse();
-        assertThat(response.items().get(1).devices()).extracting("name").containsExactly("iPad");
         assertThat(response.hasNext()).isTrue();
         assertThat(response.nextCursor()).isNotBlank();
 

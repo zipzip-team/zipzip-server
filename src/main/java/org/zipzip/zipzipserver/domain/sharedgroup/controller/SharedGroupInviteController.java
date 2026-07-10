@@ -28,10 +28,8 @@ import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.InviteCodeRespons
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponseEnvelope;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupInviteService;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyResponseSupport;
-import org.zipzip.zipzipserver.global.idempotency.IdempotencyResult;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
-import org.zipzip.zipzipserver.global.security.AuthenticatedUser;
 
 @RestController
 @RequiredArgsConstructor
@@ -54,11 +52,11 @@ public class SharedGroupInviteController {
     })
     public BaseResponse<InviteCodeResponse> findInviteCode(
             @PathVariable UUID sharedGroupId,
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+            @AuthenticationPrincipal UUID appUserId) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.INVITE_CODE_FOUND,
                 sharedGroupInviteService.findInviteCode(
-                        sharedGroupId, authenticatedUser.appUserId()));
+                        sharedGroupId, appUserId));
     }
 
     @PostMapping("/join")
@@ -98,27 +96,30 @@ public class SharedGroupInviteController {
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,
             @Valid @RequestBody SharedGroupJoinRequest request,
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+            @AuthenticationPrincipal UUID appUserId) {
         UUID parsedIdempotencyKey = IdempotencyResponseSupport.parseKey(idempotencyKey);
-        IdempotencyResult idempotencyResult =
+        IdempotencyService.IdempotencyExecution<
+                        org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponse>
+                idempotencyExecution =
                 idempotencyService.execute(
-                        authenticatedUser.appUserId().toString(),
+                        appUserId.toString(),
                         parsedIdempotencyKey,
                         "POST",
                         POST_SHARED_GROUP_JOIN_PATH,
                         request,
-                        () ->
-                                ResponseEntity.status(
-                                                SharedGroupSuccessCode.SHARED_GROUP_JOINED
-                                                        .getHttpStatus())
-                                        .body(
-                                                BaseResponse.success(
-                                                        SharedGroupSuccessCode.SHARED_GROUP_JOINED,
-                                                        sharedGroupInviteService.join(
-                                                                authenticatedUser.appUserId(),
-                                                                request))));
+                        org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponse.class,
+                        SharedGroupSuccessCode.SHARED_GROUP_JOINED,
+                        () -> sharedGroupInviteService.join(appUserId, request));
 
-        return IdempotencyResponseSupport.toResponse(idempotencyResult);
+        ResponseEntity.BodyBuilder response =
+                ResponseEntity.status(SharedGroupSuccessCode.SHARED_GROUP_JOINED.getHttpStatus());
+        if (idempotencyExecution.replayed()) {
+            response.header("Idempotency-Replayed", "true");
+        }
+        return response.body(
+                BaseResponse.success(
+                        SharedGroupSuccessCode.SHARED_GROUP_JOINED,
+                        idempotencyExecution.response()));
     }
 
     @DeleteMapping("/{sharedGroupId}/members/me")
@@ -131,8 +132,8 @@ public class SharedGroupInviteController {
     })
     public BaseResponse<Void> leave(
             @PathVariable UUID sharedGroupId,
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        sharedGroupInviteService.leave(sharedGroupId, authenticatedUser.appUserId());
+            @AuthenticationPrincipal UUID appUserId) {
+        sharedGroupInviteService.leave(sharedGroupId, appUserId);
         return BaseResponse.success(SharedGroupSuccessCode.SHARED_GROUP_LEFT);
     }
 }

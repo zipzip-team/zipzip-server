@@ -21,7 +21,6 @@ import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupSuccessCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupMemberListResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupMemberService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
-import org.zipzip.zipzipserver.global.security.AuthenticatedUser;
 
 @Validated
 @RestController
@@ -43,7 +42,7 @@ public class SharedGroupMemberController {
     })
     public BaseResponse<SharedGroupMemberListResponse> findMembers(
             @PathVariable UUID sharedGroupId,
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @AuthenticationPrincipal UUID appUserId,
             @Parameter(description = "다음 페이지 조회용 커서") @RequestParam(required = false) String cursor,
             @Parameter(description = "조회할 항목 수 (1~100)", example = "50")
                     @RequestParam(defaultValue = "50")
@@ -53,6 +52,6 @@ public class SharedGroupMemberController {
         return BaseResponse.success(
                 SharedGroupSuccessCode.SHARED_GROUP_MEMBER_LIST_FOUND,
                 sharedGroupMemberService.findMembers(
-                        sharedGroupId, authenticatedUser.appUserId(), cursor, size));
+                        sharedGroupId, appUserId, cursor, size));
     }
 }

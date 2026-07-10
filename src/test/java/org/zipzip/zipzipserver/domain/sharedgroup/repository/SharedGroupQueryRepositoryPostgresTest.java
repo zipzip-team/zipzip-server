@@ -28,7 +28,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
             "apple.client-id=test-apple-client-id",
             "apple.key-id=test-apple-key-id",
             "apple.private-key=test-apple-private-key",
-            "zipzip.idempotency.response-encryption-key=test-idempotency-key"
+            "idempotency.auth-response-encryption-key=test-idempotency-key",
+            "spring.flyway.enabled=true"
         })
 class SharedGroupQueryRepositoryPostgresTest {
 

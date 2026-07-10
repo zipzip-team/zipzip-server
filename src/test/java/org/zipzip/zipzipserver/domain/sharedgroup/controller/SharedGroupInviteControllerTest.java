@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,12 +25,10 @@ import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.InviteCodeRespons
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupInviteService;
-import org.zipzip.zipzipserver.global.idempotency.IdempotencyResult;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
-import org.zipzip.zipzipserver.global.response.BaseResponse;
 import org.zipzip.zipzipserver.global.security.JwtAuthenticationFilter;
 import org.zipzip.zipzipserver.global.security.SecurityConfig;
-import org.zipzip.zipzipserver.global.security.SecurityExceptionResponseWriter;
+import org.zipzip.zipzipserver.global.security.JwtAuthenticationEntryPoint;
 
 @WebMvcTest(
         controllers = SharedGroupInviteController.class,
@@ -39,7 +36,7 @@ import org.zipzip.zipzipserver.global.security.SecurityExceptionResponseWriter;
 @Import({
     SecurityConfig.class,
     JwtAuthenticationFilter.class,
-    SecurityExceptionResponseWriter.class
+    JwtAuthenticationEntryPoint.class
 })
 class SharedGroupInviteControllerTest {
 
@@ -100,23 +97,23 @@ class SharedGroupInviteControllerTest {
     void 인증된_사용자는_초대_코드로_공유_그룹에_참여한다() throws Exception {
         UUID idempotencyKey = UUID.randomUUID();
         givenAuthenticatedUser();
-        BaseResponse<SharedGroupJoinResponse> responseBody =
-                BaseResponse.success(
-                        SharedGroupSuccessCode.SHARED_GROUP_JOINED,
-                        new SharedGroupJoinResponse(
-                                SHARED_GROUP_ID,
-                                "우리 집",
-                                SharedGroupRole.MEMBER,
-                                Instant.parse("2026-07-10T00:00:00Z")));
+        SharedGroupJoinResponse response =
+                new SharedGroupJoinResponse(
+                        SHARED_GROUP_ID,
+                        "우리 집",
+                        SharedGroupRole.MEMBER,
+                        Instant.parse("2026-07-10T00:00:00Z"));
         when(idempotencyService.execute(
                         eq(CURRENT_USER_ID.toString()),
                         eq(idempotencyKey),
                         eq("POST"),
                         eq("/api/v1/shared-groups/join"),
                         any(),
+                        eq(SharedGroupJoinResponse.class),
+                        eq(SharedGroupSuccessCode.SHARED_GROUP_JOINED),
                         any()))
                 .thenReturn(
-                        new IdempotencyResult(HttpStatusCode.valueOf(201), responseBody, false));
+                        new IdempotencyService.IdempotencyExecution<>(response, false));
 
         mockMvc.perform(
                         post("/api/v1/shared-groups/join")
@@ -145,7 +142,7 @@ class SharedGroupInviteControllerTest {
 
     private void givenAuthenticatedUser() {
         when(jwtTokenProvider.verifyAccessToken(ACCESS_TOKEN))
-                .thenReturn(new JwtTokenProvider.AccessTokenClaims(CURRENT_USER_ID));
+                .thenReturn(CURRENT_USER_ID);
     }
 
     private String bearerToken() {

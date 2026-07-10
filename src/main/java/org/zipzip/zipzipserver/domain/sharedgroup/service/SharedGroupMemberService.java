@@ -1,17 +1,12 @@
 package org.zipzip.zipzipserver.domain.sharedgroup.service;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.zipzip.zipzipserver.domain.device.repository.DeviceRepository;
-import org.zipzip.zipzipserver.domain.device.repository.DeviceRow;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupMemberListResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMemberRow;
@@ -23,7 +18,6 @@ import org.zipzip.zipzipserver.global.exception.BusinessException;
 public class SharedGroupMemberService {
 
     private final SharedGroupMembershipRepository sharedGroupMembershipRepository;
-    private final DeviceRepository deviceRepository;
     private final SharedGroupMemberCursorCodec cursorCodec;
 
     @Transactional(readOnly = true)
@@ -51,11 +45,9 @@ public class SharedGroupMemberService {
         boolean hasNext = rows.size() > size;
         List<SharedGroupMemberRow> pageRows =
                 hasNext ? new ArrayList<>(rows.subList(0, size)) : rows;
-        Map<UUID, List<SharedGroupMemberListResponse.Device>> devicesByUserId =
-                findDevicesByUserId(pageRows);
         List<SharedGroupMemberListResponse.Member> items =
                 pageRows.stream()
-                        .map(row -> toMember(row, currentAppUserId, devicesByUserId))
+                        .map(row -> toMember(row, currentAppUserId))
                         .toList();
 
         String nextCursor = null;
@@ -70,34 +62,13 @@ public class SharedGroupMemberService {
         return new SharedGroupMemberListResponse(items, nextCursor, hasNext);
     }
 
-    private Map<UUID, List<SharedGroupMemberListResponse.Device>> findDevicesByUserId(
-            List<SharedGroupMemberRow> rows) {
-        if (rows.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        List<UUID> userIds = rows.stream().map(SharedGroupMemberRow::userId).toList();
-        return deviceRepository.findActiveDevicesByAppUserIds(userIds).stream()
-                .collect(
-                        Collectors.groupingBy(
-                                DeviceRow::appUserId,
-                                Collectors.mapping(
-                                        row ->
-                                                new SharedGroupMemberListResponse.Device(
-                                                        row.id(), row.name()),
-                                        Collectors.toList())));
-    }
-
     private SharedGroupMemberListResponse.Member toMember(
-            SharedGroupMemberRow row,
-            UUID currentAppUserId,
-            Map<UUID, List<SharedGroupMemberListResponse.Device>> devicesByUserId) {
+            SharedGroupMemberRow row, UUID currentAppUserId) {
         return new SharedGroupMemberListResponse.Member(
                 row.userId(),
                 row.displayName(),
                 row.role(),
                 row.userId().equals(currentAppUserId),
-                row.joinedAt(),
-                devicesByUserId.getOrDefault(row.userId(), List.of()));
+                row.joinedAt());
     }
 }

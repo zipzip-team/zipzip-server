@@ -37,10 +37,8 @@ import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupListRe
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUpdateResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupService;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyResponseSupport;
-import org.zipzip.zipzipserver.global.idempotency.IdempotencyResult;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
-import org.zipzip.zipzipserver.global.security.AuthenticatedUser;
 
 @RestController
 @Validated
@@ -64,7 +62,7 @@ public class SharedGroupController {
         @ApiResponse(responseCode = "401", description = "인증 필요")
     })
     public BaseResponse<SharedGroupListResponse> findMySharedGroups(
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @AuthenticationPrincipal UUID appUserId,
             @Parameter(description = "다음 페이지 조회용 커서") @RequestParam(required = false) String cursor,
             @Parameter(description = "조회할 항목 수 (1~100)", example = "20")
                     @RequestParam(required = false)
@@ -73,7 +71,7 @@ public class SharedGroupController {
                     Integer size) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.SHARED_GROUP_LIST_FOUND,
-                sharedGroupService.findMySharedGroups(authenticatedUser.appUserId(), cursor, size));
+                sharedGroupService.findMySharedGroups(appUserId, cursor, size));
     }
 
     @PostMapping
@@ -111,22 +109,32 @@ public class SharedGroupController {
         @ApiResponse(responseCode = "409", description = "멱등성 키 재사용 또는 처리 중인 요청")
     })
     public ResponseEntity<?> createSharedGroup(
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @AuthenticationPrincipal UUID appUserId,
             @Parameter(description = "요청 재시도 식별용 UUID", required = true)
                     @RequestHeader(IDEMPOTENCY_KEY_HEADER)
                     String idempotencyKeyHeader,
             @Valid @RequestBody CreateSharedGroupRequest request) {
         UUID idempotencyKey = IdempotencyResponseSupport.parseKey(idempotencyKeyHeader);
-        IdempotencyResult idempotencyResult =
+        IdempotencyService.IdempotencyExecution<CreateSharedGroupResponse> idempotencyExecution =
                 idempotencyService.execute(
-                        authenticatedUser.appUserId().toString(),
+                        appUserId.toString(),
                         idempotencyKey,
                         "POST",
                         POST_SHARED_GROUPS_PATH,
                         request,
-                        () -> createSharedGroupResponse(authenticatedUser, request));
+                        CreateSharedGroupResponse.class,
+                        SharedGroupSuccessCode.SHARED_GROUP_CREATED,
+                        () -> sharedGroupService.createSharedGroup(appUserId, request));
 
-        return IdempotencyResponseSupport.toResponse(idempotencyResult);
+        ResponseEntity.BodyBuilder response =
+                ResponseEntity.status(SharedGroupSuccessCode.SHARED_GROUP_CREATED.getHttpStatus());
+        if (idempotencyExecution.replayed()) {
+            response.header("Idempotency-Replayed", "true");
+        }
+        return response.body(
+                BaseResponse.success(
+                        SharedGroupSuccessCode.SHARED_GROUP_CREATED,
+                        idempotencyExecution.response()));
     }
 
     @GetMapping("/{sharedGroupId}")
@@ -137,11 +145,11 @@ public class SharedGroupController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<SharedGroupDetailResponse> findSharedGroup(
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @AuthenticationPrincipal UUID appUserId,
             @PathVariable UUID sharedGroupId) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.SHARED_GROUP_FOUND,
-                sharedGroupService.findSharedGroup(authenticatedUser.appUserId(), sharedGroupId));
+                sharedGroupService.findSharedGroup(appUserId, sharedGroupId));
     }
 
     @PatchMapping("/{sharedGroupId}")
@@ -154,13 +162,13 @@ public class SharedGroupController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<SharedGroupUpdateResponse> updateName(
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @AuthenticationPrincipal UUID appUserId,
             @PathVariable UUID sharedGroupId,
             @Valid @RequestBody SharedGroupNameUpdateRequest request) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.SHARED_GROUP_UPDATED,
                 sharedGroupService.updateName(
-                        authenticatedUser.appUserId(), sharedGroupId, request.name()));
+                        appUserId, sharedGroupId, request.name()));
     }
 
     @DeleteMapping("/{sharedGroupId}")
@@ -172,17 +180,10 @@ public class SharedGroupController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<Void> delete(
-            @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
+            @AuthenticationPrincipal UUID appUserId,
             @PathVariable UUID sharedGroupId) {
-        sharedGroupService.delete(authenticatedUser.appUserId(), sharedGroupId);
+        sharedGroupService.delete(appUserId, sharedGroupId);
         return BaseResponse.success(SharedGroupSuccessCode.SHARED_GROUP_DELETED);
     }
 
-    private ResponseEntity<?> createSharedGroupResponse(
-            AuthenticatedUser authenticatedUser, CreateSharedGroupRequest request) {
-        CreateSharedGroupResponse response =
-                sharedGroupService.createSharedGroup(authenticatedUser.appUserId(), request);
-        return ResponseEntity.status(SharedGroupSuccessCode.SHARED_GROUP_CREATED.getHttpStatus())
-                .body(BaseResponse.success(SharedGroupSuccessCode.SHARED_GROUP_CREATED, response));
-    }
 }

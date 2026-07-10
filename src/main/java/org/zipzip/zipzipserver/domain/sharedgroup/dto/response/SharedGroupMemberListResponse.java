@@ -11,10 +11,7 @@ public record SharedGroupMemberListResponse(
     public record Member(
             UUID userId,
             String displayName,
-            SharedGroupRole role,
-            boolean isMe,
-            Instant joinedAt,
-            List<Device> devices) {}
-
-    public record Device(UUID id, String name) {}
+        SharedGroupRole role,
+        boolean isMe,
+        Instant joinedAt) {}
 }

@@ -1,13 +1,10 @@
 package org.zipzip.zipzipserver.global.idempotency;
 
 import java.util.UUID;
-import org.springframework.http.ResponseEntity;
 import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 
 public final class IdempotencyResponseSupport {
-
-    private static final String REPLAYED_HEADER = "Idempotency-Replayed";
 
     private IdempotencyResponseSupport() {}
 
@@ -19,11 +16,4 @@ public final class IdempotencyResponseSupport {
         }
     }
 
-    public static ResponseEntity<?> toResponse(IdempotencyResult result) {
-        ResponseEntity.BodyBuilder response = ResponseEntity.status(result.statusCode());
-        if (result.replayed()) {
-            response.header(REPLAYED_HEADER, "true");
-        }
-        return response.body(result.body());
-    }
 }

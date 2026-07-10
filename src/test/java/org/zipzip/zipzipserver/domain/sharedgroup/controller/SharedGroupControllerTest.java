@@ -20,23 +20,22 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.zipzip.zipzipserver.domain.auth.jwt.JwtTokenProvider;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
+import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupSuccessCode;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.CreateSharedGroupResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupListResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUpdateResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupService;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
-import org.zipzip.zipzipserver.global.idempotency.IdempotencyResult;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
-import org.zipzip.zipzipserver.global.response.BaseResponse;
 import org.zipzip.zipzipserver.global.security.JwtAuthenticationFilter;
 import org.zipzip.zipzipserver.global.security.SecurityConfig;
-import org.zipzip.zipzipserver.global.security.SecurityExceptionResponseWriter;
+import org.zipzip.zipzipserver.global.security.JwtAuthenticationEntryPoint;
 
 @WebMvcTest(
         value = SharedGroupController.class,
@@ -44,7 +43,7 @@ import org.zipzip.zipzipserver.global.security.SecurityExceptionResponseWriter;
 @Import({
     SecurityConfig.class,
     JwtAuthenticationFilter.class,
-    SecurityExceptionResponseWriter.class
+    JwtAuthenticationEntryPoint.class
 })
 class SharedGroupControllerTest {
 
@@ -79,30 +78,24 @@ class SharedGroupControllerTest {
     @Test
     void 멱등성_replay_응답이면_헤더를_반환한다() throws Exception {
         givenAuthenticatedUser();
-        BaseResponse<Object> replayedBody =
-                new BaseResponse<>(
-                        201,
-                        "SHARED_GROUP_CREATED",
-                        "공유 그룹을 생성했습니다.",
-                        java.util.Map.of(
-                                "id",
-                                "22222222-2222-2222-2222-222222222222",
-                                "name",
-                                "우리 집",
-                                "inviteCode",
-                                "ABC234EF",
-                                "myRole",
-                                SharedGroupRole.HOST.name(),
-                                "createdAt",
-                                Instant.parse("2026-07-10T00:00:00Z").toString()));
+        CreateSharedGroupResponse replayedResponse =
+                new CreateSharedGroupResponse(
+                        UUID.fromString("22222222-2222-2222-2222-222222222222"),
+                        "우리 집",
+                        "ABC234EF",
+                        SharedGroupRole.HOST,
+                        null,
+                        null);
         when(idempotencyService.execute(
                         eq(APP_USER_ID.toString()),
                         any(UUID.class),
                         eq("POST"),
                         eq("/api/v1/shared-groups"),
                         any(),
+                        eq(CreateSharedGroupResponse.class),
+                        eq(SharedGroupSuccessCode.SHARED_GROUP_CREATED),
                         any()))
-                .thenReturn(new IdempotencyResult(HttpStatusCode.valueOf(201), replayedBody, true));
+                .thenReturn(new IdempotencyService.IdempotencyExecution<>(replayedResponse, true));
 
         mockMvc.perform(
                         post("/api/v1/shared-groups")
@@ -236,7 +229,7 @@ class SharedGroupControllerTest {
 
     private void givenAuthenticatedUser() {
         when(jwtTokenProvider.verifyAccessToken(ACCESS_TOKEN))
-                .thenReturn(new JwtTokenProvider.AccessTokenClaims(APP_USER_ID));
+                .thenReturn(APP_USER_ID);
     }
 
     private String bearerToken() {
