@@ -2,7 +2,7 @@
 
 ## 1. 문서 상태
 
-- 상태: 데이터 모델 동기화 완료, 구현 전
+- 상태: 데이터 모델 동기화 완료, 채팅 API 일부 구현 완료
 - API 버전: `v1`
 - Base Path: `/api/v1`
 - 인증 방식: 자체 발급 Bearer JWT
@@ -11,13 +11,13 @@
 - iOS 담당자: 미지정
 - Notion 기준 양식: [api doc DB](https://app.notion.com/p/391b16d857ec80f2b0edf11d104b4aab)
 
-현재 도메인 API는 구현 전이므로 Notion DB에 옮길 때 `상태=시작 전`, `구현 여부=false`, `연동 o/x=false`를 기본값으로 사용한다.
+구현 전 API를 Notion DB에 옮길 때는 `상태=시작 전`, `구현 여부=false`, `연동 o/x=false`를 기본값으로 사용한다. 서버 구현과 테스트가 완료된 CHAT-01, CHAT-02는 `상태=완료`, `구현 여부=true`로 표시한다.
 
 ## 2. API index 결정
 
 index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도메인을 기준으로 분류한다. 기능이 늘어나도 기존 endpoint의 index가 쉽게 바뀌지 않도록 7개 카테고리로 고정한다.
 
-`채팅`은 공유 그룹의 일반 메시지 경계다.
+`채팅`은 공유 그룹을 채팅방으로 사용하는 대화 타임라인 경계다. 일반 메시지와 사진 댓글은 저장 모델을 분리하되, 채팅 조회에서는 하나의 타임라인으로 제공한다.
 
 | 순서 | index | 포함 범위 |
 |---:|---|---|
@@ -27,7 +27,7 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | 4 | 앨범 | 공유집(앨범) CRUD |
 | 5 | 사진 | 공유집(앨범) 사진 목록, 업로드 URL 발급·완료 등록, 메타데이터 수정, 단건·일괄 삭제, 앨범 추가·제거 |
 | 6 | 사진 반응·댓글 | 사진 상세, 좋아요, 사진 댓글 |
-| 7 | 채팅 | 그룹 채팅 메시지 목록, 작성, 수정, 삭제 |
+| 7 | 채팅 | 그룹 채팅 타임라인 조회, 일반 메시지 작성·수정·삭제 |
 
 알림·푸시 모델이 확정되면 `알림` index를 별도로 추가한다. 현재 데이터 모델에 없는 기능을 기존 index 이름에 미리 포함하지 않는다.
 
@@ -107,7 +107,7 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 
 | ID | Method | API Path | 이름 | 문서 |
 |---|---|---|---|---|
-| CHAT-01 | GET | `/api/v1/shared-groups/{sharedGroupId}/chat-messages` | 그룹 채팅 메시지 목록 조회 | [09-chat-realtime.md](09-chat-realtime.md) |
+| CHAT-01 | GET | `/api/v1/shared-groups/{sharedGroupId}/chat-messages` | 그룹 채팅 타임라인 조회 | [09-chat-realtime.md](09-chat-realtime.md) |
 | CHAT-02 | POST | `/api/v1/shared-groups/{sharedGroupId}/chat-messages` | 그룹 채팅 메시지 작성 | [09-chat-realtime.md](09-chat-realtime.md) |
 | CHAT-03 | PATCH | `/api/v1/shared-group-chat-messages/{messageId}` | 그룹 채팅 메시지 수정 | [09-chat-realtime.md](09-chat-realtime.md) |
 | CHAT-04 | DELETE | `/api/v1/shared-group-chat-messages/{messageId}` | 그룹 채팅 메시지 삭제 | [09-chat-realtime.md](09-chat-realtime.md) |

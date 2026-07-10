@@ -20,7 +20,7 @@
 - DB에는 Object Storage 참조에 필요한 최소 파일 정보만 저장한다.
 - 업로드용 presigned URL 발급은 `photo_upload_reservation`에 발급 대상(사용자·공유집(앨범))과 만료 시각을 기록하고, 완료 등록은 이 예약 행을 검증·소진해 발급 대상이 아닌 `objectKey` 등록과 재사용을 막는다.
 - 촬영 기기는 별도 엔티티로 관리하지 않고, iOS가 EXIF에서 추출해 전달한 촬영 기기명을 `photo.device_model` 문자열로 저장한다.
-- 그룹 채팅 메시지는 `shared_group_chat_message`에 저장하고 1차 구현은 폴링으로 조회한다.
+- 공유 그룹 하나를 하나의 채팅방으로 사용하며 별도 `chat_room` 테이블을 두지 않는다. 일반 채팅 메시지는 `shared_group_chat_message`, 사진 댓글은 `photo_comment`에 저장하고, 채팅 조회 시 두 데이터를 시간순 타임라인으로 병합한다. 1차 구현은 폴링으로 조회한다.
 - 날짜별 사진 그룹은 촬영일 기준으로 표시하고 촬영일이 없으면 생성 시각을 사용한다.
 - 공유집(앨범) 사진 수는 `shared_album_photo`와 조인한 활성 사진 기준으로 실시간 count한다.
 - 공유집(앨범) 정보 수정은 활성 공유 그룹 멤버가 할 수 있고, 삭제는 생성자 또는 탈퇴한 생성자의 공유 그룹 방장이 할 수 있다.
@@ -79,7 +79,7 @@
 | 초대 코드 예약 원장 | `invite_code_reservation` | 필요 | 활성 또는 soft delete 상태의 공유 그룹 초대 코드 점유를 보장하고, 공유 그룹 물리 삭제 시 점유를 해제한다. |
 | 공유 그룹 | `shared_group` | 필요 | 초대 코드로 참여하는 최상위 공유 공간을 저장한다. |
 | 공유 그룹 멤버십 | `shared_group_membership` | 필요 | 사용자가 어떤 공유 그룹에 어떤 역할로 참여하는지 저장한다. |
-| 그룹 채팅 메시지 | `shared_group_chat_message` | 필요 | 공유 그룹 안의 일반 채팅 메시지를 저장한다. |
+| 그룹 채팅 메시지 | `shared_group_chat_message` | 필요 | 공유 그룹 채팅 타임라인에 포함되는 일반 메시지를 저장한다. |
 | 공유집(앨범) | `shared_album` | 필요 | 공유 그룹 안에서 사진을 담는 하위 단위를 저장한다. |
 | 사진 업로드 예약 원장 | `photo_upload_reservation` | 필요 | 발급한 업로드 `objectKey`를 요청 사용자·대상 공유집(앨범)과 함께 점유해, 완료 등록 시 발급 대상 검증과 재사용 방지 근거를 제공한다. |
 | 사진 | `photo` | 필요 | 공유 그룹에 업로드된 사진 원본의 Object Storage 참조 정보를 저장한다. |
@@ -135,7 +135,8 @@ Access Token과 Refresh Token 원문은 DB에 저장하지 않는다.
 메시지 작성과 조회는 공유 그룹 활성 멤버십을 요구한다.
 메시지 수정과 삭제는 작성자만 할 수 있다.
 삭제는 `deleted_at` 기록 없이 행을 즉시 물리 삭제한다.
-1차 구현은 `created_at`, `id` 커서를 사용하는 폴링 조회를 기준으로 한다.
+공유 그룹 자체가 채팅방 식별자이므로 별도 채팅방 엔티티를 참조하지 않는다.
+채팅 타임라인 조회는 이 테이블의 일반 메시지와, 같은 공유 그룹의 활성 사진에 연결된 `photo_comment`를 병합한다. 타임라인 정렬과 커서는 `created_at`, 항목 타입, 항목 ID를 함께 사용해 안정성을 보장한다.
 
 ### 5.7 `shared_album`
 
@@ -214,6 +215,7 @@ PHOTO-03 완료 등록에 성공하면 해당 예약 행을 즉시 물리 삭제
 댓글 작성, 수정, 삭제는 사진이 속한 공유 그룹 활성 멤버십을 요구한다.
 댓글 수정과 삭제는 작성자만 할 수 있다.
 삭제는 `deleted_at` 기록 없이 행을 즉시 물리 삭제한다.
+사진 댓글은 사진 상세의 댓글 목록뿐 아니라, 사진이 속한 공유 그룹의 채팅 타임라인에도 일반 메시지와 함께 시간순으로 표시한다. 사진이 soft delete되었거나 대상 공유 그룹에 활성 소속이 없으면 타임라인에서는 제외한다.
 
 ## 6. 제외 테이블
 
@@ -222,7 +224,7 @@ PHOTO-03 완료 등록에 성공하면 해당 예약 행을 즉시 물리 삭제
 | `shared_house` | 공유집을 별도 물리 테이블로 두지 않고 `shared_album`으로 저장한다. |
 | `photo_book` | 로컬 중심 기능이며 서버와 자동 동기화하지 않는다. |
 | `photo_metadata` | iOS가 이미지 EXIF에서 추출해 전달하는 촬영일시·위치·크기 메타데이터를 `photo`의 nullable 컬럼에 직접 저장하고 별도 메타데이터 테이블은 두지 않는다. |
-| `chat_room`, `chat_message` | 그룹 채팅은 `shared_group_chat_message`로 충분하다. |
+| `chat_room`, `chat_message` | 공유 그룹 하나가 채팅방 하나를 의미하므로 별도 채팅방 식별자가 필요 없다. 일반 메시지는 `shared_group_chat_message`, 사진 댓글은 `photo_comment`에 저장하고 조회 시 병합한다. |
 | `shared_album_like` | 좋아요 UI는 사진 중심이며 앨범 좋아요 근거가 부족하다. |
 | `device` | 사용자가 직접 등록·관리하는 기기 엔티티였으나, 촬영 기기명은 사진마다 EXIF에서 그대로 얻을 수 있어 `photo.device_model` 문자열 컬럼으로 대체했다. |
 
@@ -278,8 +280,8 @@ photo
 - 공유집(앨범)은 공유 그룹 아래에서 참여자들이 생성하는 사진 묶음이다.
 - 사진 원본은 공유 그룹에 직접 속하지 않고, `shared_album_photo`로 하나 이상의 공유집(앨범)에 속한다.
 - `photo_upload_reservation`은 업로드 URL 발급과 완료 등록 사이를 잇는 예약 원장이며, 완료 등록이 발급 대상이 아닌 사용자·공유집(앨범)이나 재사용된 `objectKey`를 받아들이지 않도록 한다.
-- 그룹 채팅 메시지는 `shared_group_chat_message`에 저장하며 1차 구현은 폴링 조회를 사용한다.
-- 사진 댓글은 `photo_comment`에 저장하며 사진 상세 기능에 속한다.
+- 공유 그룹 하나를 채팅방으로 사용한다. 일반 메시지는 `shared_group_chat_message`, 사진 댓글은 `photo_comment`에 저장하며 1차 구현은 두 데이터를 병합한 폴링 타임라인 조회를 사용한다.
+- 사진 댓글은 사진 상세 기능에 속하면서 해당 공유 그룹의 채팅 타임라인에도 시간순으로 표시한다.
 - `photo_like`는 단순 좋아요 상태를 저장하고 취소 시 물리 삭제한다.
 - 작성자·생성자·업로더는 `app_user_id` 계열 컬럼으로 저장하고 공유 그룹 내부 쓰기 권한은 활성 멤버십으로 검증한다.
 - 탈퇴한 작성자·생성자·업로더는 "탈퇴한 사용자"로 표시한다.
@@ -366,7 +368,7 @@ PostgreSQL 보완 인덱스:
 
 - 사용자의 공유 그룹 목록은 `shared_group_membership(app_user_id, created_at)`, `shared_group.deleted_at`, `app_user.deleted_at`을 조합한다.
 - 공유 그룹 멤버 목록은 `shared_group_membership(shared_group_id, created_at)`을 사용한다.
-- 공유 그룹 채팅 폴링은 `shared_group_chat_message(shared_group_id, created_at, id)`를 사용한다.
+- 공유 그룹 채팅 타임라인은 일반 메시지 구간에 `shared_group_chat_message(shared_group_id, created_at, id)`를 사용하고, 사진 댓글은 `photo_comment`와 사진·앨범 소속 관계를 조인해 병합한다.
 - 공유집(앨범) 목록은 `shared_album(shared_group_id, deleted_at, created_at)`을 사용한다.
 - 공유집(앨범) 사진 목록은 `shared_album_photo(shared_album_id, created_at)`으로 매핑을 조회한 뒤 `photo`와 조인해 표시 시각으로 정렬한다.
 - 사진 댓글 목록은 `photo_comment(photo_id, created_at)`을 사용한다.

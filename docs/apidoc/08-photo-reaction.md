@@ -12,7 +12,7 @@
 | COMMENT-03 | 사진 반응·댓글 | 사진 댓글 수정 | PATCH | `/api/v1/photo-comments/{commentId}` | 시작 전 | false | false |
 | COMMENT-04 | 사진 반응·댓글 | 사진 댓글 삭제 | DELETE | `/api/v1/photo-comments/{commentId}` | 시작 전 | false | false |
 
-모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다. 댓글은 작성자만 수정·삭제할 수 있다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
+모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다. 댓글은 작성자만 수정·삭제할 수 있다. 사진 댓글은 사진 상세에서 독립적으로 조회할 수 있으며, 같은 공유 그룹의 채팅 타임라인 조회(CHAT-01)에도 일반 채팅 메시지와 함께 시간순으로 표시된다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
 ## 2. REACTION-01 사진 상세 조회
 
