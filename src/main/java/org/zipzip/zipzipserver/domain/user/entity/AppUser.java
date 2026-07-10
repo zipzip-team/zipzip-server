@@ -52,6 +52,10 @@ public class AppUser extends BaseTimeEntity {
         this.deletedAt = deletedAt;
     }
 
+    public void updateDisplayName(String displayName) {
+        this.displayName = displayName;
+    }
+
     public void restore(String displayName) {
         this.displayName = displayName;
         this.deletedAt = null;
