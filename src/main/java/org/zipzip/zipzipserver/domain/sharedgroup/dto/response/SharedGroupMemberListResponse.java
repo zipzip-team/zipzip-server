@@ -11,7 +11,7 @@ public record SharedGroupMemberListResponse(
     public record Member(
             UUID userId,
             String displayName,
-        SharedGroupRole role,
-        boolean isMe,
-        Instant joinedAt) {}
+            SharedGroupRole role,
+            boolean isMe,
+            Instant joinedAt) {}
 }

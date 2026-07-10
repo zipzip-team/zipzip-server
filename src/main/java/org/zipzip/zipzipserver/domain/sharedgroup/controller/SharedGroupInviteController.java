@@ -51,12 +51,10 @@ public class SharedGroupInviteController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<InviteCodeResponse> findInviteCode(
-            @PathVariable UUID sharedGroupId,
-            @AuthenticationPrincipal UUID appUserId) {
+            @PathVariable UUID sharedGroupId, @AuthenticationPrincipal UUID appUserId) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.INVITE_CODE_FOUND,
-                sharedGroupInviteService.findInviteCode(
-                        sharedGroupId, appUserId));
+                sharedGroupInviteService.findInviteCode(sharedGroupId, appUserId));
     }
 
     @PostMapping("/join")
@@ -99,17 +97,19 @@ public class SharedGroupInviteController {
             @AuthenticationPrincipal UUID appUserId) {
         UUID parsedIdempotencyKey = IdempotencyResponseSupport.parseKey(idempotencyKey);
         IdempotencyService.IdempotencyExecution<
-                        org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponse>
+                        org.zipzip.zipzipserver.domain.sharedgroup.dto.response
+                                .SharedGroupJoinResponse>
                 idempotencyExecution =
-                idempotencyService.execute(
-                        appUserId.toString(),
-                        parsedIdempotencyKey,
-                        "POST",
-                        POST_SHARED_GROUP_JOIN_PATH,
-                        request,
-                        org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponse.class,
-                        SharedGroupSuccessCode.SHARED_GROUP_JOINED,
-                        () -> sharedGroupInviteService.join(appUserId, request));
+                        idempotencyService.execute(
+                                appUserId.toString(),
+                                parsedIdempotencyKey,
+                                "POST",
+                                POST_SHARED_GROUP_JOIN_PATH,
+                                request,
+                                org.zipzip.zipzipserver.domain.sharedgroup.dto.response
+                                        .SharedGroupJoinResponse.class,
+                                SharedGroupSuccessCode.SHARED_GROUP_JOINED,
+                                () -> sharedGroupInviteService.join(appUserId, request));
 
         ResponseEntity.BodyBuilder response =
                 ResponseEntity.status(SharedGroupSuccessCode.SHARED_GROUP_JOINED.getHttpStatus());
@@ -131,8 +131,7 @@ public class SharedGroupInviteController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<Void> leave(
-            @PathVariable UUID sharedGroupId,
-            @AuthenticationPrincipal UUID appUserId) {
+            @PathVariable UUID sharedGroupId, @AuthenticationPrincipal UUID appUserId) {
         sharedGroupInviteService.leave(sharedGroupId, appUserId);
         return BaseResponse.success(SharedGroupSuccessCode.SHARED_GROUP_LEFT);
     }

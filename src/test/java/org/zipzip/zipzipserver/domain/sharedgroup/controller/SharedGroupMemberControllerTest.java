@@ -25,9 +25,9 @@ import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupMemberServi
 import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 import org.zipzip.zipzipserver.global.exception.GlobalExceptionHandler;
+import org.zipzip.zipzipserver.global.security.JwtAuthenticationEntryPoint;
 import org.zipzip.zipzipserver.global.security.JwtAuthenticationFilter;
 import org.zipzip.zipzipserver.global.security.SecurityConfig;
-import org.zipzip.zipzipserver.global.security.JwtAuthenticationEntryPoint;
 
 @WebMvcTest(
         controllers = SharedGroupMemberController.class,
@@ -63,7 +63,7 @@ class SharedGroupMemberControllerTest {
                 .thenThrow(new BusinessException(GlobalErrorCode.UNAUTHORIZED));
 
         mockMvc.perform(
-                get("/api/v1/shared-groups/{sharedGroupId}/members", SHARED_GROUP_ID)
+                        get("/api/v1/shared-groups/{sharedGroupId}/members", SHARED_GROUP_ID)
                                 .header("Authorization", "Bearer expired-token"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
@@ -71,8 +71,7 @@ class SharedGroupMemberControllerTest {
 
     @Test
     void 공유_그룹_멤버_목록을_조회한다() throws Exception {
-        when(jwtTokenProvider.verifyAccessToken("valid-token"))
-                .thenReturn(CURRENT_USER_ID);
+        when(jwtTokenProvider.verifyAccessToken("valid-token")).thenReturn(CURRENT_USER_ID);
         when(sharedGroupMemberService.findMembers(SHARED_GROUP_ID, CURRENT_USER_ID, null, 50))
                 .thenReturn(
                         new SharedGroupMemberListResponse(
@@ -99,8 +98,7 @@ class SharedGroupMemberControllerTest {
 
     @Test
     void 잘못된_커서는_400을_응답한다() throws Exception {
-        when(jwtTokenProvider.verifyAccessToken("valid-token"))
-                .thenReturn(CURRENT_USER_ID);
+        when(jwtTokenProvider.verifyAccessToken("valid-token")).thenReturn(CURRENT_USER_ID);
         when(sharedGroupMemberService.findMembers(
                         eq(SHARED_GROUP_ID), eq(CURRENT_USER_ID), eq("bad"), any(Integer.class)))
                 .thenThrow(new BusinessException(GlobalErrorCode.INVALID_CURSOR));
@@ -115,8 +113,7 @@ class SharedGroupMemberControllerTest {
 
     @Test
     void 활성_멤버십이_없으면_404를_응답한다() throws Exception {
-        when(jwtTokenProvider.verifyAccessToken("valid-token"))
-                .thenReturn(CURRENT_USER_ID);
+        when(jwtTokenProvider.verifyAccessToken("valid-token")).thenReturn(CURRENT_USER_ID);
         when(sharedGroupMemberService.findMembers(SHARED_GROUP_ID, CURRENT_USER_ID, null, 50))
                 .thenThrow(new BusinessException(SharedGroupErrorCode.SHARED_GROUP_NOT_FOUND));
 

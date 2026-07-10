@@ -55,6 +55,7 @@ class SharedGroupMembershipRepositoryTest {
 
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private SharedGroupMembershipRepository sharedGroupMembershipRepository;
+
     @BeforeEach
     void setUp() {
         jdbcTemplate.execute(

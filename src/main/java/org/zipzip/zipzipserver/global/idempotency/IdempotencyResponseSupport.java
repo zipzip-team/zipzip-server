@@ -15,5 +15,4 @@ public final class IdempotencyResponseSupport {
             throw new BusinessException(GlobalErrorCode.INVALID_REQUEST);
         }
     }
-
 }

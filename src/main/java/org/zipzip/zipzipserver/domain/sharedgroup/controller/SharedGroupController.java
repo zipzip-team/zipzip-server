@@ -145,8 +145,7 @@ public class SharedGroupController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<SharedGroupDetailResponse> findSharedGroup(
-            @AuthenticationPrincipal UUID appUserId,
-            @PathVariable UUID sharedGroupId) {
+            @AuthenticationPrincipal UUID appUserId, @PathVariable UUID sharedGroupId) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.SHARED_GROUP_FOUND,
                 sharedGroupService.findSharedGroup(appUserId, sharedGroupId));
@@ -167,8 +166,7 @@ public class SharedGroupController {
             @Valid @RequestBody SharedGroupNameUpdateRequest request) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.SHARED_GROUP_UPDATED,
-                sharedGroupService.updateName(
-                        appUserId, sharedGroupId, request.name()));
+                sharedGroupService.updateName(appUserId, sharedGroupId, request.name()));
     }
 
     @DeleteMapping("/{sharedGroupId}")
@@ -180,10 +178,8 @@ public class SharedGroupController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<Void> delete(
-            @AuthenticationPrincipal UUID appUserId,
-            @PathVariable UUID sharedGroupId) {
+            @AuthenticationPrincipal UUID appUserId, @PathVariable UUID sharedGroupId) {
         sharedGroupService.delete(appUserId, sharedGroupId);
         return BaseResponse.success(SharedGroupSuccessCode.SHARED_GROUP_DELETED);
     }
-
 }

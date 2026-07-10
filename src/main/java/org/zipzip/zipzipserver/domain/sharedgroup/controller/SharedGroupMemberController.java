@@ -51,7 +51,6 @@ public class SharedGroupMemberController {
                     int size) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.SHARED_GROUP_MEMBER_LIST_FOUND,
-                sharedGroupMemberService.findMembers(
-                        sharedGroupId, appUserId, cursor, size));
+                sharedGroupMemberService.findMembers(sharedGroupId, appUserId, cursor, size));
     }
 }

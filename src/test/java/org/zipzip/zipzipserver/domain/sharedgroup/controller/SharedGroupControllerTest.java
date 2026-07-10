@@ -33,18 +33,14 @@ import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupService;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
+import org.zipzip.zipzipserver.global.security.JwtAuthenticationEntryPoint;
 import org.zipzip.zipzipserver.global.security.JwtAuthenticationFilter;
 import org.zipzip.zipzipserver.global.security.SecurityConfig;
-import org.zipzip.zipzipserver.global.security.JwtAuthenticationEntryPoint;
 
 @WebMvcTest(
         value = SharedGroupController.class,
         properties = "spring.config.import=optional:classpath:config/application-secret.yml")
-@Import({
-    SecurityConfig.class,
-    JwtAuthenticationFilter.class,
-    JwtAuthenticationEntryPoint.class
-})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtAuthenticationEntryPoint.class})
 class SharedGroupControllerTest {
 
     private static final UUID APP_USER_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -228,8 +224,7 @@ class SharedGroupControllerTest {
     }
 
     private void givenAuthenticatedUser() {
-        when(jwtTokenProvider.verifyAccessToken(ACCESS_TOKEN))
-                .thenReturn(APP_USER_ID);
+        when(jwtTokenProvider.verifyAccessToken(ACCESS_TOKEN)).thenReturn(APP_USER_ID);
     }
 
     private String bearerToken() {

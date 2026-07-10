@@ -46,9 +46,7 @@ public class SharedGroupMemberService {
         List<SharedGroupMemberRow> pageRows =
                 hasNext ? new ArrayList<>(rows.subList(0, size)) : rows;
         List<SharedGroupMemberListResponse.Member> items =
-                pageRows.stream()
-                        .map(row -> toMember(row, currentAppUserId))
-                        .toList();
+                pageRows.stream().map(row -> toMember(row, currentAppUserId)).toList();
 
         String nextCursor = null;
         if (hasNext && !pageRows.isEmpty()) {

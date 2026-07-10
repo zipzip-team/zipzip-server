@@ -26,18 +26,14 @@ import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinRe
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupInviteService;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
+import org.zipzip.zipzipserver.global.security.JwtAuthenticationEntryPoint;
 import org.zipzip.zipzipserver.global.security.JwtAuthenticationFilter;
 import org.zipzip.zipzipserver.global.security.SecurityConfig;
-import org.zipzip.zipzipserver.global.security.JwtAuthenticationEntryPoint;
 
 @WebMvcTest(
         controllers = SharedGroupInviteController.class,
         properties = "spring.config.import=optional:classpath:config/application-secret.yml")
-@Import({
-    SecurityConfig.class,
-    JwtAuthenticationFilter.class,
-    JwtAuthenticationEntryPoint.class
-})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtAuthenticationEntryPoint.class})
 class SharedGroupInviteControllerTest {
 
     private static final UUID SHARED_GROUP_ID =
@@ -112,8 +108,7 @@ class SharedGroupInviteControllerTest {
                         eq(SharedGroupJoinResponse.class),
                         eq(SharedGroupSuccessCode.SHARED_GROUP_JOINED),
                         any()))
-                .thenReturn(
-                        new IdempotencyService.IdempotencyExecution<>(response, false));
+                .thenReturn(new IdempotencyService.IdempotencyExecution<>(response, false));
 
         mockMvc.perform(
                         post("/api/v1/shared-groups/join")
@@ -141,8 +136,7 @@ class SharedGroupInviteControllerTest {
     }
 
     private void givenAuthenticatedUser() {
-        when(jwtTokenProvider.verifyAccessToken(ACCESS_TOKEN))
-                .thenReturn(CURRENT_USER_ID);
+        when(jwtTokenProvider.verifyAccessToken(ACCESS_TOKEN)).thenReturn(CURRENT_USER_ID);
     }
 
     private String bearerToken() {

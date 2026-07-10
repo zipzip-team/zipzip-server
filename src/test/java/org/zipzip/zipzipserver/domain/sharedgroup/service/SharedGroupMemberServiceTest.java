@@ -37,6 +37,7 @@ class SharedGroupMemberServiceTest {
             UUID.fromString("30000000-0000-0000-0000-000000000000");
 
     @Mock private SharedGroupMembershipRepository sharedGroupMembershipRepository;
+
     @Spy
     private SharedGroupMemberCursorCodec cursorCodec =
             new SharedGroupMemberCursorCodec(new ObjectMapper());
