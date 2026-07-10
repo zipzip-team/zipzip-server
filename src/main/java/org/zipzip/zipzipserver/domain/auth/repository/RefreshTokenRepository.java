@@ -30,4 +30,10 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
             """)
     List<RefreshToken> findWithLockByAppUserIdAndTokenFamilyId(
             @Param("appUserId") UUID appUserId, @Param("tokenFamilyId") UUID tokenFamilyId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+            "select refreshToken from RefreshToken refreshToken where refreshToken.appUser.id ="
+                    + " :appUserId")
+    List<RefreshToken> findWithLockByAppUserId(@Param("appUserId") UUID appUserId);
 }

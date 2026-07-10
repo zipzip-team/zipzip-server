@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupMembership;
+import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 
 public interface SharedGroupMembershipRepository
         extends JpaRepository<SharedGroupMembership, UUID> {
@@ -113,4 +114,6 @@ public interface SharedGroupMembershipRepository
             @Param("cursorJoinedAt") Instant cursorJoinedAt,
             @Param("cursorMembershipId") UUID cursorMembershipId,
             Pageable pageable);
+
+    void deleteByAppUserIdAndRole(UUID appUserId, SharedGroupRole role);
 }

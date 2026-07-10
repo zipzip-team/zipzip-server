@@ -1,5 +1,6 @@
 package org.zipzip.zipzipserver.domain.sharedgroup.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,4 +29,6 @@ public interface SharedGroupRepository extends JpaRepository<SharedGroup, UUID> 
               and sharedGroup.deletedAt is null
             """)
     Optional<SharedGroup> findActiveByInviteCode(@Param("inviteCode") String inviteCode);
+
+    List<SharedGroup> findByCreatedByAppUserIdAndDeletedAtIsNull(UUID appUserId);
 }
