@@ -11,11 +11,11 @@
 
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
-| ALBUM-01 | 앨범 | 공유집(앨범) 목록 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/shared-albums` | 시작 전 | false | false |
-| ALBUM-02 | 앨범 | 공유집(앨범) 생성 | POST | `/api/v1/shared-groups/{sharedGroupId}/shared-albums` | 시작 전 | false | false |
-| ALBUM-03 | 앨범 | 공유집(앨범) 상세 조회 | GET | `/api/v1/shared-albums/{sharedAlbumId}` | 시작 전 | false | false |
-| ALBUM-04 | 앨범 | 공유집(앨범) 이름 수정 | PATCH | `/api/v1/shared-albums/{sharedAlbumId}` | 시작 전 | false | false |
-| ALBUM-05 | 앨범 | 공유집(앨범) 삭제 | DELETE | `/api/v1/shared-albums/{sharedAlbumId}` | 시작 전 | false | false |
+| ALBUM-01 | 앨범 | 공유집(앨범) 목록 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/shared-albums` | 완료 | true | false |
+| ALBUM-02 | 앨범 | 공유집(앨범) 생성 | POST | `/api/v1/shared-groups/{sharedGroupId}/shared-albums` | 완료 | true | false |
+| ALBUM-03 | 앨범 | 공유집(앨범) 상세 조회 | GET | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
+| ALBUM-04 | 앨범 | 공유집(앨범) 이름 수정 | PATCH | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
+| ALBUM-05 | 앨범 | 공유집(앨범) 삭제 | DELETE | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
 
 모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다.
 방장과 멤버 모두 공유집(앨범)을 생성·수정할 수 있으며, 삭제는 생성자가 할 수 있다. 생성자가 탈퇴한 사용자인 경우 상위 공유 그룹 방장도 삭제할 수 있다.

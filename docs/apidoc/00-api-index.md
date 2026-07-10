@@ -2,7 +2,7 @@
 
 ## 1. 문서 상태
 
-- 상태: 데이터 모델 동기화 완료, 채팅 API 일부 구현 완료
+- 상태: 서버 API 구현 및 테스트 완료, iOS 실기기 연동 검증 전
 - API 버전: `v1`
 - Base Path: `/api/v1`
 - 인증 방식: 자체 발급 Bearer JWT
@@ -11,7 +11,7 @@
 - iOS 담당자: 미지정
 - Notion 기준 양식: [api doc DB](https://app.notion.com/p/391b16d857ec80f2b0edf11d104b4aab)
 
-구현 전 API를 Notion DB에 옮길 때는 `상태=시작 전`, `구현 여부=false`, `연동 o/x=false`를 기본값으로 사용한다. 서버 구현과 테스트가 완료된 CHAT-01, CHAT-02는 `상태=완료`, `구현 여부=true`로 표시한다.
+구현 전 API를 Notion DB에 옮길 때는 `상태=시작 전`, `구현 여부=false`, `연동 o/x=false`를 기본값으로 사용한다. 현재 서버 구현과 테스트가 완료된 API는 `상태=완료`, `구현 여부=true`로 표시한다. `연동 o/x`는 iOS 실기기 연동 검증 전까지 `false`로 유지한다.
 
 ## 2. API index 결정
 
@@ -107,8 +107,6 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 |---|---|---|---|---|
 | CHAT-01 | GET | `/api/v1/shared-groups/{sharedGroupId}/chat-messages` | 그룹 채팅 타임라인 조회 | [09-chat-realtime.md](09-chat-realtime.md) |
 | CHAT-02 | POST | `/api/v1/shared-groups/{sharedGroupId}/chat-messages` | 그룹 채팅 메시지 작성 | [09-chat-realtime.md](09-chat-realtime.md) |
-| CHAT-03 | PATCH | `/api/v1/shared-group-chat-messages/{messageId}` | 그룹 채팅 메시지 수정 | [09-chat-realtime.md](09-chat-realtime.md) |
-| CHAT-04 | DELETE | `/api/v1/shared-group-chat-messages/{messageId}` | 그룹 채팅 메시지 삭제 | [09-chat-realtime.md](09-chat-realtime.md) |
 
 ## 4. Notion DB 등록 규칙
 

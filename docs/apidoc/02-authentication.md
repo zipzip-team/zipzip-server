@@ -4,9 +4,9 @@
 
 | ID | index | 이름 | HTTP Method | API Path | 상태 | 구현 여부 | 연동 o/x |
 |---|---|---|---|---|---|---|---|
-| AUTH-01 | 인증 | Apple 로그인 | POST | `/api/v1/auth/apple` | 시작 전 | false | false |
-| AUTH-02 | 인증 | 토큰 갱신 | POST | `/api/v1/auth/refresh` | 시작 전 | false | false |
-| AUTH-03 | 인증 | 로그아웃 | POST | `/api/v1/auth/logout` | 시작 전 | false | false |
+| AUTH-01 | 인증 | Apple 로그인 | POST | `/api/v1/auth/apple` | 완료 | true | false |
+| AUTH-02 | 인증 | 토큰 갱신 | POST | `/api/v1/auth/refresh` | 완료 | true | false |
+| AUTH-03 | 인증 | 로그아웃 | POST | `/api/v1/auth/logout` | 완료 | true | false |
 
 공통 응답 형식과 공통 오류는 [01-common-spec.md](01-common-spec.md)를 따른다. Access Token과 Refresh Token의 유효 시간은 서버 보안 설정에서 확정하며 응답의 `expiresIn`은 초 단위다.
 

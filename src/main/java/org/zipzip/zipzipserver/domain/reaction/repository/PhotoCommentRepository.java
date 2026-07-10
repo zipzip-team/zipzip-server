@@ -5,13 +5,16 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.zipzip.zipzipserver.domain.reaction.entity.PhotoComment;
 
 public interface PhotoCommentRepository extends JpaRepository<PhotoComment, UUID> {
 
-    void deleteByPhotoId(UUID photoId);
+    @Modifying(flushAutomatically = true)
+    @Query("delete from PhotoComment photoComment where photoComment.photo.id = :photoId")
+    void deleteByPhotoId(@Param("photoId") UUID photoId);
 
     long countByPhotoId(UUID photoId);
 

@@ -11,7 +11,9 @@ public interface PhotoLikeRepository extends JpaRepository<PhotoLike, UUID> {
 
     void deleteByAppUserId(UUID appUserId);
 
-    void deleteByPhotoId(UUID photoId);
+    @Modifying(flushAutomatically = true)
+    @Query("delete from PhotoLike photoLike where photoLike.photo.id = :photoId")
+    void deleteByPhotoId(@Param("photoId") UUID photoId);
 
     boolean existsByPhotoIdAndAppUserId(UUID photoId, UUID appUserId);
 
