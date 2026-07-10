@@ -174,8 +174,6 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 403 | `NOT_PHOTO_UPLOADER` | 업로더가 아닌 사용자의 사진 수정·삭제 |
 | 409 | `PHOTO_NOT_IN_SAME_SHARED_GROUP` | 공유집(앨범)과 다른 공유 그룹에 속한 사진을 추가 시도 |
 | 400 | `INVALID_PHOTO_COMMENT_CONTENT` | 사진 댓글 내용 검증 |
-| 404 | `PHOTO_COMMENT_NOT_FOUND` | 사진 댓글 |
-| 403 | `NOT_PHOTO_COMMENT_AUTHOR` | 작성자가 아닌 사용자의 댓글 수정·삭제 |
 | 400 | `INVALID_CURSOR` | 채팅 타임라인 cursor 검증 |
 | 400 | `INVALID_CHAT_MESSAGE_CONTENT` | 그룹 채팅 메시지 내용 검증 |
 | 404 | `CHAT_MESSAGE_NOT_FOUND` | 그룹 채팅 메시지 |

@@ -100,8 +100,6 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | REACTION-03 | DELETE | `/api/v1/photos/{photoId}/like` | 사진 좋아요 취소 | [08-photo-reaction.md](08-photo-reaction.md) |
 | COMMENT-01 | GET | `/api/v1/photos/{photoId}/comments` | 사진 댓글 목록 조회 | [08-photo-reaction.md](08-photo-reaction.md) |
 | COMMENT-02 | POST | `/api/v1/photos/{photoId}/comments` | 사진 댓글 작성 | [08-photo-reaction.md](08-photo-reaction.md) |
-| COMMENT-03 | PATCH | `/api/v1/photo-comments/{commentId}` | 사진 댓글 수정 | [08-photo-reaction.md](08-photo-reaction.md) |
-| COMMENT-04 | DELETE | `/api/v1/photo-comments/{commentId}` | 사진 댓글 삭제 | [08-photo-reaction.md](08-photo-reaction.md) |
 
 ### 3.8 채팅
 

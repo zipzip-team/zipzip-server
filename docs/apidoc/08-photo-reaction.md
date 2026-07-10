@@ -9,10 +9,8 @@
 | REACTION-03 | 사진 반응·댓글 | 사진 좋아요 취소 | DELETE | `/api/v1/photos/{photoId}/like` | 시작 전 | false | false |
 | COMMENT-01 | 사진 반응·댓글 | 사진 댓글 목록 조회 | GET | `/api/v1/photos/{photoId}/comments` | 시작 전 | false | false |
 | COMMENT-02 | 사진 반응·댓글 | 사진 댓글 작성 | POST | `/api/v1/photos/{photoId}/comments` | 시작 전 | false | false |
-| COMMENT-03 | 사진 반응·댓글 | 사진 댓글 수정 | PATCH | `/api/v1/photo-comments/{commentId}` | 시작 전 | false | false |
-| COMMENT-04 | 사진 반응·댓글 | 사진 댓글 삭제 | DELETE | `/api/v1/photo-comments/{commentId}` | 시작 전 | false | false |
 
-모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다. 댓글은 작성자만 수정·삭제할 수 있다. 사진 댓글은 사진 상세에서 독립적으로 조회할 수 있으며, 같은 공유 그룹의 채팅 타임라인 조회(CHAT-01)에도 일반 채팅 메시지와 함께 시간순으로 표시된다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
+모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다. 사진 댓글은 사진 상세에서 독립적으로 조회할 수 있으며, 같은 공유 그룹의 채팅 타임라인 조회(CHAT-01)에도 일반 채팅 메시지와 함께 시간순으로 표시된다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
 ## 2. REACTION-01 사진 상세 조회
 
@@ -253,76 +251,3 @@
 |---:|---|---|
 | 400 | `INVALID_PHOTO_COMMENT_CONTENT` | 본문이 공백이거나 1,000자를 초과함 |
 | 404 | `PHOTO_NOT_FOUND` | 활성 사진 또는 상위 리소스·멤버십이 없음 |
-
-## 7. COMMENT-03 사진 댓글 수정
-
-### Request
-
-#### Path
-
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---:|---|
-| `commentId` | UUID | O | 사진 댓글 식별자 |
-
-#### Body
-
-| 필드 | 타입 | 필수 | 제약 | 설명 |
-|---|---|---:|---|---|
-| `content` | String | O | trim 후 1~1,000자 | 새 댓글 본문 |
-
-### Success Response ✓
-
-#### HTTP Status Code: `200 OK`
-
-```json
-{
-  "status": 200,
-  "code": "PHOTO_COMMENT_UPDATED",
-  "message": "사진 댓글을 수정했습니다.",
-  "data": {
-    "id": "22b50c69-ce29-4715-9825-dd27f4868bea",
-    "content": "정말 좋은 사진이다!",
-    "updatedAt": "2026-07-03T12:00:00Z"
-  }
-}
-```
-
-### Fail Response Ⓧ
-
-| HTTP Status | code | 조건 |
-|---:|---|---|
-| 400 | `INVALID_PHOTO_COMMENT_CONTENT` | 본문 제약 위반 |
-| 403 | `NOT_PHOTO_COMMENT_AUTHOR` | 활성 멤버지만 작성자가 아님 |
-| 404 | `PHOTO_COMMENT_NOT_FOUND` | 댓글 또는 상위 활성 리소스·멤버십이 없음 |
-
-## 8. COMMENT-04 사진 댓글 삭제
-
-휴지통 없이 `photo_comment` 행을 즉시 물리 삭제한다. 복구할 수 없다.
-
-### Request
-
-#### Path
-
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---:|---|
-| `commentId` | UUID | O | 사진 댓글 식별자 |
-
-### Success Response ✓
-
-#### HTTP Status Code: `200 OK`
-
-```json
-{
-  "status": 200,
-  "code": "PHOTO_COMMENT_DELETED",
-  "message": "사진 댓글을 삭제했습니다.",
-  "data": null
-}
-```
-
-### Fail Response Ⓧ
-
-| HTTP Status | code | 조건 |
-|---:|---|---|
-| 403 | `NOT_PHOTO_COMMENT_AUTHOR` | 활성 멤버지만 작성자가 아님 |
-| 404 | `PHOTO_COMMENT_NOT_FOUND` | 댓글 또는 상위 활성 리소스·멤버십이 없음 |
