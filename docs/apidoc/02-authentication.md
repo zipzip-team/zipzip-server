@@ -12,7 +12,7 @@
 
 ## 2. AUTH-01 Apple 로그인
 
-Apple이 전달한 identity token을 검증하고 사용자를 생성·복구하거나 기존 사용자로 로그인한다. Apple이 이름을 제공하지 않는 최초 가입에서는 `displayName`이 필수다.
+Apple 로그인 응답의 `identityToken`과 `authorizationCode`를 서버에서 검증하고 사용자를 생성·복구하거나 기존 사용자로 로그인한다. `nonce`는 Apple 로그인 요청을 만들 때 생성한 원문을 전달하며, `identityToken`의 nonce claim과 정확히 일치해야 한다. 신규 가입 또는 탈퇴 사용자 복구에서는 `displayName`이 필수다.
 
 ### Request
 
@@ -20,21 +20,22 @@ Apple이 전달한 identity token을 검증하고 사용자를 생성·복구하
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 로그인 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
 | `Content-Type` | String | O | 요청 본문 형식 | `application/json` |
 
 #### Body
 
 | 필드 | 타입 | 필수 | 제약 | 설명 | 예시 |
 |---|---|---:|---|---|---|
-| `identityToken` | String | O | 유효한 Apple identity token | Apple 사용자 식별 검증에 사용한다. | `eyJraWQiOi...` |
-| `authorizationCode` | String | O | 유효한 일회성 코드 | Apple 서버 검증 및 보안 감사에 사용한다. | `c1a2b3...` |
-| `displayName` | String | 조건부 | trim 후 1~50자 | 최초 가입에서 Apple 이름을 얻지 못한 경우 필수다. | `집집이` |
+| `identityToken` | JWT String | O | Apple이 발급한 유효한 identity token | iOS `ASAuthorizationAppleIDCredential.identityToken`에서 받은 값이다. Apple 사용자 식별과 서명·issuer·audience·만료·nonce 검증에 사용한다. | `eyJraWQiOi...` |
+| `authorizationCode` | String | O | 유효한 일회성 코드 | iOS `ASAuthorizationAppleIDCredential.authorizationCode`에서 받은 값이다. 서버가 Apple 토큰 엔드포인트에 검증 요청할 때 사용하므로 로그인마다 새 값을 전달한다. | `c1a2b3...` |
+| `nonce` | String | O | identity token의 nonce claim과 정확히 일치 | iOS에서 Apple 로그인 요청을 만들 때 생성한 nonce 원문이다. 해시값이나 다른 로그인 시도의 nonce를 보내면 안 된다. | `8f5d29f2-54e9-4da1-8a06-08e394af897e` |
+| `displayName` | String | 조건부 | trim 후 1~50자 | 신규 가입 또는 탈퇴 사용자 복구 시 필수다. 기존 활성 사용자는 생략할 수 있다. | `집집이` |
 
 ```json
 {
   "identityToken": "eyJraWQiOi...",
   "authorizationCode": "c1a2b3...",
+  "nonce": "8f5d29f2-54e9-4da1-8a06-08e394af897e",
   "displayName": "집집이"
 }
 ```
@@ -52,7 +53,7 @@ Apple이 전달한 identity token을 검증하고 사용자를 생성·복구하
     "accessToken": "eyJhbGciOi...",
     "refreshToken": "d4f3...",
     "tokenType": "Bearer",
-    "expiresIn": 3600,
+    "expiresIn": 1800,
     "isNewUser": true,
     "isRestoredUser": false,
     "user": {
@@ -67,7 +68,8 @@ Apple이 전달한 identity token을 검증하고 사용자를 생성·복구하
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
-| 400 | `DISPLAY_NAME_REQUIRED` | 최초 가입이며 Apple 이름과 요청 이름이 모두 없음 |
+| 400 | `INVALID_REQUEST` | 필수 요청 본문 값 누락 또는 형식 오류 |
+| 400 | `DISPLAY_NAME_REQUIRED` | 신규 가입 또는 탈퇴 사용자 복구에 필요한 표시 이름이 없음·공백임 |
 | 400 | `INVALID_DISPLAY_NAME` | 이름이 공백이거나 50자를 초과함 |
 | 401 | `INVALID_APPLE_TOKEN` | identity token의 서명, issuer, audience 또는 만료 검증 실패 |
 | 401 | `INVALID_APPLE_AUTHORIZATION_CODE` | authorization code 검증 실패 |
@@ -82,7 +84,7 @@ Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 토큰 회전 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 토큰 회전 재시도 식별자. 네트워크 재시도에는 같은 Refresh Token과 같은 UUID를 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
 | `Content-Type` | String | O | 요청 본문 형식 | `application/json` |
 
 #### Body
@@ -95,6 +97,8 @@ Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token
 
 #### HTTP Status Code: `200 OK`
 
+같은 `Idempotency-Key`와 같은 요청을 재시도해 저장된 성공 응답을 받은 경우에만 `Idempotency-Replayed: true` 응답 헤더가 포함된다.
+
 ```json
 {
   "status": 200,
@@ -104,7 +108,7 @@ Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token
     "accessToken": "eyJhbGciOi...",
     "refreshToken": "f71a...",
     "tokenType": "Bearer",
-    "expiresIn": 3600
+    "expiresIn": 1800
   }
 }
 ```
@@ -113,10 +117,13 @@ Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 400 | `INVALID_REQUEST` | `Idempotency-Key` 누락·UUID 형식 오류 또는 Refresh Token 요청 값 오류 |
 | 401 | `INVALID_REFRESH_TOKEN` | 토큰이 없거나 해시가 일치하지 않음 |
 | 401 | `REFRESH_TOKEN_EXPIRED` | Refresh Token 만료 |
 | 401 | `REFRESH_TOKEN_REUSE_DETECTED` | 이미 폐기·회전된 토큰 재사용 감지 |
 | 404 | `USER_NOT_FOUND` | 토큰 소유 사용자가 존재하지 않거나 탈퇴 상태임 |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 `Idempotency-Key`를 다른 Refresh Token 요청에 재사용함 |
+| 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 요청이 아직 처리 중임 |
 
 ## 4. AUTH-03 로그아웃
 
@@ -129,14 +136,14 @@ Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Authorization` | String | O | Bearer Access Token | `Bearer eyJhbGciOi...` |
+| `Authorization` | String | O | 현재 세션의 Bearer Access Token. `Bearer ` 접두사를 포함한다. | `Bearer eyJhbGciOi...` |
 | `Content-Type` | String | O | 요청 본문 형식 | `application/json` |
 
 #### Body
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `refreshToken` | String | O | 현재 세션의 Refresh Token | `f71a...` |
+| `refreshToken` | JWT String | O | Authorization 헤더의 Access Token과 같은 사용자에게 발급된 현재 세션의 Refresh Token. 이 토큰만 폐기하며 다른 기기 토큰은 유지한다. | `eyJhbGciOiJIUzI1NiJ9...` |
 
 ### Success Response ✓
 
@@ -157,5 +164,6 @@ Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 400 | `INVALID_REQUEST` | Refresh Token 요청 값 누락 또는 형식 오류 |
 | 401 | `UNAUTHORIZED` | Access Token 누락 또는 검증 실패 |
 | 401 | `INVALID_REFRESH_TOKEN` | 다른 사용자 소유이거나 존재하지 않는 Refresh Token |

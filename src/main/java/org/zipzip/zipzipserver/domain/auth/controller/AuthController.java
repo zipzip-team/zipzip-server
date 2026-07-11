@@ -2,6 +2,9 @@ package org.zipzip.zipzipserver.domain.auth.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -26,7 +29,10 @@ import org.zipzip.zipzipserver.domain.auth.dto.response.TokenRefreshResponse;
 import org.zipzip.zipzipserver.domain.auth.service.AuthService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
 
-@Tag(name = "인증", description = "Apple 로그인과 인증 세션 관리 API")
+@Tag(
+        name = "인증",
+        description =
+                "Apple 로그인으로 인증 세션을 만들고, Refresh Token 회전 및 현재 기기 로그아웃을 처리합니다.")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
@@ -37,13 +43,16 @@ public class AuthController {
     @Operation(
             summary = "Apple 로그인",
             description =
-                    "Apple identity token과 authorization code를 검증한 뒤 사용자를 생성·복구하거나 기존"
-                            + " 사용자로 로그인하고 Access Token과 Refresh Token을 발급합니다.")
+                    "iOS의 ASAuthorizationAppleIDCredential에서 받은 identityToken과 authorizationCode를"
+                            + " 요청 본문에 전달합니다. nonce는 Apple 로그인 요청 시 생성한 원문이며,"
+                            + " identityToken의 nonce claim과 정확히 일치해야 합니다. 사용자 신규 가입 또는"
+                            + " 탈퇴 계정 복구에는 displayName이 필요합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "로그인 성공", useReturnTypeSchema = true),
         @ApiResponse(
                 responseCode = "400",
-                description = "DISPLAY_NAME_REQUIRED, INVALID_DISPLAY_NAME"),
+                description =
+                        "INVALID_REQUEST, DISPLAY_NAME_REQUIRED, INVALID_DISPLAY_NAME"),
         @ApiResponse(
                 responseCode = "401",
                 description = "INVALID_APPLE_TOKEN, INVALID_APPLE_AUTHORIZATION_CODE")
@@ -57,8 +66,18 @@ public class AuthController {
 
     @Operation(
             summary = "로그아웃",
-            description = "현재 사용자 소유 Refresh Token을 폐기합니다.",
-            security = @SecurityRequirement(name = "bearerAuth"))
+            description =
+                    "Authorization 헤더의 Access Token으로 현재 사용자를 식별하고, 요청 본문의"
+                            + " Refresh Token 하나만 폐기합니다. 다른 기기의 Refresh Token은 유지되며,"
+                            + " 이미 폐기된 현재 사용자 소유 토큰을 다시 보내도 성공합니다.",
+            security = @SecurityRequirement(name = "bearerAuth"),
+            parameters =
+                    @Parameter(
+                            name = HttpHeaders.AUTHORIZATION,
+                            in = ParameterIn.HEADER,
+                            required = true,
+                            description = "현재 세션의 Bearer Access Token",
+                            example = "Bearer eyJhbGciOiJIUzI1NiJ9..."))
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "로그아웃 성공"),
         @ApiResponse(responseCode = "400", description = "요청 본문 검증 실패"),
@@ -77,11 +96,20 @@ public class AuthController {
     @Operation(
             summary = "토큰 갱신",
             description =
-                    "Refresh Token을 검증한 뒤 기존 Refresh Token을 폐기하고 같은 token family의 새"
-                            + " Access Token과 Refresh Token을 발급합니다. 같은 Idempotency-Key와 같은 요청이"
-                            + " 재시도되면 최초 성공 응답을 재전송합니다.")
+                    "요청 본문의 Refresh Token을 한 번만 회전합니다. Idempotency-Key에는 클라이언트가"
+                            + " 생성한 UUID를 넣고, 네트워크 재시도에는 반드시 같은 UUID와 같은 Refresh Token을"
+                            + " 사용합니다. 같은 요청의 재시도 성공 응답에는 Idempotency-Replayed: true 헤더가"
+                            + " 포함됩니다.")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "토큰 갱신 성공", useReturnTypeSchema = true),
+        @ApiResponse(
+                responseCode = "200",
+                description = "토큰 갱신 성공",
+                headers =
+                        @Header(
+                                name = "Idempotency-Replayed",
+                                description = "같은 Idempotency-Key 요청의 저장된 성공 응답을 재전송했을 때만 true",
+                                schema = @Schema(type = "boolean", allowableValues = "true")),
+                useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_REQUEST"),
         @ApiResponse(
                 responseCode = "401",
@@ -96,8 +124,11 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<BaseResponse<TokenRefreshResponse>> refreshTokens(
             @Parameter(
+                            name = "Idempotency-Key",
+                            in = ParameterIn.HEADER,
                             description = "토큰 갱신 재시도 식별자. 같은 요청 재시도에는 같은 UUID를 사용합니다.",
                             required = true,
+                            schema = @Schema(type = "string", format = "uuid"),
                             example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,
