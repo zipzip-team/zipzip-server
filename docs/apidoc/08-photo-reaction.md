@@ -10,7 +10,9 @@
 | COMMENT-01 | 사진 반응·댓글 | 사진 댓글 목록 조회 | GET | `/api/v1/photos/{photoId}/comments` | 완료 | true | false |
 | COMMENT-02 | 사진 반응·댓글 | 사진 댓글 작성 | POST | `/api/v1/photos/{photoId}/comments` | 완료 | true | false |
 
-모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다. 사진 댓글은 사진 상세에서 독립적으로 조회할 수 있으며, 같은 공유 그룹의 채팅 타임라인 조회(CHAT-01)에도 일반 채팅 메시지와 함께 시간순으로 표시된다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
+모든 API는 `Authorization: Bearer <accessToken>` 헤더와 대상 공유 그룹의 활성 멤버십을 요구한다. `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다. 사진 댓글은 사진 상세에서 독립적으로 조회할 수 있으며, 같은 공유 그룹의 채팅 타임라인 조회(CHAT-01)에도 일반 채팅 메시지와 함께 시간순으로 표시된다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
+
+MVP에서는 사진 댓글의 작성과 조회만 제공한다. 댓글 수정·삭제 API는 후속 범위다.
 
 ## 2. REACTION-01 사진 상세 조회
 
@@ -72,6 +74,7 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `PHOTO_NOT_FOUND` | 활성 사진 또는 상위 리소스·멤버십이 없음 |
 
 ## 3. REACTION-02 사진 좋아요 설정
@@ -109,6 +112,7 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `PHOTO_NOT_FOUND` | 활성 사진 또는 상위 리소스·멤버십이 없음 |
 
 ## 4. REACTION-03 사진 좋아요 취소
@@ -144,6 +148,7 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `PHOTO_NOT_FOUND` | 활성 사진 또는 상위 리소스·멤버십이 없음 |
 
 ## 5. COMMENT-01 사진 댓글 목록 조회
@@ -162,7 +167,7 @@
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |---|---|---:|---|---|
-| `cursor` | String | X | null | 이전 응답의 불투명 cursor |
+| `cursor` | String | X | null | 이전 응답의 `nextCursor`를 수정하지 않고 그대로 전달하는 불투명 cursor |
 | `size` | Integer | X | 20 | 1~100 |
 
 ### Success Response ✓
@@ -199,6 +204,7 @@
 | HTTP Status | code | 조건 |
 |---:|---|---|
 | 400 | `INVALID_CURSOR` | cursor가 유효하지 않음 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `PHOTO_NOT_FOUND` | 활성 사진 또는 상위 리소스·멤버십이 없음 |
 
 ## 6. COMMENT-02 사진 댓글 작성
@@ -209,7 +215,7 @@
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 댓글 작성 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 댓글 작성 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
 
 #### Path
 
@@ -226,6 +232,8 @@
 ### Success Response ✓
 
 #### HTTP Status Code: `201 Created`
+
+같은 `Idempotency-Key`와 같은 요청을 재시도해 저장된 성공 응답을 받은 경우에만 `Idempotency-Replayed: true` 응답 헤더가 포함된다.
 
 ```json
 {
@@ -249,5 +257,9 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 400 | `INVALID_REQUEST` | `Idempotency-Key` 누락·UUID 형식 오류 또는 요청 본문 형식 오류 |
 | 400 | `INVALID_PHOTO_COMMENT_CONTENT` | 본문이 공백이거나 1,000자를 초과함 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `PHOTO_NOT_FOUND` | 활성 사진 또는 상위 리소스·멤버십이 없음 |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 `Idempotency-Key`를 다른 댓글 작성 요청에 재사용함 |
+| 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 요청이 아직 처리 중임 |

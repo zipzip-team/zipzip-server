@@ -2,6 +2,9 @@ package org.zipzip.zipzipserver.domain.reaction.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -30,7 +33,7 @@ import org.zipzip.zipzipserver.domain.reaction.dto.response.PhotoLikeResponse;
 import org.zipzip.zipzipserver.domain.reaction.service.ReactionService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
 
-@Tag(name = "사진 반응·댓글", description = "사진 상세 조회, 좋아요, 사진 댓글 API")
+@Tag(name = "사진 반응·댓글", description = "사진 상세 조회, 좋아요 설정·취소, 사진 댓글 조회·작성 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/photos")
@@ -46,11 +49,14 @@ public class ReactionController {
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "PHOTO_FOUND", useReturnTypeSchema = true),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "PHOTO_NOT_FOUND")
     })
     @GetMapping("/{photoId}")
     public BaseResponse<PhotoDetailResponse> getPhotoDetail(
-            @Parameter(description = "사진 식별자") @PathVariable UUID photoId,
+            @Parameter(description = "상세를 조회할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+                    @PathVariable
+                    UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
         return BaseResponse.success(
                 ReactionSuccessCode.PHOTO_FOUND,
@@ -63,11 +69,14 @@ public class ReactionController {
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "PHOTO_LIKED", useReturnTypeSchema = true),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "PHOTO_NOT_FOUND")
     })
     @PutMapping("/{photoId}/like")
     public BaseResponse<PhotoLikeResponse> likePhoto(
-            @Parameter(description = "사진 식별자") @PathVariable UUID photoId,
+            @Parameter(description = "좋아요를 설정할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+                    @PathVariable
+                    UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
         return BaseResponse.success(
                 ReactionSuccessCode.PHOTO_LIKED, reactionService.likePhoto(photoId, appUserId));
@@ -82,11 +91,14 @@ public class ReactionController {
                 responseCode = "200",
                 description = "PHOTO_UNLIKED",
                 useReturnTypeSchema = true),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "PHOTO_NOT_FOUND")
     })
     @DeleteMapping("/{photoId}/like")
     public BaseResponse<PhotoLikeResponse> unlikePhoto(
-            @Parameter(description = "사진 식별자") @PathVariable UUID photoId,
+            @Parameter(description = "좋아요를 취소할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+                    @PathVariable
+                    UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
         return BaseResponse.success(
                 ReactionSuccessCode.PHOTO_UNLIKED, reactionService.unlikePhoto(photoId, appUserId));
@@ -102,15 +114,18 @@ public class ReactionController {
                 description = "PHOTO_COMMENT_LIST_FOUND",
                 useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_CURSOR"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "PHOTO_NOT_FOUND")
     })
     @GetMapping("/{photoId}/comments")
     public BaseResponse<PhotoCommentListResponse> listComments(
-            @Parameter(description = "사진 식별자") @PathVariable UUID photoId,
+            @Parameter(description = "댓글을 조회할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+                    @PathVariable
+                    UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "이전 응답의 불투명 cursor") @RequestParam(required = false)
+            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서") @RequestParam(required = false)
                     String cursor,
-            @Parameter(description = "페이지 크기(1~100)", example = "20")
+            @Parameter(description = "페이지 크기. 1~100, 생략 시 20", example = "20")
                     @RequestParam(required = false)
                     Integer size) {
         return BaseResponse.success(
@@ -126,10 +141,16 @@ public class ReactionController {
         @ApiResponse(
                 responseCode = "201",
                 description = "PHOTO_COMMENT_CREATED",
+                headers =
+                        @Header(
+                                name = "Idempotency-Replayed",
+                                description = "저장된 성공 응답을 재전송한 경우에만 true",
+                                schema = @Schema(type = "boolean", allowableValues = "true")),
                 useReturnTypeSchema = true),
         @ApiResponse(
                 responseCode = "400",
                 description = "INVALID_PHOTO_COMMENT_CONTENT, INVALID_REQUEST"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "PHOTO_NOT_FOUND"),
         @ApiResponse(
                 responseCode = "409",
@@ -137,11 +158,16 @@ public class ReactionController {
     })
     @PostMapping("/{photoId}/comments")
     public ResponseEntity<BaseResponse<PhotoCommentResponse>> createComment(
-            @Parameter(description = "사진 식별자") @PathVariable UUID photoId,
+            @Parameter(description = "댓글을 작성할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+                    @PathVariable
+                    UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
             @Parameter(
-                            description = "댓글 작성 재시도 식별자. 같은 요청 재시도에는 같은 UUID를 사용합니다.",
+                            name = "Idempotency-Key",
+                            in = ParameterIn.HEADER,
+                            description = "댓글 작성 재시도 식별자(UUID). 같은 요청 재시도에는 같은 값을 사용합니다.",
                             required = true,
+                            schema = @Schema(type = "string", format = "uuid"),
                             example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,
