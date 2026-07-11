@@ -20,7 +20,7 @@
 
 | 필드 | 타입 | 필수 | 설명 |
 |---|---|---:|---|
-| `Authorization` | String | O | Bearer Access Token |
+| `Authorization` | String | O | 로그인 또는 토큰 갱신 응답에서 받은 현재 세션의 Access Token. `Bearer ` 접두사를 포함한다. 예: `Bearer eyJhbGciOiJIUzI1NiJ9...` |
 
 ### Success Response ✓
 
@@ -48,11 +48,24 @@
 
 ### Request
 
+#### Header
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---:|---|
+| `Authorization` | String | O | 로그인 또는 토큰 갱신 응답에서 받은 현재 세션의 Access Token. `Bearer ` 접두사를 포함한다. 예: `Bearer eyJhbGciOiJIUzI1NiJ9...` |
+| `Content-Type` | String | O | 요청 본문 형식. `application/json`을 전달한다. |
+
 #### Body
 
 | 필드 | 타입 | 필수 | 제약 | 설명 | 예시 |
 |---|---|---:|---|---|---|
-| `displayName` | String | O | trim 후 1~50자 | 변경할 표시 이름 | `새 집집이` |
+| `displayName` | String | O | 앞뒤 공백 제거 후 1~50자 | 변경할 표시 이름. 공백만 있거나 50자를 초과하면 거부한다. | `새 집집이` |
+
+```json
+{
+  "displayName": "새 집집이"
+}
+```
 
 ### Success Response ✓
 
@@ -73,6 +86,7 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 400 | `INVALID_REQUEST` | 요청 본문이 없거나 JSON 형식이 올바르지 않음 |
 | 400 | `INVALID_DISPLAY_NAME` | 이름이 공백이거나 50자를 초과함 |
 | 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `USER_NOT_FOUND` | 활성 사용자를 찾을 수 없음 |
@@ -85,7 +99,13 @@
 
 ### Request
 
-요청 본문은 없다.
+#### Header
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---:|---|
+| `Authorization` | String | O | 탈퇴할 현재 계정의 Access Token. `Bearer ` 접두사를 포함한다. 예: `Bearer eyJhbGciOiJIUzI1NiJ9...` |
+
+요청 본문은 없다. 탈퇴가 완료되면 현재 사용자의 모든 활성 Refresh Token이 폐기되므로, 이후 다시 이용하려면 Apple 로그인으로 새 인증 세션을 발급받아야 한다.
 
 ### Success Response ✓
 
