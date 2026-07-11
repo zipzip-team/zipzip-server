@@ -10,6 +10,7 @@
 공유 그룹 하나가 하나의 채팅방이다. 따라서 별도 `chat_room` 테이블이나 채팅방 조회 API는 두지 않고, `sharedGroupId`를 채팅방 식별자로 사용한다.
 일반 채팅 메시지는 `shared_group_chat_message`, 사진 댓글은 `photo_comment`에 각각 저장한다. CHAT-01은 대상 공유 그룹의 일반 채팅 메시지와 활성 사진 댓글을 하나의 타임라인으로 병합해 반환한다.
 1차 구현은 폴링 조회를 기준으로 하며 WebSocket 실시간 전달은 후속 범위로 둔다.
+모든 API는 `Authorization: Bearer <accessToken>` 헤더와 대상 공유 그룹의 활성 멤버십을 요구한다. `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다.
 
 ## 2. CHAT-01 그룹 채팅 타임라인 조회
 
@@ -83,11 +84,12 @@
 |---:|---|---|
 | 400 | `INVALID_REQUEST` | `size`가 1~100 범위를 벗어남 |
 | 400 | `INVALID_CURSOR` | cursor가 유효하지 않음 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십이 없음 |
 
 `type`이 `CHAT_MESSAGE`이면 일반 채팅 메시지이고, `PHOTO_COMMENT`이면 사진 상세에 작성된 댓글이다. `PHOTO_COMMENT`의 `photoId`는 댓글이 연결된 사진 식별자이며, 일반 채팅 메시지에서는 `null`이다.
 
-사진 댓글의 수정·삭제는 이 API가 아니라 COMMENT-03, COMMENT-04를 사용한다. 사진이 soft delete되었거나 대상 공유 그룹에 더 이상 활성 소속이 없으면 해당 사진의 댓글은 타임라인에서 반환하지 않는다.
+MVP에서는 일반 채팅 메시지와 사진 댓글의 사용자 수정·삭제 API를 제공하지 않는다. 사진이 soft delete되었거나 대상 공유 그룹에 더 이상 활성 소속이 없으면 해당 사진의 댓글은 타임라인에서 반환하지 않는다.
 
 ## 3. CHAT-02 그룹 채팅 메시지 작성
 
@@ -97,7 +99,7 @@
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 메시지 작성 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 메시지 작성 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
 
 #### Path
 
@@ -114,6 +116,8 @@
 ### Success Response
 
 #### HTTP Status Code: `201 Created`
+
+같은 `Idempotency-Key`와 같은 요청을 재시도해 저장된 성공 응답을 받은 경우에만 `Idempotency-Replayed: true` 응답 헤더가 포함된다.
 
 ```json
 {
@@ -140,6 +144,7 @@
 |---:|---|---|
 | 400 | `INVALID_REQUEST` | `Idempotency-Key`가 누락됐거나 UUID 형식이 아님 |
 | 400 | `INVALID_CHAT_MESSAGE_CONTENT` | 본문이 공백이거나 1,000자를 초과함 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십이 없음 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 키가 다른 메시지 작성 요청에 이미 사용됨 |
 | 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 키의 메시지 작성 요청을 처리 중임 |
