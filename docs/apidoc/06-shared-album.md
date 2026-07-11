@@ -17,7 +17,7 @@
 | ALBUM-04 | 앨범 | 공유집(앨범) 이름 수정 | PATCH | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
 | ALBUM-05 | 앨범 | 공유집(앨범) 삭제 | DELETE | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
 
-모든 API는 대상 공유 그룹의 활성 멤버십을 요구한다.
+모든 API는 `Authorization: Bearer <accessToken>` 헤더와 대상 공유 그룹의 활성 멤버십을 요구한다. `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다.
 방장과 멤버 모두 공유집(앨범)을 생성·수정할 수 있으며, 삭제는 생성자가 할 수 있다. 생성자가 탈퇴한 사용자인 경우 상위 공유 그룹 방장도 삭제할 수 있다.
 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
@@ -37,8 +37,8 @@
 
 | 필드 | 타입 | 필수 | 기본값 | 설명 |
 |---|---|---:|---|---|
-| `cursor` | String | X | null | 이전 응답의 불투명 cursor |
-| `size` | Integer | X | 20 | 1~100 |
+| `cursor` | String | X | null | 이전 응답의 `nextCursor`를 수정하지 않고 그대로 전달하는 불투명 cursor |
+| `size` | Integer | X | 20 | 생략 시 20. 1 미만은 1, 100 초과는 100으로 보정 |
 
 ### Success Response
 
@@ -75,6 +75,7 @@
 | HTTP Status | code | 조건 |
 |---:|---|---|
 | 400 | `INVALID_CURSOR` | cursor가 유효하지 않음 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십이 없음 |
 
 ## 3. ALBUM-02 공유집(앨범) 생성
@@ -87,7 +88,9 @@
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 생성 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Authorization` | String | O | 현재 세션의 Access Token. `Bearer ` 접두사를 포함한다. | `Bearer eyJhbGciOiJIUzI1NiJ9...` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 앨범 생성 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Content-Type` | String | O | 요청 본문 형식 | `application/json` |
 
 #### Path
 
@@ -99,7 +102,9 @@
 
 | 필드 | 타입 | 필수 | 제약 | 설명 | 예시 |
 |---|---|---:|---|---|---|
-| `name` | String | O | trim 후 1~100자 | 공유집(앨범) 이름 | `제주도` |
+| `name` | String | O | 앞뒤 공백 제거 후 1~100자 | 공유집(앨범) 이름 | `제주도` |
+
+같은 `Idempotency-Key`와 같은 요청을 재시도하면 최초 성공 응답을 다시 반환한다. 현재 이 API는 재전송 여부를 나타내는 별도 응답 헤더를 제공하지 않는다.
 
 ### Success Response
 
@@ -129,8 +134,12 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 400 | `INVALID_REQUEST` | `Idempotency-Key` 누락·UUID 형식 오류 또는 요청 본문 형식 오류 |
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 이름이 공백이거나 100자를 초과함 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십이 없음 |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 `Idempotency-Key`를 다른 생성 요청에 재사용함 |
+| 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 요청이 아직 처리 중임 |
 
 ## 4. ALBUM-03 공유집(앨범) 상세 조회
 
@@ -171,6 +180,7 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 공유집(앨범)이 없거나 상위 공유 그룹의 활성 멤버십이 없음 |
 
 ## 5. ALBUM-04 공유집(앨범) 이름 수정
@@ -187,7 +197,7 @@
 
 | 필드 | 타입 | 필수 | 제약 | 설명 |
 |---|---|---:|---|---|
-| `name` | String | O | trim 후 1~100자 | 새 공유집(앨범) 이름 |
+| `name` | String | O | 앞뒤 공백 제거 후 1~100자 | 새 공유집(앨범) 이름 |
 
 ### Success Response
 
@@ -210,7 +220,9 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 400 | `INVALID_REQUEST` | 요청 본문 누락·형식 오류 또는 name 검증 오류 |
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 이름 제약 위반 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 공유집(앨범) 또는 활성 멤버십이 없음 |
 
 ## 6. ALBUM-05 공유집(앨범) 삭제
@@ -245,5 +257,6 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 403 | `NOT_SHARED_ALBUM_CREATOR` | 활성 멤버지만 생성자가 아니며, 탈퇴한 생성자의 공유 그룹 방장도 아님 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 공유집(앨범) 또는 활성 멤버십이 없음 |
