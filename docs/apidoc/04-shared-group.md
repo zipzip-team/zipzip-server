@@ -11,7 +11,7 @@
 | GROUP-05 | 공유 그룹 | 공유 그룹 삭제 | DELETE | `/api/v1/shared-groups/{sharedGroupId}` | 완료 | true | false |
 | GROUP-06 | 공유 그룹 | 공유 그룹 멤버 목록 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/members` | 완료 | true | false |
 
-모든 API는 Bearer 인증이 필요하다. 조회는 활성 멤버십을 요구하고, 공유 그룹 정보 수정·삭제는 활성 `HOST`만 가능하다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
+모든 API는 `Authorization: Bearer <accessToken>` 헤더가 필요하다. `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다. 조회는 활성 멤버십을 요구하고, 공유 그룹 정보 수정·삭제는 활성 `HOST`만 가능하다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
 ## 2. GROUP-01 내 공유 그룹 목록 조회
 
@@ -71,17 +71,21 @@
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 공유 그룹 생성 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Authorization` | String | O | 현재 세션의 Access Token. `Bearer ` 접두사를 포함한다. | `Bearer eyJhbGciOiJIUzI1NiJ9...` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 공유 그룹 생성 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Content-Type` | String | O | 요청 본문 형식 | `application/json` |
 
 #### Body
 
 | 필드 | 타입 | 필수 | 제약 | 설명 | 예시 |
 |---|---|---:|---|---|---|
-| `name` | String | O | trim 후 1~100자 | 공유 그룹 이름 | `우리 집` |
+| `name` | String | O | 앞뒤 공백 제거 후 1~100자 | 공유 그룹 이름 | `우리 집` |
 
 ### Success Response ✓
 
 #### HTTP Status Code: `201 Created`
+
+같은 `Idempotency-Key`와 같은 요청을 재시도해 저장된 성공 응답을 받은 경우에만 `Idempotency-Replayed: true` 응답 헤더가 포함된다.
 
 ```json
 {
@@ -106,8 +110,11 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 400 | `INVALID_REQUEST` | `Idempotency-Key` 누락·UUID 형식 오류 또는 요청 본문 형식 오류 |
 | 400 | `INVALID_SHARED_GROUP_NAME` | 이름이 공백이거나 100자를 초과함 |
 | 401 | `UNAUTHORIZED` | 인증 실패 |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 `Idempotency-Key`를 다른 생성 요청에 재사용함 |
+| 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 요청이 아직 처리 중임 |
 | 500 | `INVITE_CODE_GENERATION_FAILED` | 제한된 재시도 안에 고유 초대 코드 예약 실패 |
 
 ## 4. GROUP-03 공유 그룹 상세 조회
@@ -170,7 +177,7 @@
 
 | 필드 | 타입 | 필수 | 제약 | 설명 |
 |---|---|---:|---|---|
-| `name` | String | O | trim 후 1~100자 | 새 공유 그룹 이름 |
+| `name` | String | O | 앞뒤 공백 제거 후 1~100자 | 새 공유 그룹 이름 |
 
 ### Success Response ✓
 
@@ -193,7 +200,9 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 400 | `INVALID_REQUEST` | 요청 본문 누락·형식 오류 또는 name 검증 오류 |
 | 400 | `INVALID_SHARED_GROUP_NAME` | 이름 제약 위반 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 403 | `ONLY_HOST_CAN_UPDATE_SHARED_GROUP` | 활성 멤버지만 `HOST`가 아님 |
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십이 없음 |
 
@@ -226,6 +235,7 @@
 
 | HTTP Status | code | 조건 |
 |---:|---|---|
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 403 | `ONLY_HOST_CAN_DELETE_SHARED_GROUP` | 활성 멤버지만 `HOST`가 아님 |
 | 404 | `SHARED_GROUP_NOT_FOUND` | 활성 공유 그룹 또는 활성 멤버십이 없음 |
 
@@ -278,4 +288,5 @@
 | HTTP Status | code | 조건 |
 |---:|---|---|
 | 400 | `INVALID_CURSOR` | cursor가 유효하지 않음 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십이 없음 |

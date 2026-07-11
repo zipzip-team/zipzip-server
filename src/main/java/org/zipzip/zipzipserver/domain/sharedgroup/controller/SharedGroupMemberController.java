@@ -26,14 +26,14 @@ import org.zipzip.zipzipserver.global.response.BaseResponse;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/shared-groups")
-@Tag(name = "공유 그룹 멤버", description = "공유 그룹 멤버 조회 API")
+@Tag(name = "공유 그룹 멤버", description = "현재 사용자가 참여한 공유 그룹의 활성 멤버 조회 API")
 @SecurityRequirement(name = "bearerAuth")
 public class SharedGroupMemberController {
 
     private final SharedGroupMemberService sharedGroupMemberService;
 
     @GetMapping("/{sharedGroupId}/members")
-    @Operation(summary = "공유 그룹 멤버 목록 조회", description = "현재 사용자가 참여한 공유 그룹의 멤버를 커서 기반으로 조회합니다.")
+    @Operation(summary = "공유 그룹 멤버 목록 조회", description = "현재 사용자가 활성 멤버인 공유 그룹의 멤버를 참여 시각 오름차순으로 조회합니다. 다음 페이지에는 이전 응답의 nextCursor를 그대로 전달합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "조회 성공"),
         @ApiResponse(responseCode = "400", description = "유효하지 않은 커서 또는 size"),
@@ -41,10 +41,12 @@ public class SharedGroupMemberController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<SharedGroupMemberListResponse> findMembers(
-            @PathVariable UUID sharedGroupId,
-            @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "다음 페이지 조회용 커서") @RequestParam(required = false) String cursor,
-            @Parameter(description = "조회할 항목 수 (1~100)", example = "50")
+            @Parameter(description = "멤버를 조회할 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+                    @PathVariable
+                    UUID sharedGroupId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
+            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서") @RequestParam(required = false) String cursor,
+            @Parameter(description = "조회할 항목 수. 1~100, 생략 시 50", example = "50")
                     @RequestParam(defaultValue = "50")
                     @Min(1)
                     @Max(100)
