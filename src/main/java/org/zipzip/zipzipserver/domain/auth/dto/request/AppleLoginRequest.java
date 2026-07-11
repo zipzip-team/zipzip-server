@@ -8,8 +8,9 @@ import jakarta.validation.constraints.Size;
 public record AppleLoginRequest(
         @Schema(
                         description =
-                                "iOS ASAuthorizationAppleIDCredential.identityToken에서 받은 Apple ID Token(JWT)."
-                                        + " Apple 사용자 식별, 서명·issuer·audience·만료·nonce 검증에 사용합니다.",
+                                "iOS ASAuthorizationAppleIDCredential.identityToken에서 받은 Apple ID"
+                                    + " Token(JWT). Apple 사용자 식별, 서명·issuer·audience·만료·nonce 검증에"
+                                    + " 사용합니다.",
                         format = "JWT",
                         example = "eyJraWQiOi...",
                         requiredMode = Schema.RequiredMode.REQUIRED)
@@ -17,9 +18,9 @@ public record AppleLoginRequest(
                 String identityToken,
         @Schema(
                         description =
-                                "iOS ASAuthorizationAppleIDCredential.authorizationCode에서 받은 Apple 일회성"
-                                        + " authorization code. 서버가 Apple 토큰 엔드포인트에 검증 요청할 때 사용하므로"
-                                        + " 로그인 요청마다 새 값을 전달합니다.",
+                                "iOS ASAuthorizationAppleIDCredential.authorizationCode에서 받은 Apple"
+                                    + " 일회성 authorization code. 서버가 Apple 토큰 엔드포인트에 검증 요청할 때 사용하므로"
+                                    + " 로그인 요청마다 새 값을 전달합니다.",
                         example = "c1a2b3...",
                         requiredMode = Schema.RequiredMode.REQUIRED)
                 @NotBlank

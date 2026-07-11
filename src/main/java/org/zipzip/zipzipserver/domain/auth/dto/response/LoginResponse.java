@@ -6,7 +6,8 @@ import java.util.UUID;
 @Schema(description = "Apple 로그인 응답")
 public record LoginResponse(
         @Schema(
-                        description = "인증이 필요한 API의 Authorization 헤더에 Bearer 접두사와 함께 넣을 Access Token",
+                        description =
+                                "인증이 필요한 API의 Authorization 헤더에 Bearer 접두사와 함께 넣을 Access Token",
                         format = "JWT",
                         example = "eyJhbGciOiJIUzI1NiJ9...")
                 String accessToken,
@@ -19,8 +20,7 @@ public record LoginResponse(
                 String tokenType,
         @Schema(description = "Access Token의 남은 유효 시간(초)", example = "1800", minimum = "1")
                 long expiresIn,
-        @Schema(description = "이번 요청으로 새 사용자가 생성되었는지 여부", example = "true")
-                boolean isNewUser,
+        @Schema(description = "이번 요청으로 새 사용자가 생성되었는지 여부", example = "true") boolean isNewUser,
         @Schema(description = "탈퇴 상태였던 사용자가 이번 요청으로 복구되었는지 여부", example = "false")
                 boolean isRestoredUser,
         @Schema(description = "로그인 사용자 요약") UserSummary user) {

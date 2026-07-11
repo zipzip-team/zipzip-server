@@ -125,9 +125,13 @@ public class SharedGroupController {
                                                           }
                                                         }
                                                         """))),
-        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST, INVALID_SHARED_GROUP_NAME"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "INVALID_REQUEST, INVALID_SHARED_GROUP_NAME"),
         @ApiResponse(responseCode = "401", description = "인증 필요"),
-        @ApiResponse(responseCode = "409", description = "IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_REQUEST_IN_PROGRESS"),
+        @ApiResponse(
+                responseCode = "409",
+                description = "IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_REQUEST_IN_PROGRESS"),
         @ApiResponse(responseCode = "500", description = "INVITE_CODE_GENERATION_FAILED")
     })
     public ResponseEntity<?> createSharedGroup(
@@ -178,7 +182,10 @@ public class SharedGroupController {
     })
     public BaseResponse<SharedGroupDetailResponse> findSharedGroup(
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "조회할 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+            @Parameter(
+                            description = "조회할 공유 그룹 식별자",
+                            required = true,
+                            example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
                     @PathVariable
                     UUID sharedGroupId) {
         return BaseResponse.success(
@@ -194,14 +201,19 @@ public class SharedGroupController {
                             + " 검증하며, 응답에는 정규화된 이름과 수정 시각을 반환합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "수정 성공"),
-        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST, INVALID_SHARED_GROUP_NAME"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "INVALID_REQUEST, INVALID_SHARED_GROUP_NAME"),
         @ApiResponse(responseCode = "401", description = "인증 필요"),
         @ApiResponse(responseCode = "403", description = "HOST 권한 필요"),
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<SharedGroupUpdateResponse> updateName(
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "이름을 수정할 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+            @Parameter(
+                            description = "이름을 수정할 공유 그룹 식별자",
+                            required = true,
+                            example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
                     @PathVariable
                     UUID sharedGroupId,
             @Valid @RequestBody SharedGroupNameUpdateRequest request) {
@@ -224,7 +236,10 @@ public class SharedGroupController {
     })
     public BaseResponse<Void> delete(
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "삭제할 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+            @Parameter(
+                            description = "삭제할 공유 그룹 식별자",
+                            required = true,
+                            example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
                     @PathVariable
                     UUID sharedGroupId) {
         sharedGroupService.delete(appUserId, sharedGroupId);

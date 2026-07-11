@@ -102,8 +102,7 @@ public class UserProfileController {
                             name = AUTHORIZATION_HEADER,
                             in = ParameterIn.HEADER,
                             required = true,
-                            description =
-                                    "탈퇴할 현재 계정의 Bearer Access Token. Bearer 접두사를 포함합니다.",
+                            description = "탈퇴할 현재 계정의 Bearer Access Token. Bearer 접두사를 포함합니다.",
                             example = BEARER_ACCESS_TOKEN_EXAMPLE))
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "사용자 탈퇴 성공"),

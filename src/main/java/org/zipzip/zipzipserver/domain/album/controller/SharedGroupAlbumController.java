@@ -50,11 +50,15 @@ public class SharedGroupAlbumController {
     })
     @GetMapping
     public BaseResponse<SharedAlbumListResponse> listAlbums(
-            @Parameter(description = "앨범을 조회할 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+            @Parameter(
+                            description = "앨범을 조회할 공유 그룹 식별자",
+                            required = true,
+                            example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
                     @PathVariable
                     UUID sharedGroupId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서") @RequestParam(required = false)
+            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서")
+                    @RequestParam(required = false)
                     String cursor,
             @Parameter(description = "페이지 크기. 생략 시 20이며, 1 미만은 1, 100 초과는 100으로 보정", example = "20")
                     @RequestParam(required = false)
@@ -72,14 +76,21 @@ public class SharedGroupAlbumController {
                             + " 사용합니다. 같은 요청을 재시도하면 최초 성공 응답을 다시 반환합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "생성 성공", useReturnTypeSchema = true),
-        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST, INVALID_SHARED_ALBUM_NAME"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "INVALID_REQUEST, INVALID_SHARED_ALBUM_NAME"),
         @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "SHARED_GROUP_NOT_FOUND"),
-        @ApiResponse(responseCode = "409", description = "IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_REQUEST_IN_PROGRESS")
+        @ApiResponse(
+                responseCode = "409",
+                description = "IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_REQUEST_IN_PROGRESS")
     })
     @PostMapping
     public ResponseEntity<BaseResponse<SharedAlbumResponse>> createAlbum(
-            @Parameter(description = "앨범을 생성할 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+            @Parameter(
+                            description = "앨범을 생성할 공유 그룹 식별자",
+                            required = true,
+                            example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
                     @PathVariable
                     UUID sharedGroupId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
@@ -88,7 +99,10 @@ public class SharedGroupAlbumController {
                             in = ParameterIn.HEADER,
                             description = "앨범 생성 재시도 식별자(UUID). 같은 논리적 요청의 재시도에는 같은 값을 사용합니다.",
                             required = true,
-                            schema = @io.swagger.v3.oas.annotations.media.Schema(type = "string", format = "uuid"),
+                            schema =
+                                    @io.swagger.v3.oas.annotations.media.Schema(
+                                            type = "string",
+                                            format = "uuid"),
                             example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,

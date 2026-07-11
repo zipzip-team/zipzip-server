@@ -54,7 +54,10 @@ public class ReactionController {
     })
     @GetMapping("/{photoId}")
     public BaseResponse<PhotoDetailResponse> getPhotoDetail(
-            @Parameter(description = "상세를 조회할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+            @Parameter(
+                            description = "상세를 조회할 사진 식별자",
+                            required = true,
+                            example = "385ff765-b20c-49a2-8e62-e1457784aa15")
                     @PathVariable
                     UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
@@ -74,7 +77,10 @@ public class ReactionController {
     })
     @PutMapping("/{photoId}/like")
     public BaseResponse<PhotoLikeResponse> likePhoto(
-            @Parameter(description = "좋아요를 설정할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+            @Parameter(
+                            description = "좋아요를 설정할 사진 식별자",
+                            required = true,
+                            example = "385ff765-b20c-49a2-8e62-e1457784aa15")
                     @PathVariable
                     UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
@@ -96,7 +102,10 @@ public class ReactionController {
     })
     @DeleteMapping("/{photoId}/like")
     public BaseResponse<PhotoLikeResponse> unlikePhoto(
-            @Parameter(description = "좋아요를 취소할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+            @Parameter(
+                            description = "좋아요를 취소할 사진 식별자",
+                            required = true,
+                            example = "385ff765-b20c-49a2-8e62-e1457784aa15")
                     @PathVariable
                     UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
@@ -119,11 +128,15 @@ public class ReactionController {
     })
     @GetMapping("/{photoId}/comments")
     public BaseResponse<PhotoCommentListResponse> listComments(
-            @Parameter(description = "댓글을 조회할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+            @Parameter(
+                            description = "댓글을 조회할 사진 식별자",
+                            required = true,
+                            example = "385ff765-b20c-49a2-8e62-e1457784aa15")
                     @PathVariable
                     UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서") @RequestParam(required = false)
+            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서")
+                    @RequestParam(required = false)
                     String cursor,
             @Parameter(description = "페이지 크기. 1~100, 생략 시 20", example = "20")
                     @RequestParam(required = false)
@@ -158,7 +171,10 @@ public class ReactionController {
     })
     @PostMapping("/{photoId}/comments")
     public ResponseEntity<BaseResponse<PhotoCommentResponse>> createComment(
-            @Parameter(description = "댓글을 작성할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+            @Parameter(
+                            description = "댓글을 작성할 사진 식별자",
+                            required = true,
+                            example = "385ff765-b20c-49a2-8e62-e1457784aa15")
                     @PathVariable
                     UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
