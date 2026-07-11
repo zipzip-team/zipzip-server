@@ -7,5 +7,7 @@ public record PhotoCommentCreateRequest(
         @Schema(
                         description = "댓글 본문. trim 후 1~1,000자",
                         example = "사진 너무 좋다!",
+                        minLength = 1,
+                        maxLength = 1000,
                         requiredMode = Schema.RequiredMode.REQUIRED)
                 String content) {}
