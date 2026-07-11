@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Map;
 import java.util.UUID;
@@ -22,7 +23,8 @@ import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoMetadataUpdateResp
 import org.zipzip.zipzipserver.domain.photo.service.PhotoService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
 
-@Tag(name = "사진", description = "사진 업로드·관리 API")
+@Tag(name = "사진", description = "사진 메타데이터 수정과 원본 사진 삭제 API")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/photos")
@@ -41,12 +43,15 @@ public class PhotoController {
         @ApiResponse(
                 responseCode = "400",
                 description = "INVALID_TAKEN_AT, INVALID_PHOTO_LOCATION"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "403", description = "NOT_PHOTO_UPLOADER"),
         @ApiResponse(responseCode = "404", description = "PHOTO_NOT_FOUND")
     })
     @PatchMapping("/{photoId}")
     public BaseResponse<PhotoMetadataUpdateResponse> updateMetadata(
-            @Parameter(description = "사진 식별자") @PathVariable UUID photoId,
+            @Parameter(description = "메타데이터를 수정할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+                    @PathVariable
+                    UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
             @Schema(implementation = PhotoMetadataUpdateRequest.class) @RequestBody
                     Map<String, Object> requestBody) {
@@ -62,12 +67,15 @@ public class PhotoController {
                             + " 차단됩니다. 업로더 본인이거나, 업로더가 탈퇴한 경우 상위 공유 그룹 방장만 삭제할 수 있습니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "삭제 성공"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "403", description = "NOT_PHOTO_UPLOADER"),
         @ApiResponse(responseCode = "404", description = "PHOTO_NOT_FOUND")
     })
     @DeleteMapping("/{photoId}")
     public BaseResponse<Void> deletePhoto(
-            @Parameter(description = "삭제할 사진 식별자") @PathVariable UUID photoId,
+            @Parameter(description = "원본을 삭제할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+                    @PathVariable
+                    UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
         photoService.deletePhoto(photoId, appUserId);
         return BaseResponse.success(PhotoSuccessCode.PHOTO_DELETED);
