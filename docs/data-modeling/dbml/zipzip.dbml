@@ -116,7 +116,7 @@ Table shared_group_chat_message {
     `char_length(btrim(content)) > 0` [name: 'chk_shared_group_chat_message__content_not_blank']
   }
 
-  Note: '공유 그룹 안의 일반 채팅 메시지. 1차 구현은 created_at, id 커서를 사용하는 폴링 조회를 기준으로 한다. 휴지통 없이 삭제 시 행을 즉시 물리 삭제한다.'
+  Note: '공유 그룹 안의 일반 채팅 메시지. MVP는 created_at, id 커서를 사용하는 폴링 조회와 메시지 작성을 제공한다. 사용자 수정·삭제는 후속 범위다.'
 }
 
 Table shared_album {
@@ -235,7 +235,7 @@ Table photo_comment {
     `char_length(btrim(content)) > 0` [name: 'chk_photo_comment__content_not_blank']
   }
 
-  Note: '단일 사진에 달리는 댓글. 그룹 채팅 메시지는 shared_group_chat_message에 별도로 저장한다. 휴지통 없이 삭제 시 행을 즉시 물리 삭제한다.'
+  Note: '단일 사진에 달리는 댓글. 그룹 채팅 메시지는 shared_group_chat_message에 별도로 저장한다. MVP는 댓글 작성·조회만 제공하며 사용자 수정·삭제는 후속 범위다.'
 }
 
 Ref fk_refresh_token__app_user: app_user.id < refresh_token.app_user_id [delete: cascade, update: no action]
