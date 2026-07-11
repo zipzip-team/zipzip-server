@@ -2,6 +2,8 @@ package org.zipzip.zipzipserver.domain.sharedgroup.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -34,7 +36,7 @@ import org.zipzip.zipzipserver.global.response.BaseResponse;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/shared-groups")
-@Tag(name = "공유 그룹 초대", description = "초대 코드 조회·참여·탈퇴 API")
+@Tag(name = "공유 그룹 초대", description = "초대 코드 조회, 초대 코드 참여 및 현재 멤버십 탈퇴 API")
 @SecurityRequirement(name = "bearerAuth")
 public class SharedGroupInviteController {
 
@@ -44,25 +46,38 @@ public class SharedGroupInviteController {
     private final IdempotencyService idempotencyService;
 
     @GetMapping("/{sharedGroupId}/invite-code")
-    @Operation(summary = "초대 코드 조회", description = "현재 사용자가 참여한 공유 그룹의 초대 코드를 조회합니다.")
+    @Operation(summary = "초대 코드 조회", description = "현재 사용자가 활성 멤버인 공유 그룹의 고정 초대 코드를 조회합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "조회 성공"),
         @ApiResponse(responseCode = "401", description = "인증 필요"),
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<InviteCodeResponse> findInviteCode(
-            @PathVariable UUID sharedGroupId, @AuthenticationPrincipal UUID appUserId) {
+            @Parameter(description = "초대 코드를 조회할 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+                    @PathVariable
+                    UUID sharedGroupId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
         return BaseResponse.success(
                 SharedGroupSuccessCode.INVITE_CODE_FOUND,
                 sharedGroupInviteService.findInviteCode(sharedGroupId, appUserId));
     }
 
     @PostMapping("/join")
-    @Operation(summary = "공유 그룹 참여", description = "초대 코드로 공유 그룹에 참여합니다.")
+    @Operation(
+            summary = "공유 그룹 참여",
+            description =
+                    "요청 본문의 초대 코드로 활성 공유 그룹에 MEMBER로 참여합니다. Idempotency-Key에는 클라이언트가"
+                            + " 생성한 UUID를 사용하고, 같은 참여 요청 재시도에는 같은 UUID와 본문을 전달합니다. 저장된"
+                            + " 성공 응답을 재전송하면 Idempotency-Replayed: true 헤더가 포함됩니다.")
     @ApiResponses({
         @ApiResponse(
                 responseCode = "201",
                 description = "참여 성공",
+                headers =
+                        @Header(
+                                name = "Idempotency-Replayed",
+                                description = "저장된 성공 응답을 재전송한 경우에만 true",
+                                schema = @Schema(type = "boolean", allowableValues = "true")),
                 content =
                         @Content(
                                 schema =
@@ -85,16 +100,22 @@ public class SharedGroupInviteController {
                                                           }
                                                         }
                                                         """))),
-        @ApiResponse(responseCode = "400", description = "유효하지 않은 요청 또는 멱등성 키"),
+        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST, INVALID_INVITE_CODE"),
         @ApiResponse(responseCode = "401", description = "인증 필요"),
-        @ApiResponse(responseCode = "409", description = "이미 참여했거나 멱등성 요청 충돌")
+        @ApiResponse(responseCode = "409", description = "ALREADY_JOINED_SHARED_GROUP, IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_REQUEST_IN_PROGRESS")
     })
     public ResponseEntity<?> join(
-            @Parameter(description = "요청 재시도 식별용 UUID", required = true)
+            @Parameter(
+                            name = "Idempotency-Key",
+                            in = ParameterIn.HEADER,
+                            description = "공유 그룹 참여 재시도 식별자(UUID). 같은 논리적 요청의 재시도에는 같은 값을 사용합니다.",
+                            required = true,
+                            schema = @Schema(type = "string", format = "uuid"),
+                            example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,
             @Valid @RequestBody SharedGroupJoinRequest request,
-            @AuthenticationPrincipal UUID appUserId) {
+            @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
         UUID parsedIdempotencyKey = IdempotencyResponseSupport.parseKey(idempotencyKey);
         IdempotencyService.IdempotencyExecution<
                         org.zipzip.zipzipserver.domain.sharedgroup.dto.response
@@ -123,7 +144,7 @@ public class SharedGroupInviteController {
     }
 
     @DeleteMapping("/{sharedGroupId}/members/me")
-    @Operation(summary = "공유 그룹 탈퇴", description = "현재 사용자가 공유 그룹에서 탈퇴합니다. HOST는 탈퇴할 수 없습니다.")
+    @Operation(summary = "공유 그룹 탈퇴", description = "현재 사용자의 활성 MEMBER 멤버십만 삭제합니다. HOST는 탈퇴할 수 없으며 공유 그룹 삭제를 사용해야 합니다. 요청 본문은 없습니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "탈퇴 성공"),
         @ApiResponse(responseCode = "401", description = "인증 필요"),
@@ -131,7 +152,10 @@ public class SharedGroupInviteController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<Void> leave(
-            @PathVariable UUID sharedGroupId, @AuthenticationPrincipal UUID appUserId) {
+            @Parameter(description = "나갈 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+                    @PathVariable
+                    UUID sharedGroupId,
+            @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
         sharedGroupInviteService.leave(sharedGroupId, appUserId);
         return BaseResponse.success(SharedGroupSuccessCode.SHARED_GROUP_LEFT);
     }

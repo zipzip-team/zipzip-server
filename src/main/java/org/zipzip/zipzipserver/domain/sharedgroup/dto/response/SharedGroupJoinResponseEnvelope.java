@@ -7,4 +7,4 @@ public record SharedGroupJoinResponseEnvelope(
         @Schema(example = "201") int status,
         @Schema(example = "SHARED_GROUP_JOINED") String code,
         @Schema(example = "공유 그룹에 참여했습니다.") String message,
-        SharedGroupJoinResponse data) {}
+        @Schema(description = "참여한 공유 그룹 정보") SharedGroupJoinResponse data) {}
