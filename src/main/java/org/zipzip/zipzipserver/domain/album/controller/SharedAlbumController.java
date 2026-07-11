@@ -44,7 +44,10 @@ public class SharedAlbumController {
     })
     @GetMapping
     public BaseResponse<SharedAlbumResponse> getAlbum(
-            @Parameter(description = "조회할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "조회할 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
@@ -60,13 +63,18 @@ public class SharedAlbumController {
                             + " 공백을 제거한 뒤 1~100자인지 검증하고, 응답에는 정규화된 이름을 반환합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "수정 성공", useReturnTypeSchema = true),
-        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST, INVALID_SHARED_ALBUM_NAME"),
+        @ApiResponse(
+                responseCode = "400",
+                description = "INVALID_REQUEST, INVALID_SHARED_ALBUM_NAME"),
         @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "SHARED_ALBUM_NOT_FOUND")
     })
     @PatchMapping
     public BaseResponse<SharedAlbumRenameResponse> renameAlbum(
-            @Parameter(description = "이름을 수정할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "이름을 수정할 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
@@ -90,7 +98,10 @@ public class SharedAlbumController {
     })
     @DeleteMapping
     public BaseResponse<Void> deleteAlbum(
-            @Parameter(description = "삭제할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "삭제할 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {

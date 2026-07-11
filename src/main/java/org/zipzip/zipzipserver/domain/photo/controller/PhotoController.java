@@ -49,7 +49,10 @@ public class PhotoController {
     })
     @PatchMapping("/{photoId}")
     public BaseResponse<PhotoMetadataUpdateResponse> updateMetadata(
-            @Parameter(description = "메타데이터를 수정할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+            @Parameter(
+                            description = "메타데이터를 수정할 사진 식별자",
+                            required = true,
+                            example = "385ff765-b20c-49a2-8e62-e1457784aa15")
                     @PathVariable
                     UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
@@ -73,7 +76,10 @@ public class PhotoController {
     })
     @DeleteMapping("/{photoId}")
     public BaseResponse<Void> deletePhoto(
-            @Parameter(description = "원본을 삭제할 사진 식별자", required = true, example = "385ff765-b20c-49a2-8e62-e1457784aa15")
+            @Parameter(
+                            description = "원본을 삭제할 사진 식별자",
+                            required = true,
+                            example = "385ff765-b20c-49a2-8e62-e1457784aa15")
                     @PathVariable
                     UUID photoId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {

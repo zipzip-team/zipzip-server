@@ -29,10 +29,7 @@ import org.zipzip.zipzipserver.domain.auth.dto.response.TokenRefreshResponse;
 import org.zipzip.zipzipserver.domain.auth.service.AuthService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
 
-@Tag(
-        name = "인증",
-        description =
-                "Apple 로그인으로 인증 세션을 만들고, Refresh Token 회전 및 현재 기기 로그아웃을 처리합니다.")
+@Tag(name = "인증", description = "Apple 로그인으로 인증 세션을 만들고, Refresh Token 회전 및 현재 기기 로그아웃을 처리합니다.")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
@@ -51,8 +48,7 @@ public class AuthController {
         @ApiResponse(responseCode = "200", description = "로그인 성공", useReturnTypeSchema = true),
         @ApiResponse(
                 responseCode = "400",
-                description =
-                        "INVALID_REQUEST, DISPLAY_NAME_REQUIRED, INVALID_DISPLAY_NAME"),
+                description = "INVALID_REQUEST, DISPLAY_NAME_REQUIRED, INVALID_DISPLAY_NAME"),
         @ApiResponse(
                 responseCode = "401",
                 description = "INVALID_APPLE_TOKEN, INVALID_APPLE_AUTHORIZATION_CODE")

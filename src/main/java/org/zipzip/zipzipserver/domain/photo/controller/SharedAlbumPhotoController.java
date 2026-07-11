@@ -60,11 +60,15 @@ public class SharedAlbumPhotoController {
     })
     @GetMapping
     public BaseResponse<PhotoListResponse> listPhotos(
-            @Parameter(description = "사진을 조회할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "사진을 조회할 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서") @RequestParam(required = false)
+            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서")
+                    @RequestParam(required = false)
                     String cursor,
             @Parameter(description = "페이지 크기. 1~100, 생략 시 20", example = "20")
                     @RequestParam(required = false)
@@ -89,7 +93,10 @@ public class SharedAlbumPhotoController {
     })
     @PostMapping("/upload-urls")
     public BaseResponse<PhotoUploadUrlResponse> issueUploadUrls(
-            @Parameter(description = "업로드 URL을 발급할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "업로드 URL을 발급할 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
@@ -123,7 +130,10 @@ public class SharedAlbumPhotoController {
     })
     @PostMapping("/complete")
     public ResponseEntity<BaseResponse<PhotoUploadCompleteResponse>> completeUpload(
-            @Parameter(description = "업로드 완료를 등록할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "업로드 완료를 등록할 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
@@ -165,7 +175,10 @@ public class SharedAlbumPhotoController {
     })
     @PostMapping("/bulk-delete")
     public BaseResponse<PhotoBulkDeleteResponse> bulkDelete(
-            @Parameter(description = "일괄 삭제할 사진이 속한 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "일괄 삭제할 사진이 속한 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
@@ -198,7 +211,10 @@ public class SharedAlbumPhotoController {
     })
     @PostMapping("/attach")
     public BaseResponse<PhotoAttachResponse> attachPhotos(
-            @Parameter(description = "기존 사진을 추가할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "기존 사진을 추가할 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
@@ -230,7 +246,10 @@ public class SharedAlbumPhotoController {
     })
     @PostMapping("/detach")
     public BaseResponse<PhotoDetachResponse> detachPhotos(
-            @Parameter(description = "사진을 분리할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+            @Parameter(
+                            description = "사진을 분리할 공유집(앨범) 식별자",
+                            required = true,
+                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
                     @PathVariable
                     UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,

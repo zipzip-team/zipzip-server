@@ -53,7 +53,10 @@ public class SharedGroupInviteController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<InviteCodeResponse> findInviteCode(
-            @Parameter(description = "초대 코드를 조회할 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+            @Parameter(
+                            description = "초대 코드를 조회할 공유 그룹 식별자",
+                            required = true,
+                            example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
                     @PathVariable
                     UUID sharedGroupId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
@@ -102,7 +105,11 @@ public class SharedGroupInviteController {
                                                         """))),
         @ApiResponse(responseCode = "400", description = "INVALID_REQUEST, INVALID_INVITE_CODE"),
         @ApiResponse(responseCode = "401", description = "인증 필요"),
-        @ApiResponse(responseCode = "409", description = "ALREADY_JOINED_SHARED_GROUP, IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_REQUEST_IN_PROGRESS")
+        @ApiResponse(
+                responseCode = "409",
+                description =
+                        "ALREADY_JOINED_SHARED_GROUP, IDEMPOTENCY_KEY_REUSED,"
+                                + " IDEMPOTENCY_REQUEST_IN_PROGRESS")
     })
     public ResponseEntity<?> join(
             @Parameter(
@@ -144,7 +151,11 @@ public class SharedGroupInviteController {
     }
 
     @DeleteMapping("/{sharedGroupId}/members/me")
-    @Operation(summary = "공유 그룹 탈퇴", description = "현재 사용자의 활성 MEMBER 멤버십만 삭제합니다. HOST는 탈퇴할 수 없으며 공유 그룹 삭제를 사용해야 합니다. 요청 본문은 없습니다.")
+    @Operation(
+            summary = "공유 그룹 탈퇴",
+            description =
+                    "현재 사용자의 활성 MEMBER 멤버십만 삭제합니다. HOST는 탈퇴할 수 없으며 공유 그룹 삭제를 사용해야 합니다. 요청 본문은"
+                            + " 없습니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "탈퇴 성공"),
         @ApiResponse(responseCode = "401", description = "인증 필요"),
@@ -152,7 +163,10 @@ public class SharedGroupInviteController {
         @ApiResponse(responseCode = "404", description = "그룹이 없거나 참여하지 않은 그룹")
     })
     public BaseResponse<Void> leave(
-            @Parameter(description = "나갈 공유 그룹 식별자", required = true, example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
+            @Parameter(
+                            description = "나갈 공유 그룹 식별자",
+                            required = true,
+                            example = "b8a5f612-25d7-4ec3-9d1d-59684de40664")
                     @PathVariable
                     UUID sharedGroupId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
