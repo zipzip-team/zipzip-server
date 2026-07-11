@@ -3,6 +3,8 @@ package org.zipzip.zipzipserver.domain.chat.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -27,7 +29,7 @@ import org.zipzip.zipzipserver.domain.chat.dto.response.ChatTimelineResponse;
 import org.zipzip.zipzipserver.domain.chat.service.ChatService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
 
-@Tag(name = "채팅", description = "공유 그룹 채팅 타임라인과 일반 메시지 API")
+@Tag(name = "채팅", description = "공유 그룹 채팅 타임라인 조회와 일반 메시지 작성 API")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/shared-groups/{sharedGroupId}/chat-messages")
@@ -43,6 +45,7 @@ public class ChatController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "타임라인 조회 성공", useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_REQUEST, INVALID_CURSOR"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "SHARED_GROUP_NOT_FOUND")
     })
     @GetMapping
@@ -73,10 +76,19 @@ public class ChatController {
             description = "공유 그룹의 채팅방에 일반 메시지를 작성합니다. 같은 Idempotency-Key와 같은 요청은 최초 성공 응답을 재전송합니다.",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "메시지 작성 성공", useReturnTypeSchema = true),
+        @ApiResponse(
+                responseCode = "201",
+                description = "메시지 작성 성공",
+                headers =
+                        @Header(
+                                name = "Idempotency-Replayed",
+                                description = "저장된 성공 응답을 재전송한 경우에만 true",
+                                schema = @Schema(type = "boolean", allowableValues = "true")),
+                useReturnTypeSchema = true),
         @ApiResponse(
                 responseCode = "400",
                 description = "INVALID_REQUEST, INVALID_CHAT_MESSAGE_CONTENT"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "SHARED_GROUP_NOT_FOUND"),
         @ApiResponse(
                 responseCode = "409",
@@ -96,6 +108,7 @@ public class ChatController {
                             in = ParameterIn.HEADER,
                             description = "메시지 작성 재시도 식별자(UUID). 같은 요청 재시도에는 같은 값을 사용합니다.",
                             required = true,
+                            schema = @Schema(type = "string", format = "uuid"),
                             example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,
