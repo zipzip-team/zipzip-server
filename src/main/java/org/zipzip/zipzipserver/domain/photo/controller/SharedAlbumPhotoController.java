@@ -2,8 +2,12 @@ package org.zipzip.zipzipserver.domain.photo.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -32,7 +36,8 @@ import org.zipzip.zipzipserver.domain.photo.service.PhotoService;
 import org.zipzip.zipzipserver.domain.photo.service.PhotoUploadService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
 
-@Tag(name = "사진", description = "사진 업로드·관리 API")
+@Tag(name = "사진", description = "공유집(앨범)의 사진 조회·업로드·삭제·첨부·분리 API")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/shared-albums/{sharedAlbumId}/photos")
@@ -50,15 +55,18 @@ public class SharedAlbumPhotoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_CURSOR"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "SHARED_ALBUM_NOT_FOUND")
     })
     @GetMapping
     public BaseResponse<PhotoListResponse> listPhotos(
-            @Parameter(description = "공유집(앨범) 식별자") @PathVariable UUID sharedAlbumId,
+            @Parameter(description = "사진을 조회할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+                    @PathVariable
+                    UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(description = "이전 응답의 불투명 cursor") @RequestParam(required = false)
+            @Parameter(description = "이전 응답의 nextCursor를 그대로 전달하는 불투명 커서") @RequestParam(required = false)
                     String cursor,
-            @Parameter(description = "페이지 크기(1~100)", example = "20")
+            @Parameter(description = "페이지 크기. 1~100, 생략 시 20", example = "20")
                     @RequestParam(required = false)
                     Integer size) {
         return BaseResponse.success(
@@ -74,13 +82,16 @@ public class SharedAlbumPhotoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "발급 성공", useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_UPLOAD_METADATA, TOO_MANY_FILES"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "SHARED_ALBUM_NOT_FOUND"),
         @ApiResponse(responseCode = "413", description = "FILE_TOO_LARGE"),
         @ApiResponse(responseCode = "415", description = "UNSUPPORTED_IMAGE_TYPE")
     })
     @PostMapping("/upload-urls")
     public BaseResponse<PhotoUploadUrlResponse> issueUploadUrls(
-            @Parameter(description = "사진을 업로드할 공유집(앨범) 식별자") @PathVariable UUID sharedAlbumId,
+            @Parameter(description = "업로드 URL을 발급할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+                    @PathVariable
+                    UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
             @RequestBody PhotoUploadUrlRequest request) {
         return BaseResponse.success(
@@ -94,7 +105,16 @@ public class SharedAlbumPhotoController {
                     "발급받은 objectKey로 원본 업로드를 마친 파일들을 한 번에 등록합니다. 예약(objectKey 발급 대상)이 유효하고"
                             + " Object Storage에 실제 업로드가 끝난 경우에만 등록되며, 하나라도 실패하면 전체 요청이 롤백됩니다.")
     @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "등록 성공", useReturnTypeSchema = true),
+        @ApiResponse(
+                responseCode = "201",
+                description = "등록 성공",
+                headers =
+                        @Header(
+                                name = "Idempotency-Replayed",
+                                description = "저장된 성공 응답을 재전송한 경우에만 true",
+                                schema = @Schema(type = "boolean", allowableValues = "true")),
+                useReturnTypeSchema = true),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "400", description = "INVALID_UPLOAD_METADATA"),
         @ApiResponse(
                 responseCode = "404",
@@ -103,11 +123,16 @@ public class SharedAlbumPhotoController {
     })
     @PostMapping("/complete")
     public ResponseEntity<BaseResponse<PhotoUploadCompleteResponse>> completeUpload(
-            @Parameter(description = "사진을 등록할 공유집(앨범) 식별자") @PathVariable UUID sharedAlbumId,
+            @Parameter(description = "업로드 완료를 등록할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+                    @PathVariable
+                    UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
             @Parameter(
-                            description = "완료 등록 재시도 식별자. 같은 요청 재시도에는 같은 UUID를 사용합니다.",
+                            name = "Idempotency-Key",
+                            in = ParameterIn.HEADER,
+                            description = "업로드 완료 등록 재시도 식별자(UUID). 같은 요청 재시도에는 같은 값을 사용합니다.",
                             required = true,
+                            schema = @Schema(type = "string", format = "uuid"),
                             example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,
@@ -134,16 +159,22 @@ public class SharedAlbumPhotoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "삭제 성공", useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_PHOTO_IDS"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "403", description = "NOT_PHOTO_UPLOADER"),
         @ApiResponse(responseCode = "404", description = "SHARED_ALBUM_NOT_FOUND, PHOTO_NOT_FOUND")
     })
     @PostMapping("/bulk-delete")
     public BaseResponse<PhotoBulkDeleteResponse> bulkDelete(
-            @Parameter(description = "사진을 일괄 삭제할 공유집(앨범) 식별자") @PathVariable UUID sharedAlbumId,
+            @Parameter(description = "일괄 삭제할 사진이 속한 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+                    @PathVariable
+                    UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
             @Parameter(
-                            description = "일괄 삭제 재시도 식별자. 같은 요청 재시도에는 같은 UUID를 사용합니다.",
+                            name = "Idempotency-Key",
+                            in = ParameterIn.HEADER,
+                            description = "일괄 삭제 재시도 식별자(UUID). 같은 요청 재시도에는 같은 값을 사용합니다.",
                             required = true,
+                            schema = @Schema(type = "string", format = "uuid"),
                             example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,
@@ -161,16 +192,22 @@ public class SharedAlbumPhotoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "추가 성공", useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_PHOTO_IDS"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "SHARED_ALBUM_NOT_FOUND, PHOTO_NOT_FOUND"),
         @ApiResponse(responseCode = "409", description = "PHOTO_NOT_IN_SAME_SHARED_GROUP")
     })
     @PostMapping("/attach")
     public BaseResponse<PhotoAttachResponse> attachPhotos(
-            @Parameter(description = "사진을 추가할 공유집(앨범) 식별자") @PathVariable UUID sharedAlbumId,
+            @Parameter(description = "기존 사진을 추가할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+                    @PathVariable
+                    UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
             @Parameter(
-                            description = "추가 재시도 식별자. 같은 요청 재시도에는 같은 UUID를 사용합니다.",
+                            name = "Idempotency-Key",
+                            in = ParameterIn.HEADER,
+                            description = "사진 추가 재시도 식별자(UUID). 같은 요청 재시도에는 같은 값을 사용합니다.",
                             required = true,
+                            schema = @Schema(type = "string", format = "uuid"),
                             example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,
@@ -188,15 +225,21 @@ public class SharedAlbumPhotoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "제거 성공", useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_PHOTO_IDS"),
+        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
         @ApiResponse(responseCode = "404", description = "SHARED_ALBUM_NOT_FOUND")
     })
     @PostMapping("/detach")
     public BaseResponse<PhotoDetachResponse> detachPhotos(
-            @Parameter(description = "사진을 제거할 공유집(앨범) 식별자") @PathVariable UUID sharedAlbumId,
+            @Parameter(description = "사진을 분리할 공유집(앨범) 식별자", required = true, example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
+                    @PathVariable
+                    UUID sharedAlbumId,
             @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
             @Parameter(
-                            description = "제거 재시도 식별자. 같은 요청 재시도에는 같은 UUID를 사용합니다.",
+                            name = "Idempotency-Key",
+                            in = ParameterIn.HEADER,
+                            description = "사진 분리 재시도 식별자(UUID). 같은 요청 재시도에는 같은 값을 사용합니다.",
                             required = true,
+                            schema = @Schema(type = "string", format = "uuid"),
                             example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
                     @RequestHeader("Idempotency-Key")
                     String idempotencyKey,

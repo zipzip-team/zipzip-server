@@ -18,7 +18,7 @@
 | PHOTO-07 | 사진 | 공유집(앨범)에 기존 사진 추가 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/attach` | 완료 | true | false |
 | PHOTO-08 | 사진 | 공유집(앨범)에서 사진 제거 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/detach` | 완료 | true | false |
 
-모든 API는 대상 공유집(앨범) 또는 사진이 속한 공유 그룹의 활성 멤버십을 요구한다.
+모든 API는 `Authorization: Bearer <accessToken>` 헤더와 대상 공유집(앨범) 또는 사진이 속한 공유 그룹의 활성 멤버십을 요구한다. `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다.
 사진 메타데이터 수정은 업로더만 가능하다. 사진 삭제는 원칙적으로 업로더만 가능하며, 업로더가 탈퇴한 사용자인 경우 상위 공유 그룹 방장도 삭제할 수 있다.
 공유집(앨범)에 사진을 추가·제거하는 것은 활성 방장·멤버 누구나 할 수 있다. 제거 대상 사진이 다른 공유집(앨범)에도 속해 있으면 해당 앨범-사진 매핑만 없애고 사진 원본은 유지되지만, 제거하려는 공유집(앨범)이 그 사진의 마지막 소속이면 사진 원본도 함께 soft delete된다(자세한 내용은 [PHOTO-08](#9-photo-08-공유집앨범에서-사진-제거) 참고).
 
@@ -193,7 +193,7 @@
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 완료 등록 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 완료 등록 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
 
 #### Path
 
@@ -237,6 +237,8 @@
 ### Success Response
 
 #### HTTP Status Code: `201 Created`
+
+같은 `Idempotency-Key`와 같은 요청을 재시도해 저장된 성공 응답을 받은 경우에만 `Idempotency-Replayed: true` 응답 헤더가 포함된다.
 
 ```json
 {
@@ -380,7 +382,7 @@ PHOTO-05와 마찬가지로 사진 원본을 삭제하므로 다른 공유집(�
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 일괄 삭제 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 일괄 삭제 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
 
 #### Path
 
@@ -439,7 +441,7 @@ PHOTO-05와 마찬가지로 사진 원본을 삭제하므로 다른 공유집(�
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 추가 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 사진 추가 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
 
 #### Path
 
@@ -500,7 +502,7 @@ PHOTO-05와 마찬가지로 사진 원본을 삭제하므로 다른 공유집(�
 
 | 필드 | 타입 | 필수 | 설명 | 예시 |
 |---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 제거 재시도 식별자 | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 사진 제거 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
 
 #### Path
 
