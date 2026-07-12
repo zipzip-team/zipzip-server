@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/shared-groups/{{sharedGroupId}}/shared-albums"
+method: POST
+headers:
+  Authorization: "Bearer {{accessToken}}"
+  Idempotency-Key: "{{$guid}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "제주도"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('공유집 생성 응답 상태가 201이다', function () {
+        pm.response.to.have.status(201);
+      });
+
+      const response = pm.response.json();
+      if (response?.data?.id) {
+        pm.collectionVariables.set('sharedAlbumId', response.data.id);
+      }
+    language: text/javascript
+order: 1100

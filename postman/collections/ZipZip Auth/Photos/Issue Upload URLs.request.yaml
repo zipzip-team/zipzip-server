@@ -1,0 +1,34 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/shared-albums/{{sharedAlbumId}}/photos/upload-urls"
+method: POST
+headers:
+  Authorization: "Bearer {{accessToken}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "files": [
+        {
+          "contentType": "image/jpeg",
+          "sizeBytes": 2849182
+        }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('사진 업로드 URL 발급 응답 상태가 200이다', function () {
+        pm.response.to.have.status(200);
+      });
+
+      const response = pm.response.json();
+      const upload = response?.data?.uploads?.[0];
+      if (upload?.objectKey) {
+        pm.collectionVariables.set('uploadObjectKey', upload.objectKey);
+      }
+      if (upload?.uploadUrl) {
+        pm.collectionVariables.set('uploadUrl', upload.uploadUrl);
+      }
+    language: text/javascript
+order: 1100

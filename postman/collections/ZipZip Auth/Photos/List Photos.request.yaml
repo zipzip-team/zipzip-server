@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/shared-albums/{{sharedAlbumId}}/photos?size={{pageSize}}"
+method: GET
+headers:
+  Authorization: "Bearer {{accessToken}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('사진 목록 조회 응답 상태가 200이다', function () {
+        pm.response.to.have.status(200);
+      });
+
+      const response = pm.response.json();
+      const photoId = response?.data?.items?.[0]?.id;
+      if (photoId) {
+        pm.collectionVariables.set('photoId', photoId);
+      }
+    language: text/javascript
+order: 1000
