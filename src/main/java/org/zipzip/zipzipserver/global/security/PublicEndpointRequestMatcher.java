@@ -12,6 +12,8 @@ public final class PublicEndpointRequestMatcher {
             List.of(
                     PathPatternRequestMatcher.withDefaults()
                             .matcher(HttpMethod.POST, "/api/v1/auth/apple"),
+                    PathPatternRequestMatcher.withDefaults()
+                            .matcher(HttpMethod.POST, "/api/v1/auth/refresh"),
                     PathPatternRequestMatcher.withDefaults().matcher("/actuator/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/swagger-ui/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/v3/api-docs/**"),
