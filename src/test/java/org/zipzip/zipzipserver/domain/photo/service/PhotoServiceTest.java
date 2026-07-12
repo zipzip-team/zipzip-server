@@ -26,7 +26,6 @@ import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepositor
 import org.zipzip.zipzipserver.domain.photo.code.PhotoErrorCode;
 import org.zipzip.zipzipserver.domain.photo.dto.request.PhotoIdsRequest;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoAttachResponse;
-import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoBulkDeleteResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoDetachResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoMetadataUpdateResponse;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
@@ -216,69 +215,6 @@ class PhotoServiceTest {
                                         .isEqualTo(PhotoErrorCode.NOT_PHOTO_UPLOADER));
     }
 
-    // bulkDelete
-
-    @Test
-    void 사진_일괄삭제_정상_케이스면_모두_soft_delete되고_응답을_반환한다() {
-        UUID albumId = UUID.randomUUID();
-        UUID userId = uploader.getId();
-        String idempotencyKeyHeader = UUID.randomUUID().toString();
-        Photo photo1 = aPhoto(uploader);
-        Photo photo2 = aPhoto(uploader);
-        PhotoIdsRequest request = new PhotoIdsRequest(List.of(photo1.getId(), photo2.getId()));
-
-        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
-        stubFreshIdempotency(
-                "PHOTO_BULK_DELETE:",
-                userId,
-                idempotencyKeyHeader,
-                request,
-                PhotoBulkDeleteResponse.class);
-        when(sharedAlbumPhotoRepository.existsBySharedAlbumIdAndPhotoId(albumId, photo1.getId()))
-                .thenReturn(true);
-        when(sharedAlbumPhotoRepository.existsBySharedAlbumIdAndPhotoId(albumId, photo2.getId()))
-                .thenReturn(true);
-        when(photoRepository.findById(photo1.getId())).thenReturn(Optional.of(photo1));
-        when(photoRepository.findById(photo2.getId())).thenReturn(Optional.of(photo2));
-
-        PhotoBulkDeleteResponse response =
-                photoService.bulkDelete(albumId, userId, idempotencyKeyHeader, request);
-
-        assertThat(response.deletedCount()).isEqualTo(2);
-        assertThat(photo1.getDeletedAt()).isNotNull();
-        assertThat(photo2.getDeletedAt()).isNotNull();
-        verify(idempotencyService).complete(any(ApiIdempotencyRecord.class), any(), eq(response));
-    }
-
-    @Test
-    void 사진_일괄삭제_공유집에_속하지_않은_사진이_있으면_예외() {
-        UUID albumId = UUID.randomUUID();
-        UUID userId = uploader.getId();
-        String idempotencyKeyHeader = UUID.randomUUID().toString();
-        Photo photo = aPhoto(uploader);
-        PhotoIdsRequest request = new PhotoIdsRequest(List.of(photo.getId()));
-
-        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
-        stubFreshIdempotency(
-                "PHOTO_BULK_DELETE:",
-                userId,
-                idempotencyKeyHeader,
-                request,
-                PhotoBulkDeleteResponse.class);
-        when(sharedAlbumPhotoRepository.existsBySharedAlbumIdAndPhotoId(albumId, photo.getId()))
-                .thenReturn(false);
-
-        assertThatThrownBy(
-                        () ->
-                                photoService.bulkDelete(
-                                        albumId, userId, idempotencyKeyHeader, request))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(
-                        exception ->
-                                assertThat(((BusinessException) exception).getErrorCode())
-                                        .isEqualTo(PhotoErrorCode.PHOTO_NOT_FOUND));
-    }
-
     // attachPhotos
 
     @Test
@@ -426,6 +362,45 @@ class PhotoServiceTest {
         assertThat(response.detachedCount()).isEqualTo(1);
         assertThat(response.deletedPhotoCount()).isZero();
         assertThat(photo.getDeletedAt()).isNull();
+    }
+
+    @Test
+    void 사진_여러장을_제거하면_마지막_소속인_사진만_soft_delete된다() {
+        UUID albumId = UUID.randomUUID();
+        UUID userId = uploader.getId();
+        String idempotencyKeyHeader = UUID.randomUUID().toString();
+        Photo photoWithAnotherAlbum = aPhoto(uploader);
+        Photo photoWithLastAlbum = aPhoto(uploader);
+        SharedAlbumPhoto firstMapping = SharedAlbumPhoto.create(sharedAlbum, photoWithAnotherAlbum);
+        SharedAlbumPhoto secondMapping = SharedAlbumPhoto.create(sharedAlbum, photoWithLastAlbum);
+        PhotoIdsRequest request =
+                new PhotoIdsRequest(
+                        List.of(photoWithAnotherAlbum.getId(), photoWithLastAlbum.getId()));
+
+        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
+        stubFreshIdempotency(
+                "PHOTO_DETACH:", userId, idempotencyKeyHeader, request, PhotoDetachResponse.class);
+        when(sharedAlbumPhotoRepository.findBySharedAlbumIdAndPhotoId(
+                        albumId, photoWithAnotherAlbum.getId()))
+                .thenReturn(Optional.of(firstMapping));
+        when(sharedAlbumPhotoRepository.findBySharedAlbumIdAndPhotoId(
+                        albumId, photoWithLastAlbum.getId()))
+                .thenReturn(Optional.of(secondMapping));
+        when(sharedAlbumPhotoRepository.countByPhotoId(photoWithAnotherAlbum.getId()))
+                .thenReturn(1L);
+        when(sharedAlbumPhotoRepository.countByPhotoId(photoWithLastAlbum.getId())).thenReturn(0L);
+        when(photoRepository.findById(photoWithLastAlbum.getId()))
+                .thenReturn(Optional.of(photoWithLastAlbum));
+
+        PhotoDetachResponse response =
+                photoService.detachPhotos(albumId, userId, idempotencyKeyHeader, request);
+
+        assertThat(response.detachedCount()).isEqualTo(2);
+        assertThat(response.deletedPhotoCount()).isEqualTo(1);
+        assertThat(photoWithAnotherAlbum.getDeletedAt()).isNull();
+        assertThat(photoWithLastAlbum.getDeletedAt()).isNotNull();
+        verify(sharedAlbumPhotoRepository).delete(firstMapping);
+        verify(sharedAlbumPhotoRepository).delete(secondMapping);
     }
 
     private <T> void stubFreshIdempotency(

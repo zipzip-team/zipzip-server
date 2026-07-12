@@ -39,9 +39,8 @@ Apple 로그인과 토큰 갱신을 제외한 모든 API는 인증이 필요하�
 - INVITE-02 초대 코드로 참여
 - ALBUM-02 앨범 생성
 - PHOTO-03 사진 업로드 완료 등록
-- PHOTO-06 사진 일괄 삭제
-- PHOTO-07 공유집(앨범)에 기존 사진 추가
-- PHOTO-08 공유집(앨범)에서 사진 제거
+- PHOTO-06 공유집(앨범)에 기존 사진 추가
+- PHOTO-07 공유집(앨범)에서 사진 제거
 - COMMENT-02 사진 댓글 작성
 - CHAT-02 그룹 채팅 메시지 작성
 
@@ -168,7 +167,7 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 409 | `UPLOAD_NOT_COMPLETED` | 예약은 유효하지만 `objectKey`로 원본이 아직 업로드되지 않은 상태에서 완료 등록 시도 |
 | 400 | `INVALID_TAKEN_AT` | 촬영일시 UTC ISO-8601 형식 검증 |
 | 400 | `INVALID_PHOTO_LOCATION` | 사진 위치 필드 일부만 전달 |
-| 400 | `INVALID_PHOTO_IDS` | 사진 일괄 삭제·추가·제거 식별자 배열 검증 |
+| 400 | `INVALID_PHOTO_IDS` | 사진 추가·제거 식별자 배열 검증 |
 | 404 | `PHOTO_NOT_FOUND` | 사진 |
 | 403 | `NOT_PHOTO_UPLOADER` | 업로더가 아닌 사용자의 사진 수정·삭제 |
 | 409 | `PHOTO_NOT_IN_SAME_SHARED_GROUP` | 공유집(앨범)과 다른 공유 그룹에 속한 사진을 추가 시도 |

@@ -27,7 +27,6 @@ import org.zipzip.zipzipserver.domain.photo.dto.request.PhotoIdsRequest;
 import org.zipzip.zipzipserver.domain.photo.dto.request.PhotoUploadCompleteRequest;
 import org.zipzip.zipzipserver.domain.photo.dto.request.PhotoUploadUrlRequest;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoAttachResponse;
-import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoBulkDeleteResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoDetachResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoListResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoUploadCompleteResponse;
@@ -159,42 +158,6 @@ public class SharedAlbumPhotoController {
         return ResponseEntity.status(PhotoSuccessCode.PHOTOS_CREATED.getHttpStatus())
                 .headers(headers)
                 .body(BaseResponse.success(PhotoSuccessCode.PHOTOS_CREATED, result.response()));
-    }
-
-    @Operation(
-            summary = "공유집(앨범) 사진 일괄 삭제",
-            description =
-                    "요청 사용자가 업로드했거나, 업로더가 탈퇴한 사용자인 경우 요청 사용자가 상위 공유 그룹 방장인 사진만 최대 100개"
-                            + " soft delete합니다. 원본 삭제이므로 복구할 수 없고, 다른 공유집(앨범)에서도 함께 접근이 차단됩니다.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "삭제 성공", useReturnTypeSchema = true),
-        @ApiResponse(responseCode = "400", description = "INVALID_PHOTO_IDS"),
-        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
-        @ApiResponse(responseCode = "403", description = "NOT_PHOTO_UPLOADER"),
-        @ApiResponse(responseCode = "404", description = "SHARED_ALBUM_NOT_FOUND, PHOTO_NOT_FOUND")
-    })
-    @PostMapping("/bulk-delete")
-    public BaseResponse<PhotoBulkDeleteResponse> bulkDelete(
-            @Parameter(
-                            description = "일괄 삭제할 사진이 속한 공유집(앨범) 식별자",
-                            required = true,
-                            example = "59ce0d18-a53e-4197-9c3c-e82331adc097")
-                    @PathVariable
-                    UUID sharedAlbumId,
-            @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId,
-            @Parameter(
-                            name = "Idempotency-Key",
-                            in = ParameterIn.HEADER,
-                            description = "일괄 삭제 재시도 식별자(UUID). 같은 요청 재시도에는 같은 값을 사용합니다.",
-                            required = true,
-                            schema = @Schema(type = "string", format = "uuid"),
-                            example = "54cf8d7e-a23e-4e76-90f7-603f122b1507")
-                    @RequestHeader("Idempotency-Key")
-                    String idempotencyKey,
-            @RequestBody PhotoIdsRequest request) {
-        return BaseResponse.success(
-                PhotoSuccessCode.PHOTOS_DELETED,
-                photoService.bulkDelete(sharedAlbumId, appUserId, idempotencyKey, request));
     }
 
     @Operation(

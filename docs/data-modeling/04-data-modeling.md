@@ -459,6 +459,6 @@ PostgreSQL 보완 인덱스:
 
 - PostgreSQL `api_idempotency_record` 마이그레이션과 만료 레코드 정리 배치
 - 공유 그룹 채팅 폴링 API의 불투명 cursor 응답 형식
-- `PHOTO-07`/`PHOTO-08` 사진 추가·제거 API
+- `PHOTO-06`/`PHOTO-07` 사진 추가·제거 API
 - 썸네일 원본 다운로드·리사이즈·재업로드·실패 재시도 스윕
 - 만료된 `photo_upload_reservation`과 대응 Object Storage 객체 정리 스윕

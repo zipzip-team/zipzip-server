@@ -4,7 +4,7 @@
 
 공유집(앨범)은 공유 그룹 하위 리소스이며 물리 모델은 `shared_album`이다.
 사진은 공유 그룹에 직접 속하지 않고, `shared_album_photo` 관계 테이블로 하나 이상의 공유집(앨범)에만 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진).
-기존 사진을 공유집(앨범)에 추가·제거하는 API는 [07-photo-management.md](07-photo-management.md)의 PHOTO-07, PHOTO-08을 따른다.
+기존 사진을 공유집(앨범)에 추가·제거하는 API는 [07-photo-management.md](07-photo-management.md)의 PHOTO-06, PHOTO-07을 따른다.
 `photoCount`는 활성 `shared_album_photo` 매핑과 활성 사진 기준으로 실시간 count한다.
 
 > 엔드포인트별 백엔드 동작·iOS 연동 가이드는 [shared-album-photo-ios-integration-guide.md](shared-album-photo-ios-integration-guide.md) 참고.

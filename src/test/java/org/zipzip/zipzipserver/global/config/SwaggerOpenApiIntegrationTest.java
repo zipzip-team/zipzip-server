@@ -69,6 +69,25 @@ class SwaggerOpenApiIntegrationTest {
                                 .path("$ref")
                                 .asText())
                 .isEqualTo("#/components/schemas/OpenApiErrorResponse");
+        assertThat(
+                        document.path("paths")
+                                .has("/api/v1/shared-albums/{sharedAlbumId}/photos/bulk-delete"))
+                .isFalse();
+
+        JsonNode detachOperation =
+                document.path("paths")
+                        .path("/api/v1/shared-albums/{sharedAlbumId}/photos/detach")
+                        .path("post");
+        assertThat(detachOperation.path("summary").asText()).isEqualTo("공유집(앨범)에서 사진 제거");
+        assertThat(detachOperation.path("responses").has("200")).isTrue();
+        assertThat(detachOperation.path("parameters"))
+                .anySatisfy(
+                        parameter -> {
+                            assertThat(parameter.path("name").asText())
+                                    .isEqualTo("Idempotency-Key");
+                            assertThat(parameter.path("in").asText()).isEqualTo("header");
+                            assertThat(parameter.path("required").asBoolean()).isTrue();
+                        });
         assertNoDefaultStatusExample(document.path("paths"));
     }
 

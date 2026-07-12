@@ -2,7 +2,7 @@
 
 > 이 문서는 [06-shared-album.md](06-shared-album.md), [07-photo-management.md](07-photo-management.md)의 계약을 전제로, 각 엔드포인트에서 **서버가 실제로 하는 일**과 **iOS가 취해야 할 행동**을 화면 흐름 관점에서 정리한 보조 문서다. 필드 단위 요청/응답 스키마나 에러 코드의 최종 근거는 항상 06/07 문서다.
 >
-> 대상 API: ALBUM-01~05, PHOTO-01~08 (Object Storage 연동 포함). 작성 시점 기준 서버 구현·수동 검증 완료.
+> 대상 API: ALBUM-01~05, PHOTO-01~07 (Object Storage 연동 포함). 작성 시점 기준 서버 구현·수동 검증 완료.
 
 ## 1. 공통 사항
 
@@ -25,7 +25,7 @@
 | ALBUM-05 (삭제) | 불필요 (DELETE, 자체적으로 멱등) |
 | PHOTO-01 (목록), PHOTO-04 (메타데이터 수정) | 불필요 |
 | **PHOTO-02 (업로드 URL 발급)** | 불필요 (아직 `photo` 행을 만들지 않아 재시도해도 URL만 다시 발급될 뿐 안전) |
-| **PHOTO-03 (완료 등록)**, **PHOTO-06 (일괄 삭제)**, **PHOTO-07 (추가)**, **PHOTO-08 (제거)** | **필요** |
+| **PHOTO-03 (완료 등록)**, **PHOTO-06 (추가)**, **PHOTO-07 (제거)** | **필요** |
 | PHOTO-05 (단건 삭제) | 불필요 (DELETE, 자체적으로 멱등) |
 
 iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)마다 새 UUID를 생성**하고, 네트워크 오류 등으로 그 요청을 재시도할 때는 **같은 UUID를 재사용**한다. 사용자가 다시 버튼을 눌러 새로운 요청을 보낼 때는 새 UUID를 써야 한다(그렇지 않으면 `409 IDEMPOTENCY_KEY_REUSED`가 날 수 있다).
@@ -187,15 +187,7 @@ sequenceDiagram
 
 **iOS 행동**: **삭제 확인 다이얼로그 필수**("영구 삭제, 복구 불가"). 이 사진이 여러 앨범에 속해 있어도 원본 자체가 지워지는 것이므로, 그 앨범들 화면에서도 함께 사라진다는 점을 안내.
 
-### PHOTO-06 — 일괄 삭제
-
-`POST /api/v1/shared-albums/{sharedAlbumId}/photos/bulk-delete` (Idempotency-Key 필수)
-
-**서버 동작**: 요청한 `photoIds`(중복 없이 최대 100개, 위반 시 `400 INVALID_PHOTO_IDS`)가 모두 그 앨범 소속인지 확인(아니면 `404 PHOTO_NOT_FOUND`) → 각 사진에 대해 PHOTO-05와 같은 권한 검사(하나라도 권한이 없으면 `403 NOT_PHOTO_UPLOADER`, 전체 롤백) → 통과분 전부 soft delete를 **한 트랜잭션**으로 처리.
-
-**iOS 행동**: 그리드 다중 선택 → 삭제 시 호출. PHOTO-05와 동일하게 복구 불가 경고 필요. "하나라도 권한이 없으면 전체 실패"이므로, 선택 단계에서 본인 업로드 사진만 선택 가능하게 UI로 미리 걸러주면 사용자 경험이 좋아진다.
-
-### PHOTO-07 — 기존 사진 추가(attach)
+### PHOTO-06 — 기존 사진 추가(attach)
 
 `POST /api/v1/shared-albums/{sharedAlbumId}/photos/attach` (Idempotency-Key 필수)
 
@@ -203,7 +195,7 @@ sequenceDiagram
 
 **iOS 행동**: "다른 공유집에도 담기" 같은 기능에서, 같은 그룹 내 다른 앨범 사진들을 골라 호출. `alreadyAttachedCount > 0`이면 "이미 담긴 사진 N장은 건너뛰었어요" 같은 안내에 활용 가능.
 
-### PHOTO-08 — 앨범에서 제거(detach)
+### PHOTO-07 — 앨범에서 제거(detach)
 
 `POST /api/v1/shared-albums/{sharedAlbumId}/photos/detach` (Idempotency-Key 필수)
 
@@ -226,9 +218,9 @@ sequenceDiagram
 | 그리드 새로고침(썸네일 갱신 포함) | PHOTO-01 | - |
 | 사진 상세에서 위치/날짜 수정 | PHOTO-04 | - |
 | 사진 한 장 삭제 | PHOTO-05 (경고 필수) | - |
-| 여러 장 선택 삭제 | PHOTO-06 (경고 필수) | 필요 |
-| 다른 공유집에 추가 | PHOTO-07 | 필요 |
-| 이 공유집에서만 빼기 | PHOTO-08 (경고 권장) | 필요 |
+| 여러 장 선택 사진 제거 | PHOTO-07 (마지막 소속 삭제 안내 권장) | 필요 |
+| 다른 공유집에 추가 | PHOTO-06 | 필요 |
+| 이 공유집에서만 빼기 | PHOTO-07 (경고 권장) | 필요 |
 
 ---
 
@@ -256,8 +248,8 @@ sequenceDiagram
 
 | HTTP | code | 의미 | 발생 API |
 |---|---|---|---|
-| 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 또는 활성 멤버십 없음 | PHOTO-01, 02, 03, 06, 07, 08 |
-| 404 | `PHOTO_NOT_FOUND` | 사진 또는 상위 활성 리소스·멤버십 없음 | PHOTO-04, 05, 06, 07 |
+| 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 또는 활성 멤버십 없음 | PHOTO-01, 02, 03, 06, 07 |
+| 404 | `PHOTO_NOT_FOUND` | 사진 또는 상위 활성 리소스·멤버십 없음 | PHOTO-04, 05, 06 |
 | 400 | `INVALID_UPLOAD_METADATA` | 업로드 요청 형식 오류(개수·필드·중복 objectKey) | PHOTO-02, 03 |
 | 400 | `TOO_MANY_FILES` | 한 요청에 20개 초과 | PHOTO-02 |
 | 413 | `FILE_TOO_LARGE` | 파일 크기 20MiB 초과 | PHOTO-02 |
@@ -265,8 +257,8 @@ sequenceDiagram
 | 404 | `UPLOAD_OBJECT_NOT_FOUND` | 업로드 예약 없음(다른 사용자·앨범 발급 또는 만료) | PHOTO-03 |
 | 409 | `UPLOAD_NOT_COMPLETED` | Object Storage에 아직 원본 업로드 안 됨 | PHOTO-03 |
 | 400 | `INVALID_CURSOR` | cursor 형식 오류 | PHOTO-01 |
-| 403 | `NOT_PHOTO_UPLOADER` | 업로더(또는 위임된 방장)가 아님 | PHOTO-04, 05, 06 |
+| 403 | `NOT_PHOTO_UPLOADER` | 업로더(또는 위임된 방장)가 아님 | PHOTO-04, 05 |
 | 400 | `INVALID_TAKEN_AT` | `takenAt`이 UTC ISO-8601 형식이 아님 | PHOTO-04 |
 | 400 | `INVALID_PHOTO_LOCATION` | 위치 3필드 중 일부만 전달 | PHOTO-04 |
-| 400 | `INVALID_PHOTO_IDS` | `photoIds`가 비어있거나 100개 초과·중복 포함 | PHOTO-06, 07, 08 |
-| 409 | `PHOTO_NOT_IN_SAME_SHARED_GROUP` | 추가 대상 사진이 다른 공유 그룹 소속 | PHOTO-07 |
+| 400 | `INVALID_PHOTO_IDS` | `photoIds`가 비어있거나 100개 초과·중복 포함 | PHOTO-06, 07 |
+| 409 | `PHOTO_NOT_IN_SAME_SHARED_GROUP` | 추가 대상 사진이 다른 공유 그룹 소속 | PHOTO-06 |
