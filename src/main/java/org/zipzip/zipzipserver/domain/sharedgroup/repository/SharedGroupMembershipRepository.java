@@ -115,5 +115,17 @@ public interface SharedGroupMembershipRepository
             @Param("cursorMembershipId") UUID cursorMembershipId,
             Pageable pageable);
 
+    @Query(
+            """
+            select count(m)
+            from SharedGroupMembership m
+            join m.sharedGroup g
+            join m.appUser u
+            where g.id = :sharedGroupId
+              and g.deletedAt is null
+              and u.deletedAt is null
+            """)
+    long countActiveMembers(@Param("sharedGroupId") UUID sharedGroupId);
+
     void deleteByAppUserIdAndRole(UUID appUserId, SharedGroupRole role);
 }

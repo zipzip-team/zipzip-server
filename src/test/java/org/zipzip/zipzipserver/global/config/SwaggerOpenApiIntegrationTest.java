@@ -91,6 +91,21 @@ class SwaggerOpenApiIntegrationTest {
         assertNoDefaultStatusExample(document.path("paths"));
     }
 
+    @Test
+    void Swagger_OpenAPI_문서는_사진_원본_단건_삭제_연산을_노출하지_않는다() throws Exception {
+        String body =
+                mockMvc.perform(get("/v3/api-docs"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        JsonNode photoOperations =
+                objectMapper.readTree(body).path("paths").path("/api/v1/photos/{photoId}");
+
+        assertThat(photoOperations.path("patch").path("summary").asText()).isEqualTo("사진 메타데이터 수정");
+        assertThat(photoOperations.has("delete")).isFalse();
+    }
+
     private void assertNoDefaultStatusExample(JsonNode node) {
         if (node.isObject()) {
             Iterator<Entry<String, JsonNode>> fields = node.fields();

@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/shared-groups/join"
+method: POST
+headers:
+  Authorization: "Bearer {{accessToken}}"
+  Idempotency-Key: "{{$guid}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "inviteCode": "{{inviteCode}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('공유 그룹 참여 응답 상태가 201이다', function () {
+        pm.response.to.have.status(201);
+      });
+    language: text/javascript
+order: 1500

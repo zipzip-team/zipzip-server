@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/photos/{{photoId}}/comments"
+method: POST
+headers:
+  Authorization: "Bearer {{accessToken}}"
+  Idempotency-Key: "{{$guid}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "content": "사진 너무 좋다!"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('사진 댓글 작성 응답 상태가 201이다', function () {
+        pm.response.to.have.status(201);
+      });
+    language: text/javascript
+order: 1400

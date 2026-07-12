@@ -32,8 +32,6 @@ import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
-import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupMembership;
-import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMembershipRepository;
 import org.zipzip.zipzipserver.domain.storage.ObjectStorageService;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
@@ -144,75 +142,6 @@ class PhotoServiceTest {
         assertThat(response.longitude()).isEqualTo(127.0);
         assertThat(response.locationName()).isEqualTo("서울");
         assertThat(photo.getTakenAt()).isEqualTo(Instant.parse("2026-06-30T04:20:00Z"));
-    }
-
-    // deletePhoto
-
-    @Test
-    void 사진_삭제_업로더_본인이면_삭제된다() {
-        Photo photo = aPhoto(uploader);
-        when(photoRepository.findById(photo.getId())).thenReturn(Optional.of(photo));
-        when(photoAccessGuard.resolveActiveSharedGroupId(photo)).thenReturn(sharedGroup.getId());
-
-        photoService.deletePhoto(photo.getId(), uploader.getId());
-
-        assertThat(photo.getDeletedAt()).isNotNull();
-    }
-
-    @Test
-    void 사진_삭제_업로더가_아니고_탈퇴하지_않았으면_예외() {
-        Photo photo = aPhoto(uploader);
-        UUID requesterId = UUID.randomUUID();
-        when(photoRepository.findById(photo.getId())).thenReturn(Optional.of(photo));
-        when(photoAccessGuard.resolveActiveSharedGroupId(photo)).thenReturn(sharedGroup.getId());
-
-        assertThatThrownBy(() -> photoService.deletePhoto(photo.getId(), requesterId))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(
-                        exception ->
-                                assertThat(((BusinessException) exception).getErrorCode())
-                                        .isEqualTo(PhotoErrorCode.NOT_PHOTO_UPLOADER));
-    }
-
-    @Test
-    void 사진_삭제_업로더가_탈퇴했고_요청자가_방장이면_삭제된다() {
-        uploader.withdraw(Instant.now());
-        Photo photo = aPhoto(uploader);
-        UUID hostId = UUID.randomUUID();
-        when(photoRepository.findById(photo.getId())).thenReturn(Optional.of(photo));
-        when(photoAccessGuard.resolveActiveSharedGroupId(photo)).thenReturn(sharedGroup.getId());
-        when(sharedGroupMembershipRepository.findActiveBySharedGroupIdAndAppUserId(
-                        sharedGroup.getId(), hostId))
-                .thenReturn(
-                        Optional.of(
-                                SharedGroupMembership.create(
-                                        sharedGroup, anAppUser(), SharedGroupRole.HOST)));
-
-        photoService.deletePhoto(photo.getId(), hostId);
-
-        assertThat(photo.getDeletedAt()).isNotNull();
-    }
-
-    @Test
-    void 사진_삭제_업로더가_탈퇴했고_요청자가_방장이_아니면_예외() {
-        uploader.withdraw(Instant.now());
-        Photo photo = aPhoto(uploader);
-        UUID memberId = UUID.randomUUID();
-        when(photoRepository.findById(photo.getId())).thenReturn(Optional.of(photo));
-        when(photoAccessGuard.resolveActiveSharedGroupId(photo)).thenReturn(sharedGroup.getId());
-        when(sharedGroupMembershipRepository.findActiveBySharedGroupIdAndAppUserId(
-                        sharedGroup.getId(), memberId))
-                .thenReturn(
-                        Optional.of(
-                                SharedGroupMembership.create(
-                                        sharedGroup, anAppUser(), SharedGroupRole.MEMBER)));
-
-        assertThatThrownBy(() -> photoService.deletePhoto(photo.getId(), memberId))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(
-                        exception ->
-                                assertThat(((BusinessException) exception).getErrorCode())
-                                        .isEqualTo(PhotoErrorCode.NOT_PHOTO_UPLOADER));
     }
 
     // attachPhotos

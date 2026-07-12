@@ -22,7 +22,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.zipzip.zipzipserver.domain.auth.jwt.JwtTokenProvider;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupSuccessCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.InviteCodeResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinPreviewResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUserSummaryResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupInviteService;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
@@ -62,6 +64,13 @@ class SharedGroupInviteControllerTest {
                                 .header("Idempotency-Key", UUID.randomUUID().toString())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"inviteCode\":\"ABC234EF\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void 참여_미리보기는_Authorization_헤더가_없으면_401을_응답한다() throws Exception {
+        mockMvc.perform(get("/api/v1/shared-groups/join-preview").param("inviteCode", "ABC234EF"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
@@ -120,6 +129,36 @@ class SharedGroupInviteControllerTest {
                 .andExpect(jsonPath("$.code").value("SHARED_GROUP_JOINED"))
                 .andExpect(jsonPath("$.data.sharedGroupId").value(SHARED_GROUP_ID.toString()))
                 .andExpect(jsonPath("$.data.myRole").value("MEMBER"));
+    }
+
+    @Test
+    void 인증된_사용자는_초대_코드로_공유_그룹_참여_미리보기를_조회한다() throws Exception {
+        givenAuthenticatedUser();
+        when(sharedGroupInviteService.previewJoin(CURRENT_USER_ID, "ABC234EF"))
+                .thenReturn(
+                        new SharedGroupJoinPreviewResponse(
+                                SHARED_GROUP_ID,
+                                "우리 집",
+                                "https://storage.example.com/representative.jpg",
+                                Instant.parse("2026-07-10T00:10:00Z"),
+                                new SharedGroupUserSummaryResponse(CURRENT_USER_ID, "방장"),
+                                2,
+                                java.util.List.of(
+                                        new SharedGroupJoinPreviewResponse.Member(
+                                                CURRENT_USER_ID, "방장", SharedGroupRole.HOST)),
+                                false));
+
+        mockMvc.perform(
+                        get("/api/v1/shared-groups/join-preview")
+                                .param("inviteCode", "ABC234EF")
+                                .header("Authorization", bearerToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("SHARED_GROUP_JOIN_PREVIEW_FOUND"))
+                .andExpect(jsonPath("$.data.name").value("우리 집"))
+                .andExpect(jsonPath("$.data.memberCount").value(2))
+                .andExpect(jsonPath("$.data.alreadyJoined").value(false));
+
+        verify(sharedGroupInviteService).previewJoin(CURRENT_USER_ID, "ABC234EF");
     }
 
     @Test

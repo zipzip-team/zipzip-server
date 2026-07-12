@@ -12,7 +12,6 @@ public enum PhotoSuccessCode implements SuccessCode {
     PHOTOS_CREATED(HttpStatus.CREATED, "PHOTOS_CREATED", "사진을 업로드했습니다."),
     PHOTO_LIST_FOUND(HttpStatus.OK, "PHOTO_LIST_FOUND", "사진 목록을 조회했습니다."),
     PHOTO_UPDATED(HttpStatus.OK, "PHOTO_UPDATED", "사진 메타데이터를 수정했습니다."),
-    PHOTO_DELETED(HttpStatus.OK, "PHOTO_DELETED", "사진을 삭제했습니다."),
     PHOTOS_ATTACHED(HttpStatus.OK, "PHOTOS_ATTACHED", "공유집(앨범)에 사진을 추가했습니다."),
     PHOTOS_DETACHED(HttpStatus.OK, "PHOTOS_DETACHED", "공유집(앨범)에서 사진을 제거했습니다.");
 

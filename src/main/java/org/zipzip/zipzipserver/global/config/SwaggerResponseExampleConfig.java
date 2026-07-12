@@ -395,7 +395,6 @@ public class SwaggerResponseExampleConfig {
                         "ChatController#createMessage",
                         ChatSuccessCode.SHARED_GROUP_CHAT_MESSAGE_CREATED),
                 Map.entry("PhotoController#updateMetadata", PhotoSuccessCode.PHOTO_UPDATED),
-                Map.entry("PhotoController#deletePhoto", PhotoSuccessCode.PHOTO_DELETED),
                 Map.entry(
                         "SharedAlbumPhotoController#listPhotos", PhotoSuccessCode.PHOTO_LIST_FOUND),
                 Map.entry(
@@ -437,6 +436,9 @@ public class SwaggerResponseExampleConfig {
                 Map.entry(
                         "SharedGroupInviteController#findInviteCode",
                         SharedGroupSuccessCode.INVITE_CODE_FOUND),
+                Map.entry(
+                        "SharedGroupInviteController#previewJoin",
+                        SharedGroupSuccessCode.SHARED_GROUP_JOIN_PREVIEW_FOUND),
                 Map.entry(
                         "SharedGroupInviteController#join",
                         SharedGroupSuccessCode.SHARED_GROUP_JOINED),
@@ -510,6 +512,10 @@ public class SwaggerResponseExampleConfig {
                 Map.entry(
                         "SharedGroupInviteController#findInviteCode#404",
                         List.of("SHARED_GROUP_NOT_FOUND")),
+                Map.entry(
+                        "SharedGroupInviteController#previewJoin#400",
+                        List.of("INVALID_REQUEST", "INVALID_INVITE_CODE")),
+                Map.entry("SharedGroupInviteController#previewJoin#401", List.of("UNAUTHORIZED")),
                 Map.entry(
                         "SharedGroupInviteController#join#400",
                         List.of("INVALID_REQUEST", "INVALID_INVITE_CODE")),

@@ -122,15 +122,6 @@ public class PhotoService {
     }
 
     @Transactional
-    public void deletePhoto(UUID photoId, UUID appUserId) {
-        Photo photo = requireActivePhoto(photoId);
-        photoAccessGuard.requireActivePhotoAccess(photo, appUserId);
-        UUID sharedGroupId = photoAccessGuard.resolveActiveSharedGroupId(photo);
-        requireDeletePermission(photo, appUserId, sharedGroupId);
-        photo.delete(Instant.now(clock));
-    }
-
-    @Transactional
     public PhotoAttachResponse attachPhotos(
             UUID sharedAlbumId,
             UUID appUserId,

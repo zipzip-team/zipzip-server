@@ -25,7 +25,7 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | 2 | 사용자 | 내 프로필, 사용자 탈퇴 |
 | 3 | 공유 그룹 | 공유 그룹 CRUD, 멤버 조회, 초대 코드, 참여, 나가기 |
 | 4 | 앨범 | 공유집(앨범) CRUD |
-| 5 | 사진 | 공유집(앨범) 사진 목록, 업로드 URL 발급·완료 등록, 메타데이터 수정, 단건 삭제, 앨범 추가·제거 |
+| 5 | 사진 | 공유집(앨범) 사진 목록, 업로드 URL 발급·완료 등록, 메타데이터 수정, 앨범 추가·제거 |
 | 6 | 사진 반응·댓글 | 사진 상세, 좋아요, 사진 댓글 |
 | 7 | 채팅 | 그룹 채팅 타임라인 조회, 일반 메시지 작성 |
 
@@ -67,6 +67,7 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | INVITE-01 | GET | `/api/v1/shared-groups/{sharedGroupId}/invite-code` | 초대 코드 조회 | [05-shared-group-invitation.md](05-shared-group-invitation.md) |
 | INVITE-02 | POST | `/api/v1/shared-groups/join` | 초대 코드로 참여 | [05-shared-group-invitation.md](05-shared-group-invitation.md) |
 | INVITE-03 | DELETE | `/api/v1/shared-groups/{sharedGroupId}/members/me` | 공유 그룹 나가기 | [05-shared-group-invitation.md](05-shared-group-invitation.md) |
+| INVITE-04 | GET | `/api/v1/shared-groups/join-preview?inviteCode={inviteCode}` | 초대 코드 참여 미리보기 | [05-shared-group-invitation.md](05-shared-group-invitation.md) |
 
 ### 3.5 앨범
 
@@ -86,9 +87,8 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | PHOTO-02 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls` | 사진 업로드 URL 발급 | [07-photo-management.md](07-photo-management.md) |
 | PHOTO-03 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/complete` | 사진 업로드 완료 등록 | [07-photo-management.md](07-photo-management.md) |
 | PHOTO-04 | PATCH | `/api/v1/photos/{photoId}` | 사진 메타데이터 수정 | [07-photo-management.md](07-photo-management.md) |
-| PHOTO-05 | DELETE | `/api/v1/photos/{photoId}` | 사진 삭제 | [07-photo-management.md](07-photo-management.md) |
-| PHOTO-06 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/attach` | 공유집(앨범)에 기존 사진 추가 | [07-photo-management.md](07-photo-management.md) |
-| PHOTO-07 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/detach` | 공유집(앨범)에서 사진 제거 | [07-photo-management.md](07-photo-management.md) |
+| PHOTO-07 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/attach` | 공유집(앨범)에 기존 사진 추가 | [07-photo-management.md](07-photo-management.md) |
+| PHOTO-08 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/detach` | 공유집(앨범)에서 사진 제거 | [07-photo-management.md](07-photo-management.md) |
 
 ### 3.7 사진 반응·댓글
 
