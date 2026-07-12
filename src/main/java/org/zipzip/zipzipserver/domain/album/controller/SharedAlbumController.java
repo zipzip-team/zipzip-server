@@ -88,12 +88,11 @@ public class SharedAlbumController {
             summary = "공유집(앨범) 삭제",
             description =
                     "공유집(앨범)을 soft delete하고 그 안의 shared_album_photo 매핑을 모두 즉시 물리 삭제합니다. 마지막 소속"
-                            + " 공유집(앨범)을 잃는 사진은 원본도 함께 soft delete됩니다. 생성자 본인이거나, 생성자가 탈퇴한 경우 상위"
-                            + " 공유 그룹 방장만 삭제할 수 있습니다. 30일 뒤 shared_album 행을 물리 삭제합니다.")
+                            + " 공유집(앨범)을 잃는 사진은 원본도 함께 soft delete됩니다. 상위 공유 그룹의 활성 멤버라면 생성자·방장"
+                            + " 여부와 무관하게 누구나 삭제할 수 있습니다. 30일 뒤 shared_album 행을 물리 삭제합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "삭제 성공"),
         @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
-        @ApiResponse(responseCode = "403", description = "NOT_SHARED_ALBUM_CREATOR"),
         @ApiResponse(responseCode = "404", description = "SHARED_ALBUM_NOT_FOUND")
     })
     @DeleteMapping

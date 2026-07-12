@@ -18,7 +18,7 @@
 | ALBUM-05 | 앨범 | 공유집(앨범) 삭제 | DELETE | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
 
 모든 API는 `Authorization: Bearer <accessToken>` 헤더와 대상 공유 그룹의 활성 멤버십을 요구한다. `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다.
-방장과 멤버 모두 공유집(앨범)을 생성·수정할 수 있으며, 삭제는 생성자가 할 수 있다. 생성자가 탈퇴한 사용자인 경우 상위 공유 그룹 방장도 삭제할 수 있다.
+방장과 멤버 모두 공유집(앨범)을 생성·수정·삭제할 수 있다(생성자·방장 여부와 무관).
 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다.
 
 ## 2. ALBUM-01 공유집(앨범) 목록 조회
@@ -258,5 +258,4 @@
 | HTTP Status | code | 조건 |
 |---:|---|---|
 | 401 | `UNAUTHORIZED` | 인증 실패 |
-| 403 | `NOT_SHARED_ALBUM_CREATOR` | 활성 멤버지만 생성자가 아니며, 탈퇴한 생성자의 공유 그룹 방장도 아님 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 공유집(앨범) 또는 활성 멤버십이 없음 |

@@ -21,8 +21,6 @@ import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumRepository;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
-import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
-import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMembershipRepository;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
 import org.zipzip.zipzipserver.global.cursor.OpaqueCursor;
@@ -42,7 +40,6 @@ public class SharedAlbumService {
     private final SharedAlbumAccessGuard sharedAlbumAccessGuard;
     private final SharedAlbumRepository sharedAlbumRepository;
     private final SharedAlbumPhotoRepository sharedAlbumPhotoRepository;
-    private final SharedGroupMembershipRepository sharedGroupMembershipRepository;
     private final PhotoRepository photoRepository;
     private final AppUserRepository appUserRepository;
     private final IdempotencyService idempotencyService;
@@ -148,7 +145,6 @@ public class SharedAlbumService {
     public void deleteAlbum(UUID sharedAlbumId, UUID appUserId) {
         SharedAlbum album =
                 sharedAlbumAccessGuard.requireActiveSharedAlbum(sharedAlbumId, appUserId);
-        requireDeletePermission(album, appUserId);
 
         List<UUID> photoIds =
                 sharedAlbumPhotoRepository.findBySharedAlbumId(sharedAlbumId).stream()
@@ -170,24 +166,6 @@ public class SharedAlbumService {
         }
 
         album.delete(now);
-    }
-
-    private void requireDeletePermission(SharedAlbum album, UUID appUserId) {
-        AppUser creator = album.getCreatedByAppUser();
-        if (creator.getId().equals(appUserId)) {
-            return;
-        }
-        if (creator.isDeleted() && isHost(album.getSharedGroup().getId(), appUserId)) {
-            return;
-        }
-        throw new BusinessException(SharedAlbumErrorCode.NOT_SHARED_ALBUM_CREATOR);
-    }
-
-    private boolean isHost(UUID sharedGroupId, UUID appUserId) {
-        return sharedGroupMembershipRepository
-                .findActiveBySharedGroupIdAndAppUserId(sharedGroupId, appUserId)
-                .map(membership -> membership.getRole() == SharedGroupRole.HOST)
-                .orElse(false);
     }
 
     private String validateName(String rawName) {

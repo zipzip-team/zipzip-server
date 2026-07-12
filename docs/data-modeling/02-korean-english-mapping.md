@@ -102,7 +102,7 @@ invite_code_reservation
 - `photo`는 공유 그룹 안에서 업로드된 사진 원본이며, 공유 그룹에 직접 속하지 않고 `shared_album_photo`를 통해서만 공유집(앨범)에 속한다. 촬영 기기명은 별도 엔티티 없이 `photo.device_model` 문자열로 저장한다.
 - `shared_album_photo`는 사진과 공유집(앨범)의 N:M 소속 관계를 표현한다.
 - `shared_group.created_by_app_user_id`는 공유 그룹 최초 생성자 이력이다.
-- `shared_album.created_by_app_user_id`는 공유집(앨범) 삭제 권한의 원칙적 기준이다. 생성자가 탈퇴한 경우 공유 그룹 방장이 삭제할 수 있다.
+- `shared_album.created_by_app_user_id`는 목록·상세 응답에 생성자를 표시하기 위한 값이며, 삭제 권한 기준은 아니다(삭제는 상위 공유 그룹 활성 멤버라면 누구나 가능).
 - `photo.uploaded_by_app_user_id`는 사진 원본 수정·삭제 권한의 원칙적 기준이다. 업로더가 탈퇴한 경우 공유 그룹 방장이 삭제할 수 있다.
 - `photo_like`는 사용자가 특정 사진에 좋아요를 누른 상태이다.
 - `photo_comment`는 단일 사진에 달리는 댓글이다.
