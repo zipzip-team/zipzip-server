@@ -7,6 +7,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,16 +16,20 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.request.SharedGroupJoinRequest;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.InviteCodeResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinPreviewResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupMembership;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
+import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMemberRow;
 import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMembershipRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupRepository;
+import org.zipzip.zipzipserver.domain.storage.ObjectStorageService;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
@@ -35,7 +41,9 @@ class SharedGroupInviteServiceTest {
 
     @Mock private SharedGroupRepository sharedGroupRepository;
     @Mock private SharedGroupMembershipRepository sharedGroupMembershipRepository;
+    @Mock private SharedAlbumPhotoRepository sharedAlbumPhotoRepository;
     @Mock private AppUserRepository appUserRepository;
+    @Mock private ObjectStorageService objectStorageService;
 
     @InjectMocks private SharedGroupInviteService sharedGroupInviteService;
 
@@ -84,6 +92,88 @@ class SharedGroupInviteServiceTest {
                         sharedGroupInviteService.findInviteCode(
                                 sharedGroup.getId(), stranger.getId()),
                 SharedGroupErrorCode.SHARED_GROUP_NOT_FOUND);
+    }
+
+    @Test
+    void 초대_코드로_활성_공유_그룹의_참여_미리보기를_조회한다() {
+        AppUser host = AppUser.create("host", "방장");
+        AppUser applicant = AppUser.create("applicant", "참여 예정자");
+        AppUser member = AppUser.create("member", "멤버");
+        SharedGroup sharedGroup = sharedGroup(host);
+        when(appUserRepository.findById(applicant.getId())).thenReturn(Optional.of(applicant));
+        when(sharedGroupRepository.findActiveWithCreatorByInviteCode(INVITE_CODE))
+                .thenReturn(Optional.of(sharedGroup));
+        when(sharedGroupMembershipRepository.findActiveMembers(any(), any()))
+                .thenReturn(
+                        List.of(
+                                new SharedGroupMemberRow(
+                                        java.util.UUID.randomUUID(),
+                                        host.getId(),
+                                        host.getDisplayName(),
+                                        SharedGroupRole.HOST,
+                                        Instant.parse("2026-07-10T00:00:00Z")),
+                                new SharedGroupMemberRow(
+                                        java.util.UUID.randomUUID(),
+                                        member.getId(),
+                                        member.getDisplayName(),
+                                        SharedGroupRole.MEMBER,
+                                        Instant.parse("2026-07-10T00:01:00Z"))));
+        when(sharedGroupMembershipRepository.countActiveMembers(sharedGroup.getId()))
+                .thenReturn(2L);
+        when(sharedGroupMembershipRepository.existsActiveBySharedGroupIdAndAppUserId(
+                        sharedGroup.getId(), applicant.getId()))
+                .thenReturn(false);
+        when(sharedAlbumPhotoRepository.findRepresentativePhotoBySharedGroupId(any(), any()))
+                .thenReturn(List.of());
+
+        SharedGroupJoinPreviewResponse response =
+                sharedGroupInviteService.previewJoin(applicant.getId(), " " + INVITE_CODE + " ");
+
+        assertThat(response.sharedGroupId()).isEqualTo(sharedGroup.getId());
+        assertThat(response.name()).isEqualTo("우리 집");
+        assertThat(response.createdBy().displayName()).isEqualTo("방장");
+        assertThat(response.memberCount()).isEqualTo(2);
+        assertThat(response.members())
+                .extracting(SharedGroupJoinPreviewResponse.Member::displayName)
+                .containsExactly("방장", "멤버");
+        assertThat(response.representativeImageUrl()).isNull();
+        assertThat(response.alreadyJoined()).isFalse();
+    }
+
+    @Test
+    void 이미_참여한_사용자는_오류_대신_참여_완료_상태를_포함한_미리보기를_받는다() {
+        AppUser host = AppUser.create("host", "방장");
+        SharedGroup sharedGroup = sharedGroup(host);
+        when(appUserRepository.findById(host.getId())).thenReturn(Optional.of(host));
+        when(sharedGroupRepository.findActiveWithCreatorByInviteCode(INVITE_CODE))
+                .thenReturn(Optional.of(sharedGroup));
+        when(sharedGroupMembershipRepository.findActiveMembers(any(), any())).thenReturn(List.of());
+        when(sharedGroupMembershipRepository.countActiveMembers(sharedGroup.getId()))
+                .thenReturn(1L);
+        when(sharedGroupMembershipRepository.existsActiveBySharedGroupIdAndAppUserId(
+                        sharedGroup.getId(), host.getId()))
+                .thenReturn(true);
+        when(sharedAlbumPhotoRepository.findRepresentativePhotoBySharedGroupId(any(), any()))
+                .thenReturn(List.of());
+
+        SharedGroupJoinPreviewResponse response =
+                sharedGroupInviteService.previewJoin(host.getId(), INVITE_CODE);
+
+        assertThat(response.alreadyJoined()).isTrue();
+    }
+
+    @Test
+    void 존재하지_않거나_삭제된_공유_그룹의_초대_코드로_미리보기를_조회할_수_없다() {
+        AppUser applicant = AppUser.create("applicant", "참여 예정자");
+        when(appUserRepository.findById(applicant.getId())).thenReturn(Optional.of(applicant));
+        when(sharedGroupRepository.findActiveWithCreatorByInviteCode(INVITE_CODE))
+                .thenReturn(Optional.empty());
+
+        assertBusinessException(
+                () -> sharedGroupInviteService.previewJoin(applicant.getId(), INVITE_CODE),
+                SharedGroupErrorCode.INVALID_INVITE_CODE);
+
+        verify(sharedGroupMembershipRepository, never()).findActiveMembers(any(), any());
     }
 
     @Test

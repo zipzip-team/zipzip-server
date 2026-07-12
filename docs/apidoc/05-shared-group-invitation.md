@@ -7,6 +7,7 @@
 | INVITE-01 | 공유 그룹 | 초대 코드 조회 | GET | `/api/v1/shared-groups/{sharedGroupId}/invite-code` | 완료 | true | false |
 | INVITE-02 | 공유 그룹 | 초대 코드로 참여 | POST | `/api/v1/shared-groups/join` | 완료 | true | false |
 | INVITE-03 | 공유 그룹 | 공유 그룹 나가기 | DELETE | `/api/v1/shared-groups/{sharedGroupId}/members/me` | 완료 | true | false |
+| INVITE-04 | 공유 그룹 | 초대 코드 참여 미리보기 | GET | `/api/v1/shared-groups/join-preview?inviteCode={inviteCode}` | 완료 | true | false |
 
 모든 API는 `Authorization: Bearer <accessToken>` 헤더가 필요하며, `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다. 공통 응답과 오류는 [01-common-spec.md](01-common-spec.md)를 따른다. 초대 코드는 공유 그룹 생성 시 고정되며, 공유 그룹이 활성 또는 soft delete 상태인 동안 만료·재발급·재사용하지 않는다. 공유 그룹 물리 삭제 시 초대 코드 예약도 정리되어 이후 재사용될 수 있다.
 
@@ -96,7 +97,49 @@
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 `Idempotency-Key`를 다른 참여 요청에 재사용함 |
 | 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 요청이 아직 처리 중임 |
 
-## 4. INVITE-03 공유 그룹 나가기
+## 4. INVITE-04 초대 코드 참여 미리보기
+
+초대 코드에 연결된 활성 공유 그룹 정보를 실제 참여 전에 조회한다. 이미 활성 멤버인 사용자는 오류 대신 `alreadyJoined: true`를 받고, 실제 참여 시에는 INVITE-02가 다시 초대 코드·활성 그룹·멤버십을 검증한다. 대표 이미지는 그룹 내 최신 활성 사진의 presigned URL이며, 사진이 없으면 `null`이다. 멤버 프로필은 가입 순서 기준 최대 5명만 제공한다.
+
+### Request
+
+| 필드 | 위치 | 타입 | 필수 | 제약 | 설명 | 예시 |
+|---|---|---|---:|---|---|---|
+| `inviteCode` | Query | String | O | 앞뒤 공백 제거 후 1~64자 | 확인할 공유 그룹 초대 코드 | `ZZ7K9P2Q` |
+
+### Success Response ✓
+
+#### HTTP Status Code: `200 OK`
+
+```json
+{
+  "status": 200,
+  "code": "SHARED_GROUP_JOIN_PREVIEW_FOUND",
+  "message": "공유 그룹 참여 미리보기를 조회했습니다.",
+  "data": {
+    "sharedGroupId": "b8a5f612-25d7-4ec3-9d1d-59684de40664",
+    "name": "우리 집",
+    "representativeImageUrl": "https://objectstorage.example.com/signed/group-photo.jpg",
+    "representativeImageUrlExpiresAt": "2026-07-03T10:25:30Z",
+    "createdBy": { "userId": "018f0c3e-2c77-7d72-a37e-2f5666f25d32", "displayName": "집집이" },
+    "memberCount": 4,
+    "members": [
+      { "userId": "018f0c3e-2c77-7d72-a37e-2f5666f25d32", "displayName": "집집이", "role": "HOST" }
+    ],
+    "alreadyJoined": false
+  }
+}
+```
+
+### Fail Response Ⓧ
+
+| HTTP Status | code | 조건 |
+|---:|---|---|
+| 400 | `INVALID_REQUEST` | 초대 코드가 누락·공백·64자 초과임 |
+| 400 | `INVALID_INVITE_CODE` | 존재하지 않거나 삭제된 공유 그룹의 초대 코드임 |
+| 401 | `UNAUTHORIZED` | 인증 실패 또는 탈퇴한 사용자 |
+
+## 5. INVITE-03 공유 그룹 나가기
 
 활성 `MEMBER` 멤버십 행을 즉시 물리 삭제한다. 기존 사진·좋아요·댓글은 유지하며, 나간 사용자는 유효한 초대 코드로 새 멤버십을 만들어 재참여할 수 있다. 방장은 나갈 수 없으며 공유 그룹 삭제만 가능하다.
 
