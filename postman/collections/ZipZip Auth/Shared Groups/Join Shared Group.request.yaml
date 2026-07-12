@@ -1,8 +1,9 @@
 $kind: http-request
+name: Join Shared Group
 url: "{{baseUrl}}/api/v1/shared-groups/join"
 method: POST
 headers:
-  Authorization: "Bearer {{accessToken}}"
+  Authorization: Bearer {{accessToken}}
   Idempotency-Key: "{{$guid}}"
   Content-Type: application/json
 body:
