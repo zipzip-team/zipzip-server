@@ -2,7 +2,7 @@ $kind: collection
 name: ZipZip API
 variables:
   - key: baseUrl
-    value: "http://localhost:8080"
+    value: http://localhost:8080
     secret: false
   - key: appleIdentityToken
     secret: true
