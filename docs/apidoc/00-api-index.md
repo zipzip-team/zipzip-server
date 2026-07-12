@@ -67,6 +67,7 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | INVITE-01 | GET | `/api/v1/shared-groups/{sharedGroupId}/invite-code` | 초대 코드 조회 | [05-shared-group-invitation.md](05-shared-group-invitation.md) |
 | INVITE-02 | POST | `/api/v1/shared-groups/join` | 초대 코드로 참여 | [05-shared-group-invitation.md](05-shared-group-invitation.md) |
 | INVITE-03 | DELETE | `/api/v1/shared-groups/{sharedGroupId}/members/me` | 공유 그룹 나가기 | [05-shared-group-invitation.md](05-shared-group-invitation.md) |
+| INVITE-04 | GET | `/api/v1/shared-groups/join-preview?inviteCode={inviteCode}` | 초대 코드 참여 미리보기 | [05-shared-group-invitation.md](05-shared-group-invitation.md) |
 
 ### 3.5 앨범
 

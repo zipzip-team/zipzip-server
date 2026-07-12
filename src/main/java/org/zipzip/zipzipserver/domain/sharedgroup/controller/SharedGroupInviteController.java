@@ -23,10 +23,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupSuccessCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.request.SharedGroupJoinRequest;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.InviteCodeResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinPreviewResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupJoinResponseEnvelope;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupInviteService;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyResponseSupport;
@@ -63,6 +65,30 @@ public class SharedGroupInviteController {
         return BaseResponse.success(
                 SharedGroupSuccessCode.INVITE_CODE_FOUND,
                 sharedGroupInviteService.findInviteCode(sharedGroupId, appUserId));
+    }
+
+    @GetMapping("/join-preview")
+    @Operation(
+            summary = "공유 그룹 참여 미리보기",
+            description =
+                    "초대 코드에 연결된 활성 공유 그룹의 정보만 조회합니다. 이미 참여한 사용자는"
+                            + " alreadyJoined=true으로 응답하며, 실제 참여는 별도 참여 API에서 다시 검증합니다.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "미리보기 조회 성공"),
+        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST, INVALID_INVITE_CODE"),
+        @ApiResponse(responseCode = "401", description = "인증 필요")
+    })
+    public BaseResponse<SharedGroupJoinPreviewResponse> previewJoin(
+            @Parameter(
+                            description = "확인할 공유 그룹 초대 코드. 앞뒤 공백은 제거됩니다.",
+                            required = true,
+                            example = "ZZ7K9P2Q")
+                    @RequestParam
+                    String inviteCode,
+            @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
+        return BaseResponse.success(
+                SharedGroupSuccessCode.SHARED_GROUP_JOIN_PREVIEW_FOUND,
+                sharedGroupInviteService.previewJoin(appUserId, inviteCode));
     }
 
     @PostMapping("/join")

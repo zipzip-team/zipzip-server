@@ -119,6 +119,12 @@ class SharedGroupMembershipRepositoryTest {
     }
 
     @Test
+    void 삭제된_사용자를_제외한_활성_멤버_수를_조회한다() {
+        assertThat(sharedGroupMembershipRepository.countActiveMembers(GROUP_ID)).isEqualTo(2);
+        assertThat(sharedGroupMembershipRepository.countActiveMembers(DELETED_GROUP_ID)).isZero();
+    }
+
+    @Test
     void 활성_멤버만_joinedAt과_membershipId_오름차순으로_조회한다() {
         List<SharedGroupMemberRow> rows =
                 sharedGroupMembershipRepository.findActiveMembers(GROUP_ID, PageRequest.of(0, 10));

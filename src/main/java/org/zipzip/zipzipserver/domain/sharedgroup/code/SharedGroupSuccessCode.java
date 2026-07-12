@@ -14,6 +14,8 @@ public enum SharedGroupSuccessCode implements SuccessCode {
     SHARED_GROUP_MEMBER_LIST_FOUND(
             HttpStatus.OK, "SHARED_GROUP_MEMBER_LIST_FOUND", "공유 그룹 멤버 목록을 조회했습니다."),
     INVITE_CODE_FOUND(HttpStatus.OK, "INVITE_CODE_FOUND", "초대 코드를 조회했습니다."),
+    SHARED_GROUP_JOIN_PREVIEW_FOUND(
+            HttpStatus.OK, "SHARED_GROUP_JOIN_PREVIEW_FOUND", "공유 그룹 참여 미리보기를 조회했습니다."),
     SHARED_GROUP_JOINED(HttpStatus.CREATED, "SHARED_GROUP_JOINED", "공유 그룹에 참여했습니다."),
     SHARED_GROUP_LEFT(HttpStatus.OK, "SHARED_GROUP_LEFT", "공유 그룹에서 나갔습니다."),
     SHARED_GROUP_UPDATED(HttpStatus.OK, "SHARED_GROUP_UPDATED", "공유 그룹 이름을 수정했습니다."),

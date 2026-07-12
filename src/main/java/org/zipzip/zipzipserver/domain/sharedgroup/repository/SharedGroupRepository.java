@@ -31,6 +31,17 @@ public interface SharedGroupRepository extends JpaRepository<SharedGroup, UUID> 
             """)
     Optional<SharedGroup> findActiveByInviteCode(@Param("inviteCode") String inviteCode);
 
+    @Query(
+            """
+            select sharedGroup
+            from SharedGroup sharedGroup
+            join fetch sharedGroup.inviteCodeReservation
+            join fetch sharedGroup.createdByAppUser
+            where sharedGroup.inviteCodeReservation.inviteCode = :inviteCode
+              and sharedGroup.deletedAt is null
+            """)
+    Optional<SharedGroup> findActiveWithCreatorByInviteCode(@Param("inviteCode") String inviteCode);
+
     List<SharedGroup> findByCreatedByAppUserIdAndDeletedAtIsNull(UUID appUserId);
 
     @Query(
