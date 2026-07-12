@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/photos/{{photoId}}"
+method: PATCH
+headers:
+  Authorization: "Bearer {{accessToken}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "takenAt": "2026-07-01T04:20:00Z",
+      "latitude": 33.4996,
+      "longitude": 126.5312,
+      "locationName": "제주특별자치도 제주시",
+      "isInferred": false
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('사진 메타데이터 수정 응답 상태가 200이다', function () {
+        pm.response.to.have.status(200);
+      });
+    language: text/javascript
+order: 1300

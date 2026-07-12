@@ -1,12 +1,14 @@
 $kind: collection
-name: ZipZip Auth
+name: ZipZip API
 variables:
   - key: baseUrl
-    value: ""
+    value: "http://localhost:8080"
     secret: false
   - key: appleIdentityToken
     secret: true
   - key: appleAuthorizationCode
+    secret: true
+  - key: appleNonce
     secret: true
   - key: appleDisplayName
     secret: true
@@ -15,4 +17,25 @@ variables:
     secret: false
   - key: refreshToken
     value: ""
+    secret: false
+  - key: sharedGroupId
+    value: ""
+    secret: false
+  - key: inviteCode
+    value: ""
+    secret: false
+  - key: sharedAlbumId
+    value: ""
+    secret: false
+  - key: photoId
+    value: ""
+    secret: false
+  - key: uploadObjectKey
+    value: ""
+    secret: false
+  - key: uploadUrl
+    value: ""
+    secret: false
+  - key: pageSize
+    value: "20"
     secret: false

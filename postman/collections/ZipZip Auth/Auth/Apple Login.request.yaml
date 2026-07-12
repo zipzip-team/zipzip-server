@@ -9,6 +9,7 @@ body:
     {
       "identityToken": "{{appleIdentityToken}}",
       "authorizationCode": "{{appleAuthorizationCode}}",
+      "nonce": "{{appleNonce}}",
       "displayName": "{{appleDisplayName}}"
     }
 scripts:

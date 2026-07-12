@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/shared-groups/{{sharedGroupId}}/invite-code"
+method: GET
+headers:
+  Authorization: "Bearer {{accessToken}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('초대 코드 조회 응답 상태가 200이다', function () {
+        pm.response.to.have.status(200);
+      });
+
+      const response = pm.response.json();
+      if (response?.data?.inviteCode) {
+        pm.collectionVariables.set('inviteCode', response.data.inviteCode);
+      }
+    language: text/javascript
+order: 1400

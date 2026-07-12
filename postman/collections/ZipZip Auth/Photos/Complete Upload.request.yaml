@@ -1,0 +1,39 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/shared-albums/{{sharedAlbumId}}/photos/complete"
+method: POST
+headers:
+  Authorization: "Bearer {{accessToken}}"
+  Idempotency-Key: "{{$guid}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "files": [
+        {
+          "objectKey": "{{uploadObjectKey}}",
+          "deviceModel": "iPhone 15",
+          "takenAt": "2026-06-30T04:20:00Z",
+          "latitude": 33.4996,
+          "longitude": 126.5312,
+          "locationName": "제주특별자치도 제주시",
+          "isInferred": false,
+          "width": 4032,
+          "height": 3024
+        }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('사진 업로드 완료 등록 응답 상태가 201이다', function () {
+        pm.response.to.have.status(201);
+      });
+
+      const response = pm.response.json();
+      const photoId = response?.data?.items?.[0]?.id;
+      if (photoId) {
+        pm.collectionVariables.set('photoId', photoId);
+      }
+    language: text/javascript
+order: 1200
