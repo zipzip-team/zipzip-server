@@ -395,7 +395,6 @@ public class SwaggerResponseExampleConfig {
                         "ChatController#createMessage",
                         ChatSuccessCode.SHARED_GROUP_CHAT_MESSAGE_CREATED),
                 Map.entry("PhotoController#updateMetadata", PhotoSuccessCode.PHOTO_UPDATED),
-                Map.entry("PhotoController#deletePhoto", PhotoSuccessCode.PHOTO_DELETED),
                 Map.entry(
                         "SharedAlbumPhotoController#listPhotos", PhotoSuccessCode.PHOTO_LIST_FOUND),
                 Map.entry(
