@@ -19,6 +19,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.zipzip.zipzipserver.domain.auth.dto.request.LogoutRequest;
+import org.zipzip.zipzipserver.domain.auth.dto.request.TokenRefreshRequest;
+import org.zipzip.zipzipserver.domain.auth.dto.response.TokenRefreshResponse;
 import org.zipzip.zipzipserver.domain.auth.jwt.JwtTokenProvider;
 import org.zipzip.zipzipserver.domain.auth.service.AuthService;
 import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
@@ -36,6 +38,7 @@ class AuthControllerSecurityTest {
     private static final UUID APP_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
     private static final String ACCESS_TOKEN = "valid-access-token";
     private static final String REFRESH_TOKEN = "refresh-token";
+    private static final String IDEMPOTENCY_KEY = "54cf8d7e-a23e-4e76-90f7-603f122b1507";
 
     @Autowired private MockMvc mockMvc;
 
@@ -146,5 +149,27 @@ class AuthControllerSecurityTest {
                 .andExpect(jsonPath("$.code").value("AUTH_LOGIN_SUCCESS"));
 
         verify(jwtTokenProvider, never()).verifyAccessToken(any());
+    }
+
+    @Test
+    void Access_Token_없이_토큰을_갱신할_수_있다() throws Exception {
+        TokenRefreshResponse response =
+                new TokenRefreshResponse("new-access-token", "new-refresh-token", "Bearer", 1800L);
+        given(authService.refreshTokens(any(TokenRefreshRequest.class), eq(IDEMPOTENCY_KEY)))
+                .willReturn(new AuthService.TokenRefreshResult(response, false));
+
+        mockMvc.perform(
+                        post("/api/v1/auth/refresh")
+                                .header("Idempotency-Key", IDEMPOTENCY_KEY)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"refreshToken\":\"" + REFRESH_TOKEN + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value(200))
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_REFRESHED"))
+                .andExpect(jsonPath("$.data.accessToken").value("new-access-token"))
+                .andExpect(jsonPath("$.data.refreshToken").value("new-refresh-token"));
+
+        verify(jwtTokenProvider, never()).verifyAccessToken(any());
+        verify(authService).refreshTokens(any(TokenRefreshRequest.class), eq(IDEMPOTENCY_KEY));
     }
 }
