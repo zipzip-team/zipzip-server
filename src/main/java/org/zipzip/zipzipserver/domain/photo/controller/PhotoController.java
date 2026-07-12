@@ -11,7 +11,6 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +22,7 @@ import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoMetadataUpdateResp
 import org.zipzip.zipzipserver.domain.photo.service.PhotoService;
 import org.zipzip.zipzipserver.global.response.BaseResponse;
 
-@Tag(name = "사진", description = "사진 메타데이터 수정과 원본 사진 삭제 API")
+@Tag(name = "사진", description = "사진 메타데이터 수정 API")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
@@ -61,29 +60,5 @@ public class PhotoController {
         return BaseResponse.success(
                 PhotoSuccessCode.PHOTO_UPDATED,
                 photoService.updateMetadata(photoId, appUserId, requestBody));
-    }
-
-    @Operation(
-            summary = "사진 삭제",
-            description =
-                    "사진을 soft delete해 즉시 접근을 차단합니다. 원본 삭제는 복구할 수 없고, 소속된 모든 공유집(앨범)에서 함께"
-                            + " 차단됩니다. 업로더 본인이거나, 업로더가 탈퇴한 경우 상위 공유 그룹 방장만 삭제할 수 있습니다.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "삭제 성공"),
-        @ApiResponse(responseCode = "401", description = "UNAUTHORIZED"),
-        @ApiResponse(responseCode = "403", description = "NOT_PHOTO_UPLOADER"),
-        @ApiResponse(responseCode = "404", description = "PHOTO_NOT_FOUND")
-    })
-    @DeleteMapping("/{photoId}")
-    public BaseResponse<Void> deletePhoto(
-            @Parameter(
-                            description = "원본을 삭제할 사진 식별자",
-                            required = true,
-                            example = "385ff765-b20c-49a2-8e62-e1457784aa15")
-                    @PathVariable
-                    UUID photoId,
-            @Parameter(hidden = true) @AuthenticationPrincipal UUID appUserId) {
-        photoService.deletePhoto(photoId, appUserId);
-        return BaseResponse.success(PhotoSuccessCode.PHOTO_DELETED);
     }
 }

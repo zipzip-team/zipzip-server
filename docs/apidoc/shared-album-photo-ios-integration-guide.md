@@ -2,7 +2,7 @@
 
 > 이 문서는 [06-shared-album.md](06-shared-album.md), [07-photo-management.md](07-photo-management.md)의 계약을 전제로, 각 엔드포인트에서 **서버가 실제로 하는 일**과 **iOS가 취해야 할 행동**을 화면 흐름 관점에서 정리한 보조 문서다. 필드 단위 요청/응답 스키마나 에러 코드의 최종 근거는 항상 06/07 문서다.
 >
-> 대상 API: ALBUM-01~05, PHOTO-01~08 (Object Storage 연동 포함). 작성 시점 기준 서버 구현·수동 검증 완료.
+> 대상 API: ALBUM-01~05, PHOTO-01~04·PHOTO-06~08 (Object Storage 연동 포함). 작성 시점 기준 서버 구현·수동 검증 완료.
 
 ## 1. 공통 사항
 
@@ -26,7 +26,6 @@
 | PHOTO-01 (목록), PHOTO-04 (메타데이터 수정) | 불필요 |
 | **PHOTO-02 (업로드 URL 발급)** | 불필요 (아직 `photo` 행을 만들지 않아 재시도해도 URL만 다시 발급될 뿐 안전) |
 | **PHOTO-03 (완료 등록)**, **PHOTO-06 (일괄 삭제)**, **PHOTO-07 (추가)**, **PHOTO-08 (제거)** | **필요** |
-| PHOTO-05 (단건 삭제) | 불필요 (DELETE, 자체적으로 멱등) |
 
 iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)마다 새 UUID를 생성**하고, 네트워크 오류 등으로 그 요청을 재시도할 때는 **같은 UUID를 재사용**한다. 사용자가 다시 버튼을 눌러 새로운 요청을 보낼 때는 새 UUID를 써야 한다(그렇지 않으면 `409 IDEMPOTENCY_KEY_REUSED`가 날 수 있다).
 
@@ -179,21 +178,13 @@ sequenceDiagram
 
 **iOS 행동**: 촬영일시·위치 수정 UI에서 **바꾸려는 필드만** 요청 본문에 포함하고, 안 바꾸는 필드는 요청에서 아예 빼야 한다(값을 그대로 다시 보내는 것과 무관하게, "빼는 것"과 "null로 보내는 것"은 서버 입장에서 의미가 다르다).
 
-### PHOTO-05 — 단건 삭제
-
-`DELETE /api/v1/photos/{photoId}`
-
-**서버 동작**: 업로더 본인 또는(업로더가 탈퇴한 경우) 그 사진이 속한 그룹의 방장만 가능(`403 NOT_PHOTO_UPLOADER`). `photo.deletedAt`을 기록하는 soft delete → 모든 소속 앨범에서 즉시 접근 차단. Object Storage 객체·매핑·댓글·좋아요의 물리 정리는 30일 뒤 스윕(`PhotoPurgeService`)이 처리.
-
-**iOS 행동**: **삭제 확인 다이얼로그 필수**("영구 삭제, 복구 불가"). 이 사진이 여러 앨범에 속해 있어도 원본 자체가 지워지는 것이므로, 그 앨범들 화면에서도 함께 사라진다는 점을 안내.
-
 ### PHOTO-06 — 일괄 삭제
 
 `POST /api/v1/shared-albums/{sharedAlbumId}/photos/bulk-delete` (Idempotency-Key 필수)
 
-**서버 동작**: 요청한 `photoIds`(중복 없이 최대 100개, 위반 시 `400 INVALID_PHOTO_IDS`)가 모두 그 앨범 소속인지 확인(아니면 `404 PHOTO_NOT_FOUND`) → 각 사진에 대해 PHOTO-05와 같은 권한 검사(하나라도 권한이 없으면 `403 NOT_PHOTO_UPLOADER`, 전체 롤백) → 통과분 전부 soft delete를 **한 트랜잭션**으로 처리.
+**서버 동작**: 요청한 `photoIds`(중복 없이 최대 100개, 위반 시 `400 INVALID_PHOTO_IDS`)가 모두 그 앨범 소속인지 확인(아니면 `404 PHOTO_NOT_FOUND`) → 각 사진에 대해 업로더 본인 또는 탈퇴한 업로더의 공유 그룹 방장 권한을 검사(하나라도 권한이 없으면 `403 NOT_PHOTO_UPLOADER`, 전체 롤백) → 통과분 전부 soft delete를 **한 트랜잭션**으로 처리.
 
-**iOS 행동**: 그리드 다중 선택 → 삭제 시 호출. PHOTO-05와 동일하게 복구 불가 경고 필요. "하나라도 권한이 없으면 전체 실패"이므로, 선택 단계에서 본인 업로드 사진만 선택 가능하게 UI로 미리 걸러주면 사용자 경험이 좋아진다.
+**iOS 행동**: 그리드 다중 선택 → 삭제 시 호출. 복구 불가 경고가 필요하다. "하나라도 권한이 없으면 전체 실패"이므로, 선택 단계에서 본인 업로드 사진만 선택 가능하게 UI로 미리 걸러주면 사용자 경험이 좋아진다.
 
 ### PHOTO-07 — 기존 사진 추가(attach)
 
@@ -209,7 +200,7 @@ sequenceDiagram
 
 **서버 동작**: 대상 `shared_album_photo` 매핑을 즉시 물리 삭제 → 그 매핑이 마지막 소속이었으면(다른 앨범에도 없으면) 사진 원본도 함께 soft delete. 매핑이 애초에 없으면 그냥 건너뛴다(멱등, 에러 아님). 응답의 `detachedCount`는 실제로 지운 매핑 수, `deletedPhotoCount`는 그중 마지막 소속이라 원본까지 soft delete된 수.
 
-**iOS 행동**: "이 공유집에서만 빼기" 액션 전에, 그 사진이 다른 앨범에도 있는지 미리 확인해서 안내하는 걸 권장(PHOTO-01 응답만으로는 다른 앨범 소속 여부를 알 수 없으므로, 필요하면 별도로 확인 UX를 설계해야 한다). 없으면 원본이 통째로 사라지는 것이라 PHOTO-05와 사실상 결과가 같아진다 — 응답의 `deletedPhotoCount`로 사후에라도 "원본까지 삭제됐다"는 걸 사용자에게 알려줄 수 있다.
+**iOS 행동**: "이 공유집에서만 빼기" 액션 전에, 그 사진이 다른 앨범에도 있는지 미리 확인해서 안내하는 걸 권장(PHOTO-01 응답만으로는 다른 앨범 소속 여부를 알 수 없으므로, 필요하면 별도로 확인 UX를 설계해야 한다). 없으면 원본이 통째로 사라지므로 응답의 `deletedPhotoCount`로 사후에라도 "원본까지 삭제됐다"는 걸 사용자에게 알려줄 수 있다.
 
 ---
 
@@ -225,7 +216,6 @@ sequenceDiagram
 | 사진 올리기 | PHOTO-02 → 직접 PUT → PHOTO-03 | PHOTO-03만 필요 |
 | 그리드 새로고침(썸네일 갱신 포함) | PHOTO-01 | - |
 | 사진 상세에서 위치/날짜 수정 | PHOTO-04 | - |
-| 사진 한 장 삭제 | PHOTO-05 (경고 필수) | - |
 | 여러 장 선택 삭제 | PHOTO-06 (경고 필수) | 필요 |
 | 다른 공유집에 추가 | PHOTO-07 | 필요 |
 | 이 공유집에서만 빼기 | PHOTO-08 (경고 권장) | 필요 |
@@ -257,7 +247,7 @@ sequenceDiagram
 | HTTP | code | 의미 | 발생 API |
 |---|---|---|---|
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 또는 활성 멤버십 없음 | PHOTO-01, 02, 03, 06, 07, 08 |
-| 404 | `PHOTO_NOT_FOUND` | 사진 또는 상위 활성 리소스·멤버십 없음 | PHOTO-04, 05, 06, 07 |
+| 404 | `PHOTO_NOT_FOUND` | 사진 또는 상위 활성 리소스·멤버십 없음 | PHOTO-04, 06, 07 |
 | 400 | `INVALID_UPLOAD_METADATA` | 업로드 요청 형식 오류(개수·필드·중복 objectKey) | PHOTO-02, 03 |
 | 400 | `TOO_MANY_FILES` | 한 요청에 20개 초과 | PHOTO-02 |
 | 413 | `FILE_TOO_LARGE` | 파일 크기 20MiB 초과 | PHOTO-02 |
@@ -265,7 +255,7 @@ sequenceDiagram
 | 404 | `UPLOAD_OBJECT_NOT_FOUND` | 업로드 예약 없음(다른 사용자·앨범 발급 또는 만료) | PHOTO-03 |
 | 409 | `UPLOAD_NOT_COMPLETED` | Object Storage에 아직 원본 업로드 안 됨 | PHOTO-03 |
 | 400 | `INVALID_CURSOR` | cursor 형식 오류 | PHOTO-01 |
-| 403 | `NOT_PHOTO_UPLOADER` | 업로더(또는 위임된 방장)가 아님 | PHOTO-04, 05, 06 |
+| 403 | `NOT_PHOTO_UPLOADER` | 업로더(또는 위임된 방장)가 아님 | PHOTO-04, 06 |
 | 400 | `INVALID_TAKEN_AT` | `takenAt`이 UTC ISO-8601 형식이 아님 | PHOTO-04 |
 | 400 | `INVALID_PHOTO_LOCATION` | 위치 3필드 중 일부만 전달 | PHOTO-04 |
 | 400 | `INVALID_PHOTO_IDS` | `photoIds`가 비어있거나 100개 초과·중복 포함 | PHOTO-06, 07, 08 |
