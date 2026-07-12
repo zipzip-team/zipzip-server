@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +21,6 @@ import org.zipzip.zipzipserver.domain.photo.code.PhotoErrorCode;
 import org.zipzip.zipzipserver.domain.photo.code.PhotoSuccessCode;
 import org.zipzip.zipzipserver.domain.photo.dto.request.PhotoIdsRequest;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoAttachResponse;
-import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoBulkDeleteResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoDetachResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoListResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoMetadataUpdateResponse;
@@ -46,7 +44,6 @@ public class PhotoService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_PHOTO_IDS_PER_REQUEST = 100;
     private static final Duration DOWNLOAD_URL_TTL = Duration.ofMinutes(10);
-    private static final String BULK_DELETE_SCOPE_PREFIX = "PHOTO_BULK_DELETE:";
     private static final String ATTACH_SCOPE_PREFIX = "PHOTO_ATTACH:";
     private static final String DETACH_SCOPE_PREFIX = "PHOTO_DETACH:";
     private static final String HTTP_METHOD_POST = "POST";
@@ -122,52 +119,6 @@ public class PhotoService {
                 photo.getLocationName(),
                 photo.isInferred(),
                 photo.getUpdatedAt());
-    }
-
-    @Transactional
-    public PhotoBulkDeleteResponse bulkDelete(
-            UUID sharedAlbumId,
-            UUID appUserId,
-            String idempotencyKeyHeader,
-            PhotoIdsRequest request) {
-        SharedAlbum sharedAlbum =
-                photoAccessGuard.requireActiveSharedAlbum(sharedAlbumId, appUserId);
-        UUID idempotencyKey = idempotencyService.parseIdempotencyKey(idempotencyKeyHeader);
-        List<UUID> photoIds = validatePhotoIds(request.photoIds());
-
-        String requestHash = idempotencyService.hashCanonicalRequest(request);
-        String apiPath = "/api/v1/shared-albums/" + sharedAlbumId + "/photos/bulk-delete";
-        IdempotencyService.IdempotencyStart<PhotoBulkDeleteResponse> idempotencyStart =
-                idempotencyService.start(
-                        BULK_DELETE_SCOPE_PREFIX + appUserId,
-                        idempotencyKey,
-                        HTTP_METHOD_POST,
-                        apiPath,
-                        requestHash,
-                        PhotoBulkDeleteResponse.class);
-        if (idempotencyStart.replayed()) {
-            return idempotencyStart.replayResponse();
-        }
-
-        UUID sharedGroupId = sharedAlbum.getSharedGroup().getId();
-        List<Photo> targets = new ArrayList<>();
-        for (UUID photoId : photoIds) {
-            if (!sharedAlbumPhotoRepository.existsBySharedAlbumIdAndPhotoId(
-                    sharedAlbumId, photoId)) {
-                throw new BusinessException(PhotoErrorCode.PHOTO_NOT_FOUND);
-            }
-            Photo photo = requireActivePhoto(photoId);
-            requireDeletePermission(photo, appUserId, sharedGroupId);
-            targets.add(photo);
-        }
-
-        Instant now = Instant.now(clock);
-        targets.forEach(photo -> photo.delete(now));
-
-        PhotoBulkDeleteResponse response = new PhotoBulkDeleteResponse(targets.size());
-        idempotencyService.complete(
-                idempotencyStart.record(), PhotoSuccessCode.PHOTOS_DELETED, response);
-        return response;
     }
 
     @Transactional

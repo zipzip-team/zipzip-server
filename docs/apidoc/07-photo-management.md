@@ -13,13 +13,12 @@
 | PHOTO-02 | 사진 | 사진 업로드 URL 발급 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls` | 완료 | true | false |
 | PHOTO-03 | 사진 | 사진 업로드 완료 등록 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/complete` | 완료 | true | false |
 | PHOTO-04 | 사진 | 사진 메타데이터 수정 | PATCH | `/api/v1/photos/{photoId}` | 완료 | true | false |
-| PHOTO-06 | 사진 | 공유집(앨범) 사진 일괄 삭제 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/bulk-delete` | 완료 | true | false |
 | PHOTO-07 | 사진 | 공유집(앨범)에 기존 사진 추가 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/attach` | 완료 | true | false |
 | PHOTO-08 | 사진 | 공유집(앨범)에서 사진 제거 | POST | `/api/v1/shared-albums/{sharedAlbumId}/photos/detach` | 완료 | true | false |
 
 모든 API는 `Authorization: Bearer <accessToken>` 헤더와 대상 공유집(앨범) 또는 사진이 속한 공유 그룹의 활성 멤버십을 요구한다. `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다.
-사진 메타데이터 수정은 업로더만 가능하다. 사진 일괄 삭제는 원칙적으로 업로더만 가능하며, 업로더가 탈퇴한 사용자인 경우 상위 공유 그룹 방장도 삭제할 수 있다.
-공유집(앨범)에 사진을 추가·제거하는 것은 활성 방장·멤버 누구나 할 수 있다. 제거 대상 사진이 다른 공유집(앨범)에도 속해 있으면 해당 앨범-사진 매핑만 없애고 사진 원본은 유지되지만, 제거하려는 공유집(앨범)이 그 사진의 마지막 소속이면 사진 원본도 함께 soft delete된다(자세한 내용은 [PHOTO-08](#8-photo-08-공유집앨범에서-사진-제거) 참고).
+사진 메타데이터 수정은 업로더만 가능하다.
+공유집(앨범)에 사진을 추가·제거하는 것은 활성 방장·멤버 누구나 할 수 있다. 제거 대상 사진이 다른 공유집(앨범)에도 속해 있으면 해당 앨범-사진 매핑만 없애고 사진 원본은 유지되지만, 제거하려는 공유집(앨범)이 그 사진의 마지막 소속이면 사진 원본도 함께 soft delete된다(자세한 내용은 [PHOTO-08](#7-photo-08-공유집앨범에서-사진-제거) 참고).
 
 원본 이미지는 서버를 거치지 않고 iOS와 OCI Object Storage 사이에서 직접 오간다.
 서버는 `photo.original_object_key`, `photo.thumbnail_object_key`만 저장하고, API 조회 시점마다 presigned URL을 새로 발급한다.
@@ -334,66 +333,7 @@
 | 403 | `NOT_PHOTO_UPLOADER` | 활성 멤버지만 업로더가 아님 |
 | 404 | `PHOTO_NOT_FOUND` | 사진 또는 상위 활성 리소스·멤버십이 없음 |
 
-## 6. PHOTO-06 공유집(앨범) 사진 일괄 삭제
-
-같은 공유집(앨범)에 속한 사진 중 요청 사용자가 업로드했거나, 업로더가 탈퇴한 사용자인 경우 요청 사용자가 상위 공유 그룹 방장인 사진만 한 번에 최대 100개 soft delete한다.
-사진 원본을 삭제하므로 다른 공유집(앨범)에서도 함께 접근이 차단되며, 복구할 수 없다.
-모든 사진을 검증한 뒤 하나의 트랜잭션으로 처리하며 일부 성공은 허용하지 않는다.
-
-### Request
-
-#### Header
-
-| 필드 | 타입 | 필수 | 설명 | 예시 |
-|---|---|---:|---|---|
-| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 일괄 삭제 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `54cf8d7e-a23e-4e76-90f7-603f122b1507` |
-
-#### Path
-
-| 필드 | 타입 | 필수 | 설명 |
-|---|---|---:|---|
-| `sharedAlbumId` | UUID | O | 사진을 일괄 삭제할 공유집(앨범) 식별자 |
-
-#### Body
-
-| 필드 | 타입 | 필수 | 제약 | 설명 |
-|---|---|---:|---|---|
-| `photoIds` | UUID[] | O | 중복 없이 1~100개 | 삭제할 사진 식별자 목록 |
-
-```json
-{
-  "photoIds": [
-    "385ff765-b20c-49a2-8e62-e1457784aa15",
-    "4c9410ec-1dfa-4dbb-b8e6-2a4e947256c9"
-  ]
-}
-```
-
-### Success Response
-
-#### HTTP Status Code: `200 OK`
-
-```json
-{
-  "status": 200,
-  "code": "PHOTOS_DELETED",
-  "message": "사진을 일괄 삭제했습니다.",
-  "data": {
-    "deletedCount": 2
-  }
-}
-```
-
-### Fail Response
-
-| HTTP Status | code | 조건 |
-|---:|---|---|
-| 400 | `INVALID_PHOTO_IDS` | 배열이 비었거나 중복·형식 오류·100개 초과 |
-| 403 | `NOT_PHOTO_UPLOADER` | 대상 중 요청 사용자가 업로드하지 않았고, 탈퇴한 업로더의 공유 그룹 방장 권한으로도 삭제할 수 없는 사진이 있음 |
-| 404 | `SHARED_ALBUM_NOT_FOUND` | 공유집(앨범) 또는 활성 멤버십이 없음 |
-| 404 | `PHOTO_NOT_FOUND` | 대상 중 접근 가능한 활성 사진이 아닌 항목이 있음 |
-
-## 7. PHOTO-07 공유집(앨범)에 기존 사진 추가
+## 6. PHOTO-07 공유집(앨범)에 기존 사진 추가
 
 같은 공유 그룹에 속한 기존 사진을 요청 경로의 공유집(앨범)에 추가로 담는다.
 이미 해당 공유집(앨범)에 속한 사진은 건너뛰고 새로 추가한 매핑 수만 반환하는 멱등 동작이다.
@@ -453,7 +393,7 @@
 | 404 | `PHOTO_NOT_FOUND` | 대상 중 접근 가능한 활성 사진이 아닌 항목이 있음 |
 | 409 | `PHOTO_NOT_IN_SAME_SHARED_GROUP` | 대상 중 공유집(앨범)과 다른 공유 그룹에 속한 사진이 있음 |
 
-## 8. PHOTO-08 공유집(앨범)에서 사진 제거
+## 7. PHOTO-08 공유집(앨범)에서 사진 제거
 
 요청 경로의 공유집(앨범)에서 사진을 뺀다. 해당 `shared_album_photo` 매핑을 즉시 물리 삭제한다.
 해당 공유집(앨범)에 속해 있지 않은 사진은 건너뛰는 멱등 동작이다.

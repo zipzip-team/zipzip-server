@@ -403,7 +403,6 @@ public class SwaggerResponseExampleConfig {
                 Map.entry(
                         "SharedAlbumPhotoController#completeUpload",
                         PhotoSuccessCode.PHOTOS_CREATED),
-                Map.entry("SharedAlbumPhotoController#bulkDelete", PhotoSuccessCode.PHOTOS_DELETED),
                 Map.entry(
                         "SharedAlbumPhotoController#attachPhotos",
                         PhotoSuccessCode.PHOTOS_ATTACHED),
