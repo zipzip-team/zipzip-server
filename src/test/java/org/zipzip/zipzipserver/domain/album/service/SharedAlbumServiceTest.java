@@ -22,7 +22,6 @@ import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
-import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMembershipRepository;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
@@ -34,7 +33,6 @@ class SharedAlbumServiceTest {
     @Mock private SharedAlbumAccessGuard sharedAlbumAccessGuard;
     @Mock private SharedAlbumRepository sharedAlbumRepository;
     @Mock private SharedAlbumPhotoRepository sharedAlbumPhotoRepository;
-    @Mock private SharedGroupMembershipRepository sharedGroupMembershipRepository;
     @Mock private PhotoRepository photoRepository;
     @Mock private AppUserRepository appUserRepository;
     @Mock private IdempotencyService idempotencyService;
@@ -81,7 +79,7 @@ class SharedAlbumServiceTest {
     }
 
     @Test
-    void 생성자도_방장도_아니면_삭제할_수_없다() {
+    void 생성자도_방장도_아닌_활성_멤버도_삭제할_수_있다() {
         AppUser creator = anAppUser();
         SharedGroup group = aSharedGroup(anAppUser());
         SharedAlbum album = anAlbum(creator, group);
@@ -89,13 +87,11 @@ class SharedAlbumServiceTest {
 
         when(sharedAlbumAccessGuard.requireActiveSharedAlbum(album.getId(), requesterId))
                 .thenReturn(album);
+        when(sharedAlbumPhotoRepository.findBySharedAlbumId(album.getId())).thenReturn(List.of());
 
-        assertThatThrownBy(() -> sharedAlbumService.deleteAlbum(album.getId(), requesterId))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(
-                        exception ->
-                                assertThat(((BusinessException) exception).getErrorCode())
-                                        .isEqualTo(SharedAlbumErrorCode.NOT_SHARED_ALBUM_CREATOR));
+        sharedAlbumService.deleteAlbum(album.getId(), requesterId);
+
+        assertThat(album.getDeletedAt()).isNotNull();
     }
 
     @Test

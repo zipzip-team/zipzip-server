@@ -85,7 +85,7 @@ iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)�
 
 `PATCH /api/v1/shared-albums/{sharedAlbumId}` (Idempotency-Key 불필요 — PATCH는 같은 이름으로 재요청해도 결과가 같은 자연적 멱등 연산)
 
-**서버 동작**: 활성 멤버라면 **생성자든 아니든** 누구나 수정 가능(방장·멤버 구분 없음, ALBUM-05 삭제와 권한 규칙이 다르다는 점에 주의). 이름 검증 후 갱신하고 `updatedAt` 갱신.
+**서버 동작**: 활성 멤버라면 **생성자든 아니든** 누구나 수정 가능(방장·멤버 구분 없음, ALBUM-05 삭제와 권한 규칙이 동일하다). 이름 검증 후 갱신하고 `updatedAt` 갱신.
 
 **iOS 행동**: 이름 편집 UI → 저장 시 호출 → 응답 `updatedAt`으로 로컬 캐시 갱신.
 
@@ -94,7 +94,7 @@ iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)�
 `DELETE /api/v1/shared-albums/{sharedAlbumId}` (Idempotency-Key 불필요)
 
 **서버 동작**
-1. **생성자 본인** 또는 (생성자가 탈퇴한 사용자인 경우) **그 공유 그룹의 방장**만 가능 — 그 외엔 `403 NOT_SHARED_ALBUM_CREATOR`. ALBUM-04(이름 수정)보다 엄격한 권한이다.
+1. 상위 공유 그룹의 활성 멤버라면 생성자·방장 여부와 무관하게 누구나 가능(ALBUM-04 이름 수정과 동일한 권한).
 2. 앨범을 soft delete(`deletedAt` 기록).
 3. 그 앨범의 `shared_album_photo` 매핑을 **즉시 물리 삭제**.
 4. 매핑 삭제 결과 소속 앨범이 0개가 된 사진(= 이 앨범이 마지막 소속이었던 사진)은 원본도 함께 soft delete.
@@ -250,7 +250,6 @@ sequenceDiagram
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십 없음 | ALBUM-01, 02 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 또는 활성 멤버십 없음 | ALBUM-03, 04, 05 |
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 이름이 공백이거나 100자 초과 | ALBUM-02, 04 |
-| 403 | `NOT_SHARED_ALBUM_CREATOR` | 생성자(또는 위임된 방장)가 아님 | ALBUM-05 |
 | 400 | `INVALID_CURSOR` | cursor 형식 오류 | ALBUM-01 |
 
 ### 5.3 사진 — `PhotoErrorCode`
