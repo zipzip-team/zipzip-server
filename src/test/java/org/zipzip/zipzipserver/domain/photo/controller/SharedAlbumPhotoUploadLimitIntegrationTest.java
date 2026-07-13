@@ -84,7 +84,9 @@ class SharedAlbumPhotoUploadLimitIntegrationTest {
         String requestBody = objectMapper.writeValueAsString(uploadUrlRequestBody(21, 1_000L));
 
         mockMvc.perform(
-                        post("/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls", sharedAlbum.getId())
+                        post(
+                                        "/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls",
+                                        sharedAlbum.getId())
                                 .header("Authorization", bearerToken(uploader))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody))
@@ -94,10 +96,13 @@ class SharedAlbumPhotoUploadLimitIntegrationTest {
 
     @Test
     void 업로드_URL_발급_요청의_파일_크기가_20MiB를_초과하면_413_FILE_TOO_LARGE() throws Exception {
-        String requestBody = objectMapper.writeValueAsString(uploadUrlRequestBody(1, 21L * 1024 * 1024));
+        String requestBody =
+                objectMapper.writeValueAsString(uploadUrlRequestBody(1, 21L * 1024 * 1024));
 
         mockMvc.perform(
-                        post("/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls", sharedAlbum.getId())
+                        post(
+                                        "/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls",
+                                        sharedAlbum.getId())
                                 .header("Authorization", bearerToken(uploader))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody))
@@ -114,7 +119,9 @@ class SharedAlbumPhotoUploadLimitIntegrationTest {
                 objectMapper.writeValueAsString(uploadUrlRequestBody(20, 20L * 1024 * 1024));
 
         mockMvc.perform(
-                        post("/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls", sharedAlbum.getId())
+                        post(
+                                        "/api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls",
+                                        sharedAlbum.getId())
                                 .header("Authorization", bearerToken(uploader))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody))
@@ -132,7 +139,9 @@ class SharedAlbumPhotoUploadLimitIntegrationTest {
         String requestBody = objectMapper.writeValueAsString(Map.of("files", files));
 
         mockMvc.perform(
-                        post("/api/v1/shared-albums/{sharedAlbumId}/photos/complete", sharedAlbum.getId())
+                        post(
+                                        "/api/v1/shared-albums/{sharedAlbumId}/photos/complete",
+                                        sharedAlbum.getId())
                                 .header("Authorization", bearerToken(uploader))
                                 .header("Idempotency-Key", UUID.randomUUID().toString())
                                 .contentType(MediaType.APPLICATION_JSON)

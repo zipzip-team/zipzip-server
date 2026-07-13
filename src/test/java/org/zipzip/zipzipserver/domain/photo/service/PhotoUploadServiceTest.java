@@ -209,7 +209,8 @@ class PhotoUploadServiceTest {
         }
 
         PhotoUploadUrlResponse response =
-                photoUploadService.issueUploadUrls(albumId, userId, new PhotoUploadUrlRequest(files));
+                photoUploadService.issueUploadUrls(
+                        albumId, userId, new PhotoUploadUrlRequest(files));
 
         assertThat(response.uploads()).hasSize(20);
     }
@@ -452,10 +453,24 @@ class PhotoUploadServiceTest {
                 new PhotoUploadCompleteRequest(
                         List.of(
                                 new PhotoUploadCompleteRequest.CompleteFileSpec(
-                                        "object-key", null, null, null, null, null, null, null,
+                                        "object-key",
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
                                         null),
                                 new PhotoUploadCompleteRequest.CompleteFileSpec(
-                                        "object-key", null, null, null, null, null, null, null,
+                                        "object-key",
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
                                         null)));
 
         when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
