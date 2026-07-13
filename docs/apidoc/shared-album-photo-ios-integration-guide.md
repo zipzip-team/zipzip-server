@@ -27,7 +27,7 @@
 | **PHOTO-02 (업로드 URL 발급)** | 불필요 (아직 `photo` 행을 만들지 않아 재시도해도 URL만 다시 발급될 뿐 안전) |
 | **PHOTO-03 (완료 등록)**, **PHOTO-07 (추가)**, **PHOTO-08 (제거)** | **필요** |
 
-iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)마다 새 UUID를 생성**하고, 네트워크 오류 등으로 그 요청을 재시도할 때는 **같은 UUID를 재사용**한다. 사용자가 다시 버튼을 눌러 새로운 요청을 보낼 때는 새 UUID를 써야 한다(그렇지 않으면 `409 IDEMPOTENCY_KEY_REUSED`가 날 수 있다).
+iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)마다 새 UUID를 생성**하고, 네트워크 오류 등으로 그 요청을 재시도할 때는 **같은 UUID를 재사용**한다. 사용자가 다시 버튼을 눌러 새로운 요청을 보낼 때는 새 UUID를 써야 한다(그렇지 않으면 `409 IDEMPOTENCY_KEY_REUSED`가 날 수 있다). PHOTO-03을 여러 배치로 나눠 호출하는 경우([21장 이상 선택 시: 배치 분할](#21장-이상-선택-시-배치-분할) 참고) "논리적 요청"은 **배치 하나**를 뜻한다 — 배치마다 새 UUID를 쓰고, 같은 배치를 재시도할 때만 그 배치의 UUID를 재사용한다.
 
 같은 키로 다른 요청 본문을 보내면 `409 IDEMPOTENCY_KEY_REUSED`, 같은 키의 첫 요청이 아직 처리 중이면 `409 IDEMPOTENCY_REQUEST_IN_PROGRESS`를 반환한다.
 
@@ -146,6 +146,17 @@ sequenceDiagram
     API--)API: 커밋 후 비동기 썸네일 작업 제출
 ```
 
+#### 21장 이상 선택 시: 배치 분할
+
+서버는 한 요청당 20개까지만 처리한다(개수 제한 근거: [의사결정 로그 API-14](decisions/api-design-decision-log.md#16-api-14-사진-업로드-파일-수용량-제한)). 사용자가 21장 이상을 고르면 iOS가 이 상한을 그대로 노출하지 않고, 아래처럼 내부적으로 배치를 나눠 "선택 개수 무제한"처럼 보이는 UX를 만드는 것을 권장한다.
+
+- **분할**: 선택한 사진을 20장 단위로 나눠 배치마다 PHOTO-02 → 직접 PUT → PHOTO-03을 독립적으로 반복한다.
+- **Idempotency-Key**: 배치마다 새 UUID를 발급한다(1.3절 참고). 같은 배치를 재시도할 때만 그 배치의 키를 재사용하고, 다른 배치에 같은 키를 쓰면 `409 IDEMPOTENCY_KEY_REUSED`가 난다.
+- **진행률 표시**: PHOTO-02·PUT·PHOTO-03은 모두 동기 호출이라 배치·파일 단위로 진행률을 정확히 계산할 수 있다. 썸네일 생성은 완료 등록 이후 서버가 비동기로 처리하므로 진행률 완료 조건에 포함하지 않는다(사진은 원본만 등록돼도 바로 앨범에 보인다).
+- **부분 실패 처리**: 배치 하나는 하나의 트랜잭션이라 원자적이지만, 배치 여러 개에 걸친 전체 선택은 원자적이지 않다. 배치 3이 실패해도 1~2는 이미 커밋된 상태이므로, 실패 시 전체를 재시작하지 말고 실패한 배치만 재시도한다.
+- **동시 배치 수**: 서버 썸네일 처리 큐 용량(스레드 4~6개, 큐 100)을 고려해 동시에 진행하는 배치는 2~3개 정도로 제한하는 것을 권장한다. 너무 많은 배치를 동시에 완료 등록하면 썸네일 작업 제출이 거부될 수 있다.
+- **TTL**: presigned URL·업로드 예약은 배치당 15분 유효하다(1.5절). 한 배치가 이 시간을 넘기면 그 배치의 `objectKey`들만 만료되므로, PHOTO-02부터 그 배치만 다시 요청한다.
+
 #### PHOTO-02 — 업로드 URL 발급
 
 `POST /api/v1/shared-albums/{sharedAlbumId}/photos/upload-urls`
@@ -154,7 +165,7 @@ sequenceDiagram
 
 **에러**: `400 INVALID_UPLOAD_METADATA`(형식 오류), `400 TOO_MANY_FILES`(21개 이상), `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_IMAGE_TYPE`, `404 SHARED_ALBUM_NOT_FOUND`.
 
-**iOS 행동**: 올릴 사진들의 `contentType`+`sizeBytes`를 배열로 요청 → 응답 배열(요청과 같은 순서)에서 파일마다 `objectKey`+`uploadUrl` 받아 다음 단계에 그대로 사용.
+**iOS 행동**: 올릴 사진들의 `contentType`+`sizeBytes`를 배열로 요청 → 응답 배열(요청과 같은 순서)에서 파일마다 `objectKey`+`uploadUrl` 받아 다음 단계에 그대로 사용. 21장 이상 선택했다면 [배치 분할](#21장-이상-선택-시-배치-분할)대로 20개 단위로 나눠 이 호출부터 반복한다.
 
 #### iOS → Object Storage 직접 PUT
 
@@ -168,7 +179,7 @@ sequenceDiagram
 
 **에러**: `400 INVALID_UPLOAD_METADATA`(개수/중복 objectKey 등), `404 UPLOAD_OBJECT_NOT_FOUND`(예약 없음/다른 사용자·앨범 발급/만료), `409 UPLOAD_NOT_COMPLETED`(HEAD 체크 실패, 즉 아직 PUT이 안 끝남).
 
-**iOS 행동**: PUT이 끝난 `objectKey`들과 EXIF에서 뽑은 메타데이터(`deviceModel`, `takenAt`, 위치, `width`/`height`)를 실어 호출. 응답에 사진이 생기지만 `thumbnailUrl`은 아직 `null`(`thumbnailStatus: PENDING`)이므로, 업로더 화면은 로컬 원본을 즉시 낙관적으로 보여주고 몇 초 뒤 PHOTO-01 재조회로 썸네일을 받는 방식을 권장한다. `409 UPLOAD_NOT_COMPLETED`를 받으면 PUT이 아직 끝나지 않았거나 실패한 것이므로, 짧은 재시도 또는 PUT부터 다시 확인해야 한다.
+**iOS 행동**: PUT이 끝난 `objectKey`들과 EXIF에서 뽑은 메타데이터(`deviceModel`, `takenAt`, 위치, `width`/`height`)를 실어 호출. 응답에 사진이 생기지만 `thumbnailUrl`은 아직 `null`(`thumbnailStatus: PENDING`)이므로, 업로더 화면은 로컬 원본을 즉시 낙관적으로 보여주고 몇 초 뒤 PHOTO-01 재조회로 썸네일을 받는 방식을 권장한다. `409 UPLOAD_NOT_COMPLETED`를 받으면 PUT이 아직 끝나지 않았거나 실패한 것이므로, 짧은 재시도 또는 PUT부터 다시 확인해야 한다. 배치로 나눠 호출할 때는 배치마다 새 `Idempotency-Key`를 쓰고, 실패한 배치만 재시도한다([배치 분할](#21장-이상-선택-시-배치-분할) 참고).
 
 ### PHOTO-04 — 메타데이터 수정
 
