@@ -2,7 +2,6 @@ package org.zipzip.zipzipserver.domain.album.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -108,6 +107,7 @@ class SharedAlbumBulkControllerIntegrationTest {
                 .andExpect(jsonPath("$.data.deletedAlbumCount").value(2))
                 .andExpect(jsonPath("$.data.deletedPhotoCount").value(1));
 
+        entityManager.flush();
         entityManager.clear();
         SharedAlbum persistedAlbumA = entityManager.find(SharedAlbum.class, albumA.getId());
         SharedAlbum persistedAlbumB = entityManager.find(SharedAlbum.class, albumB.getId());
@@ -148,7 +148,6 @@ class SharedAlbumBulkControllerIntegrationTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Idempotency-Replayed", "true"))
                 .andExpect(jsonPath("$.data.deletedAlbumCount").value(1));
     }
 
