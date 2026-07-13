@@ -2,7 +2,10 @@ package org.zipzip.zipzipserver.domain.album.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -11,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.zipzip.zipzipserver.domain.album.code.SharedAlbumErrorCode;
 import org.zipzip.zipzipserver.domain.album.code.SharedAlbumSuccessCode;
+import org.zipzip.zipzipserver.domain.album.dto.request.SharedAlbumIdsRequest;
 import org.zipzip.zipzipserver.domain.album.dto.request.SharedAlbumNameRequest;
+import org.zipzip.zipzipserver.domain.album.dto.response.SharedAlbumBulkDeleteResponse;
 import org.zipzip.zipzipserver.domain.album.dto.response.SharedAlbumListResponse;
 import org.zipzip.zipzipserver.domain.album.dto.response.SharedAlbumRenameResponse;
 import org.zipzip.zipzipserver.domain.album.dto.response.SharedAlbumResponse;
@@ -34,8 +39,11 @@ public class SharedAlbumService {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_NAME_LENGTH = 100;
+    private static final int MAX_SHARED_ALBUM_IDS_PER_REQUEST = 100;
     private static final String CREATE_SCOPE_PREFIX = "SHARED_ALBUM_CREATE:";
+    private static final String BULK_DELETE_SCOPE_PREFIX = "SHARED_ALBUM_BULK_DELETE:";
     private static final String HTTP_METHOD_POST = "POST";
+    private static final String BULK_DELETE_API_PATH = "/api/v1/shared-albums/bulk-delete";
 
     private final SharedAlbumAccessGuard sharedAlbumAccessGuard;
     private final SharedAlbumRepository sharedAlbumRepository;
@@ -168,6 +176,60 @@ public class SharedAlbumService {
         album.delete(now);
     }
 
+    @Transactional
+    public SharedAlbumBulkDeleteResponse bulkDeleteAlbums(
+            UUID appUserId, String idempotencyKeyHeader, SharedAlbumIdsRequest request) {
+        UUID idempotencyKey = idempotencyService.parseIdempotencyKey(idempotencyKeyHeader);
+        List<UUID> sharedAlbumIds = validateSharedAlbumIds(request.sharedAlbumIds());
+
+        String requestHash = idempotencyService.hashCanonicalRequest(request);
+        IdempotencyService.IdempotencyStart<SharedAlbumBulkDeleteResponse> idempotencyStart =
+                idempotencyService.start(
+                        BULK_DELETE_SCOPE_PREFIX + appUserId,
+                        idempotencyKey,
+                        HTTP_METHOD_POST,
+                        BULK_DELETE_API_PATH,
+                        requestHash,
+                        SharedAlbumBulkDeleteResponse.class);
+        if (idempotencyStart.replayed()) {
+            return idempotencyStart.replayResponse();
+        }
+
+        List<SharedAlbum> targets = new ArrayList<>();
+        for (UUID sharedAlbumId : sharedAlbumIds) {
+            targets.add(sharedAlbumAccessGuard.requireActiveSharedAlbum(sharedAlbumId, appUserId));
+        }
+
+        Set<UUID> photoIds = new HashSet<>();
+        for (SharedAlbum album : targets) {
+            sharedAlbumPhotoRepository.findBySharedAlbumId(album.getId()).stream()
+                    .map(mapping -> mapping.getPhoto().getId())
+                    .forEach(photoIds::add);
+            sharedAlbumPhotoRepository.deleteBySharedAlbumId(album.getId());
+        }
+        sharedAlbumPhotoRepository.flush();
+
+        Instant now = Instant.now(clock);
+        int deletedPhotoCount = 0;
+        for (UUID photoId : photoIds) {
+            if (sharedAlbumPhotoRepository.countByPhotoId(photoId) == 0) {
+                Photo photo = photoRepository.findById(photoId).orElse(null);
+                if (photo != null && photo.getDeletedAt() == null) {
+                    photo.delete(now);
+                    deletedPhotoCount++;
+                }
+            }
+        }
+
+        targets.forEach(album -> album.delete(now));
+
+        SharedAlbumBulkDeleteResponse response =
+                new SharedAlbumBulkDeleteResponse(targets.size(), deletedPhotoCount);
+        idempotencyService.complete(
+                idempotencyStart.record(), SharedAlbumSuccessCode.SHARED_ALBUMS_DELETED, response);
+        return response;
+    }
+
     private String validateName(String rawName) {
         if (rawName == null) {
             throw new BusinessException(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_NAME);
@@ -177,6 +239,16 @@ public class SharedAlbumService {
             throw new BusinessException(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_NAME);
         }
         return trimmed;
+    }
+
+    private List<UUID> validateSharedAlbumIds(List<UUID> sharedAlbumIds) {
+        if (sharedAlbumIds == null
+                || sharedAlbumIds.isEmpty()
+                || sharedAlbumIds.size() > MAX_SHARED_ALBUM_IDS_PER_REQUEST
+                || new HashSet<>(sharedAlbumIds).size() != sharedAlbumIds.size()) {
+            throw new BusinessException(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_IDS);
+        }
+        return sharedAlbumIds;
     }
 
     private int normalizeSize(Integer size) {
