@@ -52,7 +52,11 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        if (!project.hasProperty('includeBenchmark')) {
+            excludeTags 'benchmark'
+        }
+    }
 }
 
 spotless {
