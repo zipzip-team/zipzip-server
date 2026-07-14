@@ -14,6 +14,7 @@ import org.zipzip.zipzipserver.domain.auth.apple.AppleUserInfo;
 import org.zipzip.zipzipserver.domain.auth.code.AuthErrorCode;
 import org.zipzip.zipzipserver.domain.auth.code.AuthSuccessCode;
 import org.zipzip.zipzipserver.domain.auth.dto.request.AppleLoginRequest;
+import org.zipzip.zipzipserver.domain.auth.dto.request.DevelopmentTokenIssueRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.request.LogoutRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.request.TokenRefreshRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.response.LoginResponse;
@@ -25,6 +26,7 @@ import org.zipzip.zipzipserver.domain.auth.token.RefreshTokenHasher;
 import org.zipzip.zipzipserver.domain.user.code.UserErrorCode;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
+import org.zipzip.zipzipserver.domain.user.service.UserProfileService;
 import org.zipzip.zipzipserver.global.code.GlobalErrorCode;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 import org.zipzip.zipzipserver.global.idempotency.ApiIdempotencyRecord;
@@ -35,6 +37,7 @@ import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
 public class AuthService {
 
     private static final String TOKEN_TYPE = "Bearer";
+    private static final String DEVELOPMENT_APPLE_SUBJECT_PREFIX = "development:";
     private static final int MAX_DISPLAY_NAME_LENGTH = 50;
     private static final String AUTH_REFRESH_SCOPE_PREFIX = "AUTH_REFRESH:";
     private static final String AUTH_REFRESH_HTTP_METHOD = "POST";
@@ -48,6 +51,7 @@ public class AuthService {
     private final RefreshTokenHasher refreshTokenHasher;
     private final RefreshTokenValidator refreshTokenValidator;
     private final IdempotencyService idempotencyService;
+    private final UserProfileService userProfileService;
     private final Clock clock = Clock.systemUTC();
 
     @Transactional
@@ -78,6 +82,46 @@ public class AuthService {
                 loginResult.isRestoredUser(),
                 new LoginResponse.UserSummary(
                         loginResult.appUser().getId(), loginResult.appUser().getDisplayName()));
+    }
+
+    @Transactional
+    public LoginResponse issueDevelopmentTokens(DevelopmentTokenIssueRequest request) {
+        String displayName = normalizeRequiredDisplayName(request.displayName());
+        String appleSubject = DEVELOPMENT_APPLE_SUBJECT_PREFIX + request.testUserKey();
+        Optional<AppUser> foundAppUser = appUserRepository.findByAppleSubject(appleSubject);
+        AppUser appUser = foundAppUser.orElse(null);
+        boolean isNewUser = false;
+        boolean isRestoredUser = false;
+
+        if (appUser == null) {
+            appUser = appUserRepository.save(AppUser.create(appleSubject, displayName));
+            isNewUser = true;
+        } else if (appUser.isDeleted()) {
+            appUser.restore(displayName);
+            isRestoredUser = true;
+        }
+
+        TokenIssueResult tokenIssueResult = issueTokens(appUser);
+        return new LoginResponse(
+                tokenIssueResult.accessToken(),
+                tokenIssueResult.refreshToken(),
+                TOKEN_TYPE,
+                jwtTokenProvider.getAccessTokenExpiresIn(),
+                isNewUser,
+                isRestoredUser,
+                new LoginResponse.UserSummary(appUser.getId(), appUser.getDisplayName()));
+    }
+
+    @Transactional
+    public void deleteDevelopmentUser(String testUserKey) {
+        String appleSubject = DEVELOPMENT_APPLE_SUBJECT_PREFIX + testUserKey;
+        AppUser appUser =
+                appUserRepository
+                        .findByAppleSubject(appleSubject)
+                        .filter(foundAppUser -> !foundAppUser.isDeleted())
+                        .orElseThrow(() -> new BusinessException(UserErrorCode.USER_NOT_FOUND));
+
+        userProfileService.withdraw(appUser.getId());
     }
 
     @Transactional

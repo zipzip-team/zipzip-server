@@ -185,6 +185,7 @@ jobs:
 
           append_required_payload GIT_SHA "$GIT_SHA"
           append_required_payload DOCKERHUB_IMAGE "$DOCKERHUB_IMAGE"
+          append_required_payload SPRING_PROFILES_ACTIVE "dev"
           append_required_payload SPRING_DATASOURCE_URL "$DB_URL"
           append_required_payload SPRING_DATASOURCE_USERNAME "$DB_USERNAME"
           append_required_payload SPRING_DATASOURCE_PASSWORD "$DB_PASSWORD"

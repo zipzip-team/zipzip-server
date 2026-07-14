@@ -1,0 +1,28 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/dev/auth/tokens"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "testUserKey": "{{developmentTestUserKey}}",
+      "displayName": "{{developmentDisplayName}}"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('개발용 토큰 발급 응답 상태가 200이다', function () {
+        pm.response.to.have.status(200);
+      });
+
+      const response = pm.response.json();
+      if (response?.data?.accessToken) {
+        pm.collectionVariables.set('accessToken', response.data.accessToken);
+      }
+      if (response?.data?.refreshToken) {
+        pm.collectionVariables.set('refreshToken', response.data.refreshToken);
+      }
+    language: text/javascript
+order: 1050
