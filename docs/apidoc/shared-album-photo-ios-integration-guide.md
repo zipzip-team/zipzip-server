@@ -107,7 +107,7 @@ iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)�
 `POST /api/v1/shared-albums/bulk-delete` (Idempotency-Key 필수)
 
 **서버 동작**
-1. 요청 본문 `sharedAlbumIds`(중복 없이 1~100개)를 검증 — 위반 시 `400 INVALID_SHARED_ALBUM_IDS`.
+1. 요청 본문 `sharedAlbumIds`(`null` 원소 없이 중복 없이 1~100개, 요청 본문 자체도 `null` 불가)를 검증 — 위반 시 `400 INVALID_SHARED_ALBUM_IDS`.
 2. Idempotency 시작(같은 키 재시도면 여기서 바로 과거 응답 반환).
 3. 대상 전체를 먼저 순회하며 각 앨범의 존재·활성 상태·상위 공유 그룹 활성 멤버십을 검증한다(ALBUM-05와 동일하게 생성자·방장 여부는 확인하지 않는다). **하나라도 실패하면 어떤 앨범도 삭제하지 않고 즉시 `404 SHARED_ALBUM_NOT_FOUND`로 실패**한다.
 4. 검증을 통과하면 대상 앨범의 `shared_album_photo` 매핑을 모두 물리 삭제한다.
@@ -247,7 +247,7 @@ sequenceDiagram
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십 없음 | ALBUM-01, 02 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 또는 활성 멤버십 없음 | ALBUM-03, 04, 05, 06 |
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 이름이 공백이거나 100자 초과 | ALBUM-02, 04 |
-| 400 | `INVALID_SHARED_ALBUM_IDS` | `sharedAlbumIds`가 비었거나, 중복이 있거나, 100개 초과 | ALBUM-06 |
+| 400 | `INVALID_SHARED_ALBUM_IDS` | 요청 본문이 `null`이거나, `sharedAlbumIds`가 비었거나 `null` 원소를 포함하거나, 중복이 있거나, 100개 초과 | ALBUM-06 |
 | 400 | `INVALID_CURSOR` | cursor 형식 오류 | ALBUM-01 |
 
 ### 5.3 사진 — `PhotoErrorCode`

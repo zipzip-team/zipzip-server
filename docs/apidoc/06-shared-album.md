@@ -280,7 +280,7 @@
 
 | 필드 | 타입 | 필수 | 제약 | 설명 |
 |---|---|---:|---|---|
-| `sharedAlbumIds` | UUID[] | O | 중복 없이 1~100개 | 삭제할 공유집(앨범) 식별자 목록 |
+| `sharedAlbumIds` | UUID[] | O | `null` 원소 없이 중복 없이 1~100개 | 삭제할 공유집(앨범) 식별자 목록 |
 
 같은 `Idempotency-Key`와 같은 요청을 재시도하면 최초 성공 응답을 다시 반환한다.
 
@@ -305,7 +305,7 @@
 | HTTP Status | code | 조건 |
 |---:|---|---|
 | 400 | `INVALID_REQUEST` | `Idempotency-Key` 누락·UUID 형식 오류 또는 요청 본문 형식 오류 |
-| 400 | `INVALID_SHARED_ALBUM_IDS` | `sharedAlbumIds`가 비었거나, 중복이 있거나, 100개를 초과함 |
+| 400 | `INVALID_SHARED_ALBUM_IDS` | 요청 본문이 `null`이거나, `sharedAlbumIds`가 비었거나 `null` 원소를 포함하거나, 중복이 있거나, 100개를 초과함 |
 | 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 대상 중 하나라도 공유집(앨범)이 없거나 활성 멤버십이 없음 |
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 `Idempotency-Key`를 다른 요청에 재사용함 |
