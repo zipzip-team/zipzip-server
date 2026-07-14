@@ -70,3 +70,11 @@ spotless {
         endWithNewline()
     }
 }
+
+def isCi = providers.environmentVariable('CI').isPresent()
+
+if (!isCi) {
+    tasks.named('compileJava') {
+        dependsOn 'spotlessJavaApply'
+    }
+}
