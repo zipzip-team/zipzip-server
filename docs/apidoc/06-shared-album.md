@@ -16,6 +16,7 @@
 | ALBUM-03 | 앨범 | 공유집(앨범) 상세 조회 | GET | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
 | ALBUM-04 | 앨범 | 공유집(앨범) 이름 수정 | PATCH | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
 | ALBUM-05 | 앨범 | 공유집(앨범) 삭제 | DELETE | `/api/v1/shared-albums/{sharedAlbumId}` | 완료 | true | false |
+| ALBUM-06 | 앨범 | 공유집(앨범) 일괄 삭제 | POST | `/api/v1/shared-albums/bulk-delete` | 완료 | true | false |
 
 모든 API는 `Authorization: Bearer <accessToken>` 헤더와 대상 공유 그룹의 활성 멤버십을 요구한다. `accessToken`에는 로그인 또는 토큰 갱신 응답에서 받은 값을 사용한다.
 방장과 멤버 모두 공유집(앨범)을 생성·수정·삭제할 수 있다(생성자·방장 여부와 무관).
@@ -259,3 +260,53 @@
 |---:|---|---|
 | 401 | `UNAUTHORIZED` | 인증 실패 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 공유집(앨범) 또는 활성 멤버십이 없음 |
+
+## 7. ALBUM-06 공유집(앨범) 일괄 삭제
+
+여러 공유집(앨범)을 한 번에 삭제한다. 대상별 동작은 ALBUM-05와 동일하며(soft delete, `shared_album_photo` 매핑 물리 삭제, 마지막 소속을 잃는 사진 원본 soft delete), 대상 전체를 먼저 검증한 뒤 하나라도 존재하지 않거나 활성 멤버십이 없으면 어떤 공유집(앨범)도 삭제하지 않는다.
+대상 공유집(앨범)이 서로 다른 공유 그룹에 속해도 무방하며, 각 대상은 자신이 속한 공유 그룹의 활성 멤버십만으로 독립적으로 검증한다.
+
+### Request
+
+#### Header
+
+| 필드 | 타입 | 필수 | 설명 | 예시 |
+|---|---|---:|---|---|
+| `Authorization` | String | O | 현재 세션의 Access Token. `Bearer ` 접두사를 포함한다. | `Bearer eyJhbGciOiJIUzI1NiJ9...` |
+| `Idempotency-Key` | UUID String | O | 클라이언트가 생성하는 일괄 삭제 재시도 식별자. 같은 논리적 요청 재시도에는 같은 UUID와 동일한 요청 본문을 사용한다. | `7a6e9c2e-3b7a-4c1a-9c3e-8b8f3a2b5f11` |
+| `Content-Type` | String | O | 요청 본문 형식 | `application/json` |
+
+#### Body
+
+| 필드 | 타입 | 필수 | 제약 | 설명 |
+|---|---|---:|---|---|
+| `sharedAlbumIds` | UUID[] | O | `null` 원소 없이 중복 없이 1~100개 | 삭제할 공유집(앨범) 식별자 목록 |
+
+같은 `Idempotency-Key`와 같은 요청을 재시도하면 최초 성공 응답을 다시 반환한다.
+
+### Success Response
+
+#### HTTP Status Code: `200 OK`
+
+```json
+{
+  "status": 200,
+  "code": "SHARED_ALBUMS_DELETED",
+  "message": "공유집(앨범)을 일괄 삭제했습니다.",
+  "data": {
+    "deletedAlbumCount": 2,
+    "deletedPhotoCount": 3
+  }
+}
+```
+
+### Fail Response
+
+| HTTP Status | code | 조건 |
+|---:|---|---|
+| 400 | `INVALID_REQUEST` | `Idempotency-Key` 누락·UUID 형식 오류 또는 요청 본문 형식 오류 |
+| 400 | `INVALID_SHARED_ALBUM_IDS` | 요청 본문이 `null`이거나, `sharedAlbumIds`가 비었거나 `null` 원소를 포함하거나, 중복이 있거나, 100개를 초과함 |
+| 401 | `UNAUTHORIZED` | 인증 실패 |
+| 404 | `SHARED_ALBUM_NOT_FOUND` | 대상 중 하나라도 공유집(앨범)이 없거나 활성 멤버십이 없음 |
+| 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 `Idempotency-Key`를 다른 요청에 재사용함 |
+| 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 요청이 아직 처리 중임 |

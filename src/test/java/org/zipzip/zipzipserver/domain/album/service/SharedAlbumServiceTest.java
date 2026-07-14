@@ -2,8 +2,15 @@ package org.zipzip.zipzipserver.domain.album.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -13,7 +20,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.zipzip.zipzipserver.domain.album.code.SharedAlbumErrorCode;
+import org.zipzip.zipzipserver.domain.album.dto.request.SharedAlbumIdsRequest;
 import org.zipzip.zipzipserver.domain.album.dto.request.SharedAlbumNameRequest;
+import org.zipzip.zipzipserver.domain.album.dto.response.SharedAlbumBulkDeleteResponse;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
@@ -25,6 +34,7 @@ import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
+import org.zipzip.zipzipserver.global.idempotency.ApiIdempotencyRecord;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
 
 @ExtendWith(MockitoExtension.class)
@@ -118,6 +128,213 @@ class SharedAlbumServiceTest {
 
         assertThat(lastMappingPhoto.getDeletedAt()).isNotNull();
         assertThat(album.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    void 일괄_삭제_요청이_비었으면_예외가_발생한다() {
+        UUID requesterId = UUID.randomUUID();
+
+        assertThatThrownBy(
+                        () ->
+                                sharedAlbumService.bulkDeleteAlbums(
+                                        requesterId,
+                                        UUID.randomUUID().toString(),
+                                        new SharedAlbumIdsRequest(List.of())))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_IDS));
+    }
+
+    @Test
+    void 일괄_삭제_요청에_중복_id가_있으면_예외가_발생한다() {
+        UUID requesterId = UUID.randomUUID();
+        UUID albumId = UUID.randomUUID();
+
+        assertThatThrownBy(
+                        () ->
+                                sharedAlbumService.bulkDeleteAlbums(
+                                        requesterId,
+                                        UUID.randomUUID().toString(),
+                                        new SharedAlbumIdsRequest(List.of(albumId, albumId))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_IDS));
+    }
+
+    @Test
+    void 일괄_삭제_요청_본문이_null이면_예외가_발생한다() {
+        UUID requesterId = UUID.randomUUID();
+
+        assertThatThrownBy(
+                        () ->
+                                sharedAlbumService.bulkDeleteAlbums(
+                                        requesterId, UUID.randomUUID().toString(), null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_IDS));
+    }
+
+    @Test
+    void 일괄_삭제_요청에_null_id가_포함되면_예외가_발생한다() {
+        UUID requesterId = UUID.randomUUID();
+        UUID albumId = UUID.randomUUID();
+
+        assertThatThrownBy(
+                        () ->
+                                sharedAlbumService.bulkDeleteAlbums(
+                                        requesterId,
+                                        UUID.randomUUID().toString(),
+                                        new SharedAlbumIdsRequest(Arrays.asList(albumId, null))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_IDS));
+    }
+
+    @Test
+    void 일괄_삭제_재요청은_저장된_응답을_그대로_반환하고_아무것도_다시_삭제하지_않는다() {
+        UUID requesterId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        String idempotencyKeyHeader = idempotencyKey.toString();
+        SharedAlbumIdsRequest request = new SharedAlbumIdsRequest(List.of(UUID.randomUUID()));
+        SharedAlbumBulkDeleteResponse cachedResponse = new SharedAlbumBulkDeleteResponse(1, 0);
+
+        when(idempotencyService.parseIdempotencyKey(idempotencyKeyHeader))
+                .thenReturn(idempotencyKey);
+        when(idempotencyService.hashCanonicalRequest(request)).thenReturn("hash");
+        when(idempotencyService.start(
+                        anyString(),
+                        eq(idempotencyKey),
+                        eq("POST"),
+                        anyString(),
+                        eq("hash"),
+                        eq(SharedAlbumBulkDeleteResponse.class)))
+                .thenReturn(new IdempotencyService.IdempotencyStart<>(null, cachedResponse, true));
+
+        SharedAlbumBulkDeleteResponse response =
+                sharedAlbumService.bulkDeleteAlbums(requesterId, idempotencyKeyHeader, request);
+
+        assertThat(response).isSameAs(cachedResponse);
+        verify(sharedAlbumAccessGuard, never()).requireActiveSharedAlbum(any(), any());
+    }
+
+    @Test
+    void 대상_중_하나라도_존재하지_않으면_전체_요청이_실패하고_아무것도_삭제되지_않는다() {
+        AppUser creator = anAppUser();
+        SharedGroup group = aSharedGroup(creator);
+        SharedAlbum existingAlbum = anAlbum(creator, group);
+        UUID missingAlbumId = UUID.randomUUID();
+        UUID requesterId = UUID.randomUUID();
+        String idempotencyKeyHeader = UUID.randomUUID().toString();
+        SharedAlbumIdsRequest request =
+                new SharedAlbumIdsRequest(List.of(existingAlbum.getId(), missingAlbumId));
+
+        stubFreshIdempotency(
+                "SHARED_ALBUM_BULK_DELETE:",
+                requesterId,
+                idempotencyKeyHeader,
+                request,
+                SharedAlbumBulkDeleteResponse.class);
+        when(sharedAlbumAccessGuard.requireActiveSharedAlbum(existingAlbum.getId(), requesterId))
+                .thenReturn(existingAlbum);
+        when(sharedAlbumAccessGuard.requireActiveSharedAlbum(missingAlbumId, requesterId))
+                .thenThrow(new BusinessException(SharedAlbumErrorCode.SHARED_ALBUM_NOT_FOUND));
+
+        assertThatThrownBy(
+                        () ->
+                                sharedAlbumService.bulkDeleteAlbums(
+                                        requesterId, idempotencyKeyHeader, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(SharedAlbumErrorCode.SHARED_ALBUM_NOT_FOUND));
+
+        verify(sharedAlbumPhotoRepository, never()).deleteBySharedAlbumId(any());
+        assertThat(existingAlbum.getDeletedAt()).isNull();
+    }
+
+    @Test
+    void 선택한_공유집을_일괄_삭제하고_마지막_소속을_잃은_사진도_함께_삭제한다() {
+        AppUser creator = anAppUser();
+        SharedGroup group = aSharedGroup(creator);
+        SharedAlbum albumA = anAlbum(creator, group);
+        SharedAlbum albumB = anAlbum(creator, group);
+        Photo photoInBothTargets = aPhoto(creator);
+        Photo photoStillElsewhere = aPhoto(creator);
+        UUID requesterId = UUID.randomUUID();
+        String idempotencyKeyHeader = UUID.randomUUID().toString();
+        SharedAlbumIdsRequest request =
+                new SharedAlbumIdsRequest(List.of(albumA.getId(), albumB.getId()));
+
+        stubFreshIdempotency(
+                "SHARED_ALBUM_BULK_DELETE:",
+                requesterId,
+                idempotencyKeyHeader,
+                request,
+                SharedAlbumBulkDeleteResponse.class);
+        when(sharedAlbumAccessGuard.requireActiveSharedAlbum(albumA.getId(), requesterId))
+                .thenReturn(albumA);
+        when(sharedAlbumAccessGuard.requireActiveSharedAlbum(albumB.getId(), requesterId))
+                .thenReturn(albumB);
+        when(sharedAlbumPhotoRepository.findBySharedAlbumId(albumA.getId()))
+                .thenReturn(
+                        List.of(
+                                SharedAlbumPhoto.create(albumA, photoInBothTargets),
+                                SharedAlbumPhoto.create(albumA, photoStillElsewhere)));
+        when(sharedAlbumPhotoRepository.findBySharedAlbumId(albumB.getId()))
+                .thenReturn(List.of(SharedAlbumPhoto.create(albumB, photoInBothTargets)));
+        when(sharedAlbumPhotoRepository.countByPhotoId(photoInBothTargets.getId())).thenReturn(0L);
+        when(sharedAlbumPhotoRepository.countByPhotoId(photoStillElsewhere.getId())).thenReturn(1L);
+        when(photoRepository.findById(photoInBothTargets.getId()))
+                .thenReturn(Optional.of(photoInBothTargets));
+
+        SharedAlbumBulkDeleteResponse response =
+                sharedAlbumService.bulkDeleteAlbums(requesterId, idempotencyKeyHeader, request);
+
+        assertThat(response.deletedAlbumCount()).isEqualTo(2);
+        assertThat(response.deletedPhotoCount()).isEqualTo(1);
+        assertThat(albumA.getDeletedAt()).isNotNull();
+        assertThat(albumB.getDeletedAt()).isNotNull();
+        assertThat(photoInBothTargets.getDeletedAt()).isNotNull();
+        assertThat(photoStillElsewhere.getDeletedAt()).isNull();
+        verify(sharedAlbumPhotoRepository).deleteBySharedAlbumId(albumA.getId());
+        verify(sharedAlbumPhotoRepository).deleteBySharedAlbumId(albumB.getId());
+    }
+
+    private <T> void stubFreshIdempotency(
+            String scopePrefix,
+            UUID userId,
+            String idempotencyKeyHeader,
+            Object request,
+            Class<T> responseType) {
+        UUID idempotencyKey = UUID.fromString(idempotencyKeyHeader);
+        when(idempotencyService.parseIdempotencyKey(idempotencyKeyHeader))
+                .thenReturn(idempotencyKey);
+        when(idempotencyService.hashCanonicalRequest(request)).thenReturn("hash");
+        ApiIdempotencyRecord record =
+                ApiIdempotencyRecord.processing(
+                        scopePrefix + userId,
+                        idempotencyKey,
+                        "POST",
+                        "path",
+                        "hash",
+                        Instant.now().plusSeconds(600));
+        when(idempotencyService.start(
+                        anyString(),
+                        eq(idempotencyKey),
+                        eq("POST"),
+                        anyString(),
+                        eq("hash"),
+                        eq(responseType)))
+                .thenReturn(new IdempotencyService.IdempotencyStart<>(record, null, false));
     }
 
     private AppUser anAppUser() {

@@ -38,6 +38,7 @@ Apple 로그인과 토큰 갱신을 제외한 모든 API는 인증이 필요하�
 - GROUP-02 공유 그룹 생성
 - INVITE-02 초대 코드로 참여
 - ALBUM-02 앨범 생성
+- ALBUM-06 공유집(앨범) 일괄 삭제
 - PHOTO-03 사진 업로드 완료 등록
 - PHOTO-07 공유집(앨범)에 기존 사진 추가
 - PHOTO-08 공유집(앨범)에서 사진 제거
@@ -160,6 +161,7 @@ cursor는 서버 내부 정렬 키를 인코딩한 불투명 문자열이다. �
 | 400 | `INVALID_INVITE_CODE` | 존재하지 않거나 삭제된 공유 그룹의 초대 코드 |
 | 409 | `ALREADY_JOINED_SHARED_GROUP` | 이미 활성 멤버십이 있는 사용자의 참여 |
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 앨범 이름 검증 |
+| 400 | `INVALID_SHARED_ALBUM_IDS` | 공유집(앨범) 일괄 삭제 식별자 배열 검증 |
 | 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 |
 | 400 | `INVALID_UPLOAD_METADATA` | 사진 업로드 URL 발급·완료 등록 요청 검증 |
 | 400 | `TOO_MANY_FILES` | 한 요청의 사진 개수 제한 초과 |

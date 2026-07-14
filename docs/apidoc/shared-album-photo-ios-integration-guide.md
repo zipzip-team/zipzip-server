@@ -2,7 +2,7 @@
 
 > 이 문서는 [06-shared-album.md](06-shared-album.md), [07-photo-management.md](07-photo-management.md)의 계약을 전제로, 각 엔드포인트에서 **서버가 실제로 하는 일**과 **iOS가 취해야 할 행동**을 화면 흐름 관점에서 정리한 보조 문서다. 필드 단위 요청/응답 스키마나 에러 코드의 최종 근거는 항상 06/07 문서다.
 >
-> 대상 API: ALBUM-01~05, PHOTO-01~04·PHOTO-07~08 (Object Storage 연동 포함). 작성 시점 기준 서버 구현·수동 검증 완료.
+> 대상 API: ALBUM-01~06, PHOTO-01~04·PHOTO-07~08 (Object Storage 연동 포함). 작성 시점 기준 서버 구현·수동 검증 완료.
 
 ## 1. 공통 사항
 
@@ -23,6 +23,7 @@
 | ALBUM-01 (목록), ALBUM-03 (상세), ALBUM-04 (이름 수정) | 불필요 |
 | **ALBUM-02 (생성)** | **필요** |
 | ALBUM-05 (삭제) | 불필요 (DELETE, 자체적으로 멱등) |
+| **ALBUM-06 (일괄 삭제)** | **필요** |
 | PHOTO-01 (목록), PHOTO-04 (메타데이터 수정) | 불필요 |
 | **PHOTO-02 (업로드 URL 발급)** | 불필요 (아직 `photo` 행을 만들지 않아 재시도해도 URL만 다시 발급될 뿐 안전) |
 | **PHOTO-03 (완료 등록)**, **PHOTO-07 (추가)**, **PHOTO-08 (제거)** | **필요** |
@@ -56,7 +57,7 @@ iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)�
 
 **에러**: `400 INVALID_CURSOR`, `404 SHARED_GROUP_NOT_FOUND`.
 
-**iOS 행동**: 공유 그룹 화면 진입 시 호출. 무한 스크롤 시 `nextCursor`를 다음 요청의 `cursor`로. `isCreator`로 "내가 만든 앨범" 표시나 삭제 버튼 노출 여부를 결정할 수 있다(단, 실제 삭제 권한은 방장 위임 케이스가 있어 서버가 최종 검증한다 — 4번 참고).
+**iOS 행동**: 공유 그룹 화면 진입 시 호출. 무한 스크롤 시 `nextCursor`를 다음 요청의 `cursor`로. `isCreator`는 "내가 만든 앨범" 표시 등 UI 용도의 참고값일 뿐이며, 삭제 권한과는 무관하다 — 삭제(ALBUM-05/06)는 생성자·방장 여부와 상관없이 상위 공유 그룹의 활성 멤버라면 누구나 가능하므로 삭제 버튼 노출을 `isCreator`로 제한하지 않는다.
 
 ### ALBUM-02 — 생성
 
@@ -100,6 +101,20 @@ iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)�
 5. 앨범 행 자체는 30일 뒤 `SharedAlbumSweepScheduler`가 물리 삭제.
 
 **iOS 행동**: **삭제 확인 다이얼로그 필수.** "이 공유집에만 있던 사진은 함께 완전히 삭제되며 복구할 수 없습니다" 경고. 가능하면 삭제 전에 PHOTO-01로 앨범 내 사진들을 조회해 "다른 공유집에도 있는 사진 N장 / 이 공유집에만 있는 사진 M장"처럼 미리 안내하면 사용자 실수를 줄일 수 있다.
+
+### ALBUM-06 — 일괄 삭제
+
+`POST /api/v1/shared-albums/bulk-delete` (Idempotency-Key 필수)
+
+**서버 동작**
+1. 요청 본문 `sharedAlbumIds`(`null` 원소 없이 중복 없이 1~100개, 요청 본문 자체도 `null` 불가)를 검증 — 위반 시 `400 INVALID_SHARED_ALBUM_IDS`.
+2. Idempotency 시작(같은 키 재시도면 여기서 바로 과거 응답 반환).
+3. 대상 전체를 먼저 순회하며 각 앨범의 존재·활성 상태·상위 공유 그룹 활성 멤버십을 검증한다(ALBUM-05와 동일하게 생성자·방장 여부는 확인하지 않는다). **하나라도 실패하면 어떤 앨범도 삭제하지 않고 즉시 `404 SHARED_ALBUM_NOT_FOUND`로 실패**한다.
+4. 검증을 통과하면 대상 앨범의 `shared_album_photo` 매핑을 모두 물리 삭제한다.
+5. 매핑 삭제 결과 소속 앨범이 0개가 된 사진(대상 앨범들 사이에 걸쳐 있던 사진 포함)은 원본도 함께 soft delete한다.
+6. 대상 앨범을 모두 soft delete하고 `deletedAlbumCount`(삭제한 앨범 수)·`deletedPhotoCount`(함께 삭제된 사진 수)를 반환한다. 앨범 행 자체는 30일 뒤 물리 삭제.
+
+**iOS 행동**: 공유 그룹 상세 화면의 선택 모드에서 앨범을 다중 선택 → 삭제 액션 시 선택 개수를 포함한 확인 바텀시트 표시 → 최종 확인 시 선택한 `sharedAlbumIds`로 호출. **하나의 논리적 삭제 요청(바텀시트에서 확인 누른 시점)마다 새 `Idempotency-Key`를 생성**하고 네트워크 재시도에는 같은 키를 재사용한다. 대상 중 하나라도 이미 삭제됐거나(예: 다른 기기에서 방금 삭제) 멤버십을 잃었으면 전체가 `404`로 실패하므로, 실패 시 목록을 새로고침해 최신 상태를 다시 보여준다.
 
 ---
 
@@ -230,8 +245,9 @@ sequenceDiagram
 | HTTP | code | 의미 | 발생 API |
 |---|---|---|---|
 | 404 | `SHARED_GROUP_NOT_FOUND` | 공유 그룹 또는 활성 멤버십 없음 | ALBUM-01, 02 |
-| 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 또는 활성 멤버십 없음 | ALBUM-03, 04, 05 |
+| 404 | `SHARED_ALBUM_NOT_FOUND` | 앨범 또는 활성 멤버십 없음 | ALBUM-03, 04, 05, 06 |
 | 400 | `INVALID_SHARED_ALBUM_NAME` | 이름이 공백이거나 100자 초과 | ALBUM-02, 04 |
+| 400 | `INVALID_SHARED_ALBUM_IDS` | 요청 본문이 `null`이거나, `sharedAlbumIds`가 비었거나 `null` 원소를 포함하거나, 중복이 있거나, 100개 초과 | ALBUM-06 |
 | 400 | `INVALID_CURSOR` | cursor 형식 오류 | ALBUM-01 |
 
 ### 5.3 사진 — `PhotoErrorCode`
