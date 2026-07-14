@@ -55,10 +55,6 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
-tasks.named('compileJava') {
-    dependsOn 'spotlessApply'
-}
-
 spotless {
     java {
         googleJavaFormat('1.35.0').aosp().reflowLongStrings()
@@ -72,5 +68,13 @@ spotless {
         targetExclude 'build/**'
         trimTrailingWhitespace()
         endWithNewline()
+    }
+}
+
+def isCi = providers.environmentVariable('CI').isPresent()
+
+if (!isCi) {
+    tasks.named('compileJava') {
+        dependsOn 'spotlessJavaApply'
     }
 }
