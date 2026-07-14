@@ -23,6 +23,7 @@ import org.zipzip.zipzipserver.domain.auth.apple.AppleTokenResponse;
 import org.zipzip.zipzipserver.domain.auth.apple.AppleUserInfo;
 import org.zipzip.zipzipserver.domain.auth.code.AuthErrorCode;
 import org.zipzip.zipzipserver.domain.auth.dto.request.AppleLoginRequest;
+import org.zipzip.zipzipserver.domain.auth.dto.request.DevelopmentTokenIssueRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.request.LogoutRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.request.TokenRefreshRequest;
 import org.zipzip.zipzipserver.domain.auth.dto.response.LoginResponse;
@@ -34,6 +35,7 @@ import org.zipzip.zipzipserver.domain.auth.token.RefreshTokenHasher;
 import org.zipzip.zipzipserver.domain.user.code.UserErrorCode;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
+import org.zipzip.zipzipserver.domain.user.service.UserProfileService;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 import org.zipzip.zipzipserver.global.idempotency.ApiIdempotencyRecord;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
@@ -63,6 +65,7 @@ class AuthServiceTest {
     @Mock private RefreshTokenHasher refreshTokenHasher;
     @Mock private RefreshTokenValidator refreshTokenValidator;
     @Mock private IdempotencyService idempotencyService;
+    @Mock private UserProfileService userProfileService;
 
     @InjectMocks private AuthService authService;
 
@@ -150,6 +153,76 @@ class AuthServiceTest {
         assertThat(response.isRestoredUser()).isTrue();
         assertThat(response.user().displayName()).isEqualTo("복구 사용자");
         assertThat(appUser.isDeleted()).isFalse();
+    }
+
+    @Test
+    void 개발용_사용자를_생성하고_Apple_로그인_없이_토큰을_발급한다() {
+        AppUser developmentUser = AppUser.create("development:ios-tester-1", "iOS 테스트 사용자");
+        givenTokenIssue();
+        when(appUserRepository.findByAppleSubject("development:ios-tester-1"))
+                .thenReturn(Optional.empty());
+        when(appUserRepository.save(any(AppUser.class))).thenReturn(developmentUser);
+
+        LoginResponse response =
+                authService.issueDevelopmentTokens(
+                        new DevelopmentTokenIssueRequest("ios-tester-1", " iOS 테스트 사용자 "));
+
+        assertThat(response.accessToken()).isEqualTo(ACCESS_TOKEN);
+        assertThat(response.refreshToken()).isEqualTo(REFRESH_TOKEN);
+        assertThat(response.isNewUser()).isTrue();
+        assertThat(response.isRestoredUser()).isFalse();
+        assertThat(response.user().id()).isEqualTo(developmentUser.getId());
+        verify(appUserRepository).save(any(AppUser.class));
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+        verify(appleIdTokenVerifier, never()).verify(any(), any());
+        verify(appleTokenClient, never()).requestToken(any());
+    }
+
+    @Test
+    void 탈퇴한_개발용_사용자를_복구하고_토큰을_발급한다() {
+        AppUser developmentUser = AppUser.create("development:ios-tester-1", "기존 사용자");
+        developmentUser.withdraw(Instant.parse("2026-07-08T00:00:00Z"));
+        givenTokenIssue();
+        when(appUserRepository.findByAppleSubject("development:ios-tester-1"))
+                .thenReturn(Optional.of(developmentUser));
+
+        LoginResponse response =
+                authService.issueDevelopmentTokens(
+                        new DevelopmentTokenIssueRequest("ios-tester-1", "복구 사용자"));
+
+        assertThat(response.isNewUser()).isFalse();
+        assertThat(response.isRestoredUser()).isTrue();
+        assertThat(response.user().displayName()).isEqualTo("복구 사용자");
+        assertThat(developmentUser.isDeleted()).isFalse();
+        verify(appUserRepository, never()).save(any(AppUser.class));
+        verify(appleIdTokenVerifier, never()).verify(any(), any());
+        verify(appleTokenClient, never()).requestToken(any());
+    }
+
+    @Test
+    void 활성_개발용_사용자를_탈퇴_처리한다() {
+        AppUser developmentUser = AppUser.create("development:ios-tester-1", "iOS 테스트 사용자");
+        when(appUserRepository.findByAppleSubject("development:ios-tester-1"))
+                .thenReturn(Optional.of(developmentUser));
+
+        authService.deleteDevelopmentUser("ios-tester-1");
+
+        verify(userProfileService).withdraw(developmentUser.getId());
+    }
+
+    @Test
+    void 없는_개발용_사용자를_삭제하면_USER_NOT_FOUND_예외가_발생한다() {
+        when(appUserRepository.findByAppleSubject("development:ios-tester-1"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.deleteDevelopmentUser("ios-tester-1"))
+                .isInstanceOfSatisfying(
+                        BusinessException.class,
+                        exception ->
+                                assertThat(exception.getErrorCode())
+                                        .isEqualTo(UserErrorCode.USER_NOT_FOUND));
+
+        verify(userProfileService, never()).withdraw(any());
     }
 
     @Test

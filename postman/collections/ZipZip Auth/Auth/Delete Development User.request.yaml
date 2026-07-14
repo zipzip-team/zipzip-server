@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/dev/auth/users/{{developmentTestUserKey}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('개발용 사용자 삭제 응답 상태가 200이다', function () {
+        pm.response.to.have.status(200);
+      });
+
+      if (pm.response.code === 200) {
+        pm.collectionVariables.set('accessToken', '');
+        pm.collectionVariables.set('refreshToken', '');
+      }
+    language: text/javascript
+order: 1060

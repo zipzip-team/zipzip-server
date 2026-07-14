@@ -7,6 +7,8 @@
 | AUTH-01 | 인증 | Apple 로그인 | POST | `/api/v1/auth/apple` | 완료 | true | false |
 | AUTH-02 | 인증 | 토큰 갱신 | POST | `/api/v1/auth/refresh` | 완료 | true | false |
 | AUTH-03 | 인증 | 로그아웃 | POST | `/api/v1/auth/logout` | 완료 | true | false |
+| AUTH-DEV-01 | 인증 | 개발용 토큰 발급 | POST | `/api/v1/dev/auth/tokens` | 완료 | true | false |
+| AUTH-DEV-02 | 인증 | 개발용 사용자 삭제 | DELETE | `/api/v1/dev/auth/users/{testUserKey}` | 완료 | true | false |
 
 공통 응답 형식과 공통 오류는 [01-common-spec.md](01-common-spec.md)를 따른다. Access Token과 Refresh Token의 유효 시간은 서버 보안 설정에서 확정하며 응답의 `expiresIn`은 초 단위다.
 
@@ -74,7 +76,98 @@ Apple 로그인 응답의 `identityToken`과 `authorizationCode`를 서버에서
 | 401 | `INVALID_APPLE_TOKEN` | identity token의 서명, issuer, audience 또는 만료 검증 실패 |
 | 401 | `INVALID_APPLE_AUTHORIZATION_CODE` | authorization code 검증 실패 |
 
-## 3. AUTH-02 토큰 갱신
+## 3. AUTH-DEV-01 개발용 토큰 발급
+
+Apple 로그인을 진행할 수 없는 클라이언트 개발·테스트를 위해 Access Token과 Refresh Token을 발급한다. 이 API는 `dev` Spring 프로필에서만 등록되며, 운영 환경에는 컨트롤러와 엔드포인트가 존재하지 않는다. 개발 서버에서만 사용하고 발급한 토큰은 개발 환경 외부에 보관하거나 사용하면 안 된다.
+
+같은 `testUserKey`로 반복 요청하면 동일한 개발용 사용자를 재사용하되, 매번 새 Access Token과 Refresh Token을 발급한다. 탈퇴 처리된 개발용 사용자는 요청의 `displayName`으로 복구한다.
+
+### Request
+
+#### Header
+
+| 필드 | 타입 | 필수 | 설명 | 예시 |
+|---|---:|---:|---|---|
+| `Content-Type` | String | O | 요청 본문 형식 | `application/json` |
+
+#### Body
+
+| 필드 | 타입 | 필수 | 제약 | 설명 | 예시 |
+|---|---|---:|---|---|---|
+| `testUserKey` | String | O | 영문 대소문자·숫자·`.`, `_`, `-`, 최대 50자 | 개발용 사용자 식별 키 | `ios-tester-1` |
+| `displayName` | String | O | trim 후 1~50자 | 신규 생성 또는 탈퇴 사용자 복구 시 사용할 표시 이름 | `iOS 테스트 사용자` |
+
+```json
+{
+  "testUserKey": "ios-tester-1",
+  "displayName": "iOS 테스트 사용자"
+}
+```
+
+### Success Response ✓
+
+#### HTTP Status Code: `200 OK`
+
+```json
+{
+  "status": 200,
+  "code": "AUTH_DEVELOPMENT_TOKEN_ISSUED",
+  "message": "개발용 토큰을 발급했습니다.",
+  "data": {
+    "accessToken": "eyJhbGciOi...",
+    "refreshToken": "eyJhbGciOi...",
+    "tokenType": "Bearer",
+    "expiresIn": 1800,
+    "isNewUser": true,
+    "isRestoredUser": false,
+    "user": {
+      "id": "018f0c3e-2c77-7d72-a37e-2f5666f25d32",
+      "displayName": "iOS 테스트 사용자"
+    }
+  }
+}
+```
+
+### Fail Response Ⓧ
+
+| HTTP Status | code | 조건 |
+|---:|---|---|
+| 400 | `INVALID_REQUEST` | 요청 본문 값 누락, `testUserKey` 형식 오류 또는 50자 초과 |
+| 400 | `DISPLAY_NAME_REQUIRED` | `displayName`이 공백임 |
+| 400 | `INVALID_DISPLAY_NAME` | `displayName`이 50자를 초과함 |
+
+## 4. AUTH-DEV-02 개발용 사용자 삭제
+
+개발용 토큰 발급 API로 생성한 활성 개발용 사용자를 탈퇴 처리한다. 탈퇴 과정에서 활성 Refresh Token을 폐기하고, 사진 좋아요·일반 멤버십·사용자가 만든 활성 공유 그룹 등 일반 사용자 탈퇴와 동일한 정리를 수행한다. 이 API도 `dev` Spring 프로필에서만 등록된다.
+
+### Request
+
+#### Path Variable
+
+| 필드 | 타입 | 필수 | 제약 | 설명 | 예시 |
+|---|---|---:|---|---|---|
+| `testUserKey` | String | O | 토큰 발급 요청에 사용한 키 | 삭제할 개발용 사용자 식별 키 | `ios-tester-1` |
+
+### Success Response ✓
+
+#### HTTP Status Code: `200 OK`
+
+```json
+{
+  "status": 200,
+  "code": "AUTH_DEVELOPMENT_USER_DELETED",
+  "message": "개발용 사용자를 삭제했습니다.",
+  "data": null
+}
+```
+
+### Fail Response Ⓧ
+
+| HTTP Status | code | 조건 |
+|---:|---|---|
+| 404 | `USER_NOT_FOUND` | 해당 키의 활성 개발용 사용자가 없거나 이미 삭제됨 |
+
+## 5. AUTH-02 토큰 갱신
 
 Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token family의 새 토큰을 발급한다. 폐기된 토큰이 다시 제출되면 재사용 공격으로 간주해 해당 family 전체를 폐기한다.
 
@@ -125,7 +218,7 @@ Refresh Token을 회전한다. 기존 토큰은 즉시 폐기하고 같은 token
 | 409 | `IDEMPOTENCY_KEY_REUSED` | 같은 `Idempotency-Key`를 다른 Refresh Token 요청에 재사용함 |
 | 409 | `IDEMPOTENCY_REQUEST_IN_PROGRESS` | 같은 요청이 아직 처리 중임 |
 
-## 4. AUTH-03 로그아웃
+## 6. AUTH-03 로그아웃
 
 현재 로그인 세션의 Refresh Token을 폐기한다. 다른 기기의 token family는 유지한다. 이미 발급된 Access Token은
 블랙리스트로 즉시 무효화하지 않으며, 설정된 만료 시각까지 사용할 수 있다.

@@ -12,6 +12,12 @@ variables:
     secret: true
   - key: appleDisplayName
     secret: true
+  - key: developmentTestUserKey
+    value: ios-tester-1
+    secret: false
+  - key: developmentDisplayName
+    value: iOS 테스트 사용자
+    secret: false
   - key: accessToken
     value: ""
     secret: false

@@ -14,6 +14,10 @@ public final class PublicEndpointRequestMatcher {
                             .matcher(HttpMethod.POST, "/api/v1/auth/apple"),
                     PathPatternRequestMatcher.withDefaults()
                             .matcher(HttpMethod.POST, "/api/v1/auth/refresh"),
+                    PathPatternRequestMatcher.withDefaults()
+                            .matcher(HttpMethod.POST, "/api/v1/dev/auth/tokens"),
+                    PathPatternRequestMatcher.withDefaults()
+                            .matcher(HttpMethod.DELETE, "/api/v1/dev/auth/users/{testUserKey}"),
                     PathPatternRequestMatcher.withDefaults().matcher("/actuator/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/swagger-ui/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/v3/api-docs/**"),
