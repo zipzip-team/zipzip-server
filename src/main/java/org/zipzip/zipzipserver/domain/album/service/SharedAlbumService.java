@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -180,7 +181,8 @@ public class SharedAlbumService {
     public SharedAlbumBulkDeleteResponse bulkDeleteAlbums(
             UUID appUserId, String idempotencyKeyHeader, SharedAlbumIdsRequest request) {
         UUID idempotencyKey = idempotencyService.parseIdempotencyKey(idempotencyKeyHeader);
-        List<UUID> sharedAlbumIds = validateSharedAlbumIds(request.sharedAlbumIds());
+        List<UUID> sharedAlbumIds =
+                validateSharedAlbumIds(request == null ? null : request.sharedAlbumIds());
 
         String requestHash = idempotencyService.hashCanonicalRequest(request);
         IdempotencyService.IdempotencyStart<SharedAlbumBulkDeleteResponse> idempotencyStart =
@@ -245,6 +247,7 @@ public class SharedAlbumService {
         if (sharedAlbumIds == null
                 || sharedAlbumIds.isEmpty()
                 || sharedAlbumIds.size() > MAX_SHARED_ALBUM_IDS_PER_REQUEST
+                || sharedAlbumIds.stream().anyMatch(Objects::isNull)
                 || new HashSet<>(sharedAlbumIds).size() != sharedAlbumIds.size()) {
             throw new BusinessException(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_IDS);
         }

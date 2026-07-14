@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -157,6 +158,39 @@ class SharedAlbumServiceTest {
                                         requesterId,
                                         UUID.randomUUID().toString(),
                                         new SharedAlbumIdsRequest(List.of(albumId, albumId))))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_IDS));
+    }
+
+    @Test
+    void 일괄_삭제_요청_본문이_null이면_예외가_발생한다() {
+        UUID requesterId = UUID.randomUUID();
+
+        assertThatThrownBy(
+                        () ->
+                                sharedAlbumService.bulkDeleteAlbums(
+                                        requesterId, UUID.randomUUID().toString(), null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(SharedAlbumErrorCode.INVALID_SHARED_ALBUM_IDS));
+    }
+
+    @Test
+    void 일괄_삭제_요청에_null_id가_포함되면_예외가_발생한다() {
+        UUID requesterId = UUID.randomUUID();
+        UUID albumId = UUID.randomUUID();
+
+        assertThatThrownBy(
+                        () ->
+                                sharedAlbumService.bulkDeleteAlbums(
+                                        requesterId,
+                                        UUID.randomUUID().toString(),
+                                        new SharedAlbumIdsRequest(Arrays.asList(albumId, null))))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(
                         exception ->
