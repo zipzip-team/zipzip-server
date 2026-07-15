@@ -3,6 +3,7 @@ package org.zipzip.zipzipserver.domain.photo.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -192,6 +193,57 @@ class PhotoUploadServiceTest {
     }
 
     @Test
+    void 업로드_URL_발급_파일이_정확히_20개면_성공() {
+        UUID albumId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
+        when(appUserRepository.getReferenceById(userId)).thenReturn(uploader);
+        when(objectKeyGenerator.generateOriginalKey(anyString())).thenReturn("photos/object-key");
+        when(objectStorageService.issueUploadUrl(
+                        anyString(), anyString(), anyLong(), any(Duration.class)))
+                .thenReturn(
+                        new PresignedUpload("https://upload-url", Instant.now().plusSeconds(900)));
+        List<PhotoUploadUrlRequest.UploadUrlFileSpec> files = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            files.add(new PhotoUploadUrlRequest.UploadUrlFileSpec("image/jpeg", 1_000L));
+        }
+
+        PhotoUploadUrlResponse response =
+                photoUploadService.issueUploadUrls(
+                        albumId, userId, new PhotoUploadUrlRequest(files));
+
+        assertThat(response.uploads()).hasSize(20);
+    }
+
+    @Test
+    void 업로드_URL_발급_파일_크기가_정확히_20MiB이면_성공() {
+        UUID albumId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
+        when(appUserRepository.getReferenceById(userId)).thenReturn(uploader);
+        when(objectKeyGenerator.generateOriginalKey("image/jpeg"))
+                .thenReturn("photos/2026/07/10/object-key.jpg");
+        when(objectStorageService.issueUploadUrl(
+                        eq("photos/2026/07/10/object-key.jpg"),
+                        eq("image/jpeg"),
+                        eq(20L * 1024 * 1024),
+                        any(Duration.class)))
+                .thenReturn(
+                        new PresignedUpload("https://upload-url", Instant.now().plusSeconds(900)));
+
+        PhotoUploadUrlResponse response =
+                photoUploadService.issueUploadUrls(
+                        albumId,
+                        userId,
+                        new PhotoUploadUrlRequest(
+                                List.of(
+                                        new PhotoUploadUrlRequest.UploadUrlFileSpec(
+                                                "image/jpeg", 20L * 1024 * 1024))));
+
+        assertThat(response.uploads()).hasSize(1);
+    }
+
+    @Test
     void 완료등록_멱등키_재시도면_기존_응답을_그대로_반환한다() {
         UUID albumId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
@@ -340,6 +392,139 @@ class PhotoUploadServiceTest {
         verify(photoUploadReservationRepository).delete(usableReservation);
         verify(idempotencyService)
                 .complete(any(ApiIdempotencyRecord.class), any(), eq(result.response()));
+    }
+
+    @Test
+    void 완료등록_파일_목록이_비어있으면_INVALID_UPLOAD_METADATA() {
+        UUID albumId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String idempotencyKeyHeader = UUID.randomUUID().toString();
+        PhotoUploadCompleteRequest request = new PhotoUploadCompleteRequest(List.of());
+
+        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
+        when(idempotencyService.parseIdempotencyKey(idempotencyKeyHeader))
+                .thenReturn(UUID.fromString(idempotencyKeyHeader));
+
+        assertThatThrownBy(
+                        () ->
+                                photoUploadService.completeUpload(
+                                        albumId, userId, idempotencyKeyHeader, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(PhotoErrorCode.INVALID_UPLOAD_METADATA));
+    }
+
+    @Test
+    void 완료등록_파일이_20개를_초과하면_INVALID_UPLOAD_METADATA() {
+        UUID albumId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String idempotencyKeyHeader = UUID.randomUUID().toString();
+        List<PhotoUploadCompleteRequest.CompleteFileSpec> files = new ArrayList<>();
+        for (int i = 0; i < 21; i++) {
+            files.add(
+                    new PhotoUploadCompleteRequest.CompleteFileSpec(
+                            "object-key-" + i, null, null, null, null, null, null, null, null));
+        }
+        PhotoUploadCompleteRequest request = new PhotoUploadCompleteRequest(files);
+
+        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
+        when(idempotencyService.parseIdempotencyKey(idempotencyKeyHeader))
+                .thenReturn(UUID.fromString(idempotencyKeyHeader));
+
+        assertThatThrownBy(
+                        () ->
+                                photoUploadService.completeUpload(
+                                        albumId, userId, idempotencyKeyHeader, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(PhotoErrorCode.INVALID_UPLOAD_METADATA));
+    }
+
+    @Test
+    void 완료등록_objectKey가_중복되면_INVALID_UPLOAD_METADATA() {
+        UUID albumId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String idempotencyKeyHeader = UUID.randomUUID().toString();
+        PhotoUploadCompleteRequest request =
+                new PhotoUploadCompleteRequest(
+                        List.of(
+                                new PhotoUploadCompleteRequest.CompleteFileSpec(
+                                        "object-key",
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null),
+                                new PhotoUploadCompleteRequest.CompleteFileSpec(
+                                        "object-key",
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null)));
+
+        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
+        when(idempotencyService.parseIdempotencyKey(idempotencyKeyHeader))
+                .thenReturn(UUID.fromString(idempotencyKeyHeader));
+
+        assertThatThrownBy(
+                        () ->
+                                photoUploadService.completeUpload(
+                                        albumId, userId, idempotencyKeyHeader, request))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(
+                        exception ->
+                                assertThat(((BusinessException) exception).getErrorCode())
+                                        .isEqualTo(PhotoErrorCode.INVALID_UPLOAD_METADATA));
+    }
+
+    @Test
+    void 완료등록_파일이_정확히_20개면_성공() {
+        UUID albumId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String idempotencyKeyHeader = UUID.randomUUID().toString();
+        List<PhotoUploadCompleteRequest.CompleteFileSpec> files = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            files.add(
+                    new PhotoUploadCompleteRequest.CompleteFileSpec(
+                            "object-key-" + i, null, null, null, null, null, null, null, null));
+        }
+        PhotoUploadCompleteRequest request = new PhotoUploadCompleteRequest(files);
+
+        givenFreshIdempotencyStart(albumId, userId, idempotencyKeyHeader, request);
+        when(appUserRepository.getReferenceById(userId)).thenReturn(uploader);
+        when(photoUploadReservationRepository.findById(anyString()))
+                .thenAnswer(
+                        invocation ->
+                                Optional.of(
+                                        PhotoUploadReservation.create(
+                                                invocation.getArgument(0),
+                                                sharedAlbum,
+                                                uploader,
+                                                Instant.now().plusSeconds(900))));
+        when(objectStorageService.exists(anyString())).thenReturn(true);
+        when(photoRepository.save(any(Photo.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(objectStorageService.issueDownloadUrl(anyString(), any(Duration.class)))
+                .thenReturn(
+                        new PresignedDownload(
+                                "https://original-url", Instant.now().plusSeconds(600)));
+
+        PhotoUploadService.PhotoUploadCompleteResult result =
+                photoUploadService.completeUpload(albumId, userId, idempotencyKeyHeader, request);
+
+        assertThat(result.replayed()).isFalse();
+        assertThat(result.response().items()).hasSize(20);
     }
 
     private PhotoUploadCompleteRequest completeRequestFor(String objectKey) {
