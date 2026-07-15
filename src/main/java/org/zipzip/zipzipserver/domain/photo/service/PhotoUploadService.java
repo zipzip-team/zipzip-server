@@ -82,7 +82,10 @@ public class PhotoUploadService {
                     PhotoUploadReservation.create(objectKey, sharedAlbum, requester, expiresAt));
             uploads.add(
                     new PhotoUploadUrlResponse.UploadUrlItem(
-                            objectKey, presigned.uploadUrl(), presigned.expiresAt()));
+                            objectKey,
+                            presigned.uploadUrl(),
+                            presigned.expiresAt(),
+                            file.contentType()));
         }
         return new PhotoUploadUrlResponse(uploads);
     }

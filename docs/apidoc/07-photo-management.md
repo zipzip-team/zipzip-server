@@ -156,7 +156,8 @@
       {
         "objectKey": "photos/2026/07/08/9c3d1e2a-4b7f-4e2a-8c8e-2f5666f25d32.jpg",
         "uploadUrl": "https://objectstorage.example.com/signed-put/9c3d1e2a.jpg",
-        "uploadUrlExpiresAt": "2026-07-03T10:25:30Z"
+        "uploadUrlExpiresAt": "2026-07-03T10:25:30Z",
+        "contentType": "image/jpeg"
       }
     ]
   }
@@ -165,6 +166,7 @@
 
 `objectKey`는 [PHOTO-03 사진 업로드 완료 등록](#4-photo-03-사진-업로드-완료-등록) 요청에 그대로 사용한다.
 `uploadUrl`은 `files` 배열과 같은 순서로 반환한다.
+`contentType`은 요청에 보낸 값을 그대로 반환한다. `uploadUrl`은 이 값을 서명 조건에 포함하므로, 실제 `PUT` 요청의 `Content-Type` 헤더는 반드시 이 값과 일치해야 한다(불일치 시 서명 검증 실패).
 
 ### Fail Response
 
