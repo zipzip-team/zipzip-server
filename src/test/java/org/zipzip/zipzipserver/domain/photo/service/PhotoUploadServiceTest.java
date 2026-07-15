@@ -189,6 +189,7 @@ class PhotoUploadServiceTest {
         assertThat(response.uploads().get(0).objectKey())
                 .isEqualTo("photos/2026/07/10/object-key.jpg");
         assertThat(response.uploads().get(0).uploadUrl()).isEqualTo("https://upload-url");
+        assertThat(response.uploads().get(0).contentType()).isEqualTo("image/jpeg");
         verify(photoUploadReservationRepository).save(any(PhotoUploadReservation.class));
     }
 

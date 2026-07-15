@@ -12,5 +12,11 @@ public record PhotoUploadUrlResponse(
     public record UploadUrlItem(
             @Schema(description = "업로드 대상 객체 키") String objectKey,
             @Schema(description = "presigned PUT URL") String uploadUrl,
-            @Schema(description = "업로드 URL 만료 시각") Instant uploadUrlExpiresAt) {}
+            @Schema(description = "업로드 URL 만료 시각") Instant uploadUrlExpiresAt,
+            @Schema(
+                            description =
+                                    "presigned PUT 서명에 포함된 Content-Type. 실제 업로드 시 이 값과 동일한"
+                                            + " Content-Type 헤더를 사용해야 함",
+                            example = "image/jpeg")
+                    String contentType) {}
 }

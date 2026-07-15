@@ -146,7 +146,7 @@ sequenceDiagram
     iOS->>API: POST .../photos/upload-urls (contentType, sizeBytes)[]
     API->>API: 개수(≤20)/크기(≤20MiB)/타입(image/*) 검증
     API->>API: objectKey 생성 + photo_upload_reservation 기록(15분 만료)
-    API-->>iOS: {objectKey, uploadUrl, uploadUrlExpiresAt}[]
+    API-->>iOS: {objectKey, uploadUrl, uploadUrlExpiresAt, contentType}[]
 
     par 파일별 병렬 업로드
         iOS->>OBJ: PUT uploadUrl (원본 바이트, Content-Type 동일)
@@ -180,11 +180,11 @@ sequenceDiagram
 
 **에러**: `400 INVALID_UPLOAD_METADATA`(형식 오류), `400 TOO_MANY_FILES`(21개 이상), `413 FILE_TOO_LARGE`, `415 UNSUPPORTED_IMAGE_TYPE`, `404 SHARED_ALBUM_NOT_FOUND`.
 
-**iOS 행동**: 올릴 사진들의 `contentType`+`sizeBytes`를 배열로 요청 → 응답 배열(요청과 같은 순서)에서 파일마다 `objectKey`+`uploadUrl` 받아 다음 단계에 그대로 사용. 21장 이상 선택했다면 [배치 분할](#21장-이상-선택-시-배치-분할)대로 20개 단위로 나눠 이 호출부터 반복한다.
+**iOS 행동**: 올릴 사진들의 `contentType`+`sizeBytes`를 배열로 요청 → 응답 배열(요청과 같은 순서)에서 파일마다 `objectKey`+`uploadUr
 
 #### iOS → Object Storage 직접 PUT
 
-서버 API가 아니다. 각 `uploadUrl`로 원본 바이트를 직접 PUT하되 `Content-Type`을 PHOTO-02 요청 때 보낸 값과 **정확히 동일하게** 보내야 한다(다르면 서명 검증 실패로 Object Storage가 업로드 자체를 거부). 서버 대역폭·메모리를 전혀 쓰지 않는 구간이므로 여러 파일은 병렬 업로드를 권장(왕복 감소가 체감 성능을 좌우).
+서버 API가 아니다. 각 `uploadUrl`로 원본 바이트를 직접 PUT하되 `Content-Type` 헤더를 응답의 `contentType`과 **정확히 동일하게** 보내야 한다(다르면 서명 검증 실패로 Object Storage가 업로드 자체를 거부). 응답이 이 값을 그대로 돌려주므로 iOS는 요청 때 보낸 값을 별도로 들고 다니지 않고 응답의 `contentType`만 참조하면 된다. 서버 대역폭·메모리를 전혀 쓰지 않는 구간이므로 여러 파일은 병렬 업로드를 권장(왕복 감소가 체감 성능을 좌우).
 
 #### PHOTO-03 — 완료 등록
 
