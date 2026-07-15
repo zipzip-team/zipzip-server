@@ -1,5 +1,10 @@
 server:
     forward-headers-strategy: framework
+    tomcat:
+        threads:
+            max: 50
+            min-spare: 10
+        accept-count: 50
 
 spring:
     config:
@@ -10,5 +15,13 @@ spring:
 
     datasource:
         driver-class-name: org.postgresql.Driver
+        hikari:
+            pool-name: zipzip-hikari
+            maximum-pool-size: 20
+            minimum-idle: 5
+            connection-timeout: 3000
+            validation-timeout: 3000
+            max-lifetime: 1800000
+            leak-detection-threshold: 5000
 idempotency:
     auth-response-ttl: 10m
