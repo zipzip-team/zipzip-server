@@ -40,6 +40,8 @@ index는 화면 흐름이나 세부 행위가 아니라 리소스의 소유 도�
 | AUTH-01 | POST | `/api/v1/auth/apple` | Apple 로그인 | [02-authentication.md](02-authentication.md) |
 | AUTH-02 | POST | `/api/v1/auth/refresh` | 토큰 갱신 | [02-authentication.md](02-authentication.md) |
 | AUTH-03 | POST | `/api/v1/auth/logout` | 로그아웃 | [02-authentication.md](02-authentication.md) |
+| AUTH-DEV-01 | POST | `/api/v1/dev/auth/tokens` | 개발용 토큰 발급 (dev 전용) | [02-authentication.md](02-authentication.md) |
+| AUTH-DEV-02 | DELETE | `/api/v1/dev/auth/users/{testUserKey}` | 개발용 사용자 삭제 (dev 전용) | [02-authentication.md](02-authentication.md) |
 
 ### 3.2 사용자
 
