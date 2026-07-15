@@ -6,9 +6,13 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -120,8 +124,8 @@ public class PhotoUploadService {
 
         AppUser requester = appUserRepository.getReferenceById(appUserId);
         Instant now = Instant.now(clock);
-        List<Photo> createdPhotos = new ArrayList<>();
 
+        Map<String, PhotoUploadReservation> reservationsByObjectKey = new LinkedHashMap<>();
         for (PhotoUploadCompleteRequest.CompleteFileSpec file : files) {
             PhotoUploadReservation reservation =
                     photoUploadReservationRepository
@@ -133,9 +137,16 @@ public class PhotoUploadService {
             if (!reservation.isUsableBy(sharedAlbum, requester, now)) {
                 throw new BusinessException(PhotoErrorCode.UPLOAD_OBJECT_NOT_FOUND);
             }
-            if (!objectStorageService.exists(file.objectKey())) {
-                throw new BusinessException(PhotoErrorCode.UPLOAD_NOT_COMPLETED);
-            }
+            reservationsByObjectKey.put(file.objectKey(), reservation);
+        }
+
+        // 예약 검증이 모두 끝난 뒤에야 Object Storage에 묻는다. 파일당 왕복 하나씩이라 DB 트랜잭션을 오래 붙잡을 수
+        // 있어, 가상 스레드로 동시에 확인해 총 대기 시간을 파일 1개 왕복 수준으로 줄인다.
+        verifyObjectsUploaded(files);
+
+        List<Photo> createdPhotos = new ArrayList<>();
+        for (PhotoUploadCompleteRequest.CompleteFileSpec file : files) {
+            PhotoUploadReservation reservation = reservationsByObjectKey.get(file.objectKey());
 
             Photo photo =
                     Photo.create(
@@ -170,6 +181,28 @@ public class PhotoUploadService {
         submitThumbnailJobsAfterCommit(createdPhotos.stream().map(Photo::getId).toList());
 
         return new PhotoUploadCompleteResult(response, false);
+    }
+
+    private void verifyObjectsUploaded(List<PhotoUploadCompleteRequest.CompleteFileSpec> files) {
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            List<CompletableFuture<Boolean>> existsChecks =
+                    files.stream()
+                            .map(
+                                    file ->
+                                            CompletableFuture.supplyAsync(
+                                                    () ->
+                                                            objectStorageService.exists(
+                                                                    file.objectKey()),
+                                                    executor))
+                            .toList();
+            boolean allUploaded =
+                    existsChecks.stream()
+                            .map(CompletableFuture::join)
+                            .allMatch(Boolean::booleanValue);
+            if (!allUploaded) {
+                throw new BusinessException(PhotoErrorCode.UPLOAD_NOT_COMPLETED);
+            }
+        }
     }
 
     private void submitThumbnailJobsAfterCommit(List<UUID> photoIds) {
