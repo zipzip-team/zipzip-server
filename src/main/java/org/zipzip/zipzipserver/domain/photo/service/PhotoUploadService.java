@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +48,12 @@ import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
 public class PhotoUploadService {
 
     private static final int MAX_FILES_PER_REQUEST = 20;
+
+    // 요청 하나당 최대 20개 파일은 가상 스레드로 동시에 확인해도 되지만, 동시 요청 자체는 이 값으로 막지 않는다.
+    // s3Client는 앱 전체가 공유하는 단일 커넥션 풀(StorageClientConfig, 기본 50개)을 쓰므로, 요청이 몰릴 때
+    // 시스템 전체에서 동시에 나가는 exists() 호출 수를 이 세마포어로 별도 상한을 둔다.
+    private static final int MAX_CONCURRENT_OBJECT_EXISTS_CHECKS = 20;
+
     private static final long MAX_FILE_SIZE_BYTES = 20L * 1024 * 1024;
     private static final int MAX_DEVICE_MODEL_LENGTH = 100;
     private static final Duration UPLOAD_URL_TTL = Duration.ofMinutes(15);
@@ -65,6 +72,8 @@ public class PhotoUploadService {
     private final IdempotencyService idempotencyService;
     private final ThumbnailProcessingService thumbnailProcessingService;
     private final Clock clock = Clock.systemUTC();
+    private final Semaphore objectExistsSemaphore =
+            new Semaphore(MAX_CONCURRENT_OBJECT_EXISTS_CHECKS);
 
     @Transactional
     public PhotoUploadUrlResponse issueUploadUrls(
@@ -191,7 +200,7 @@ public class PhotoUploadService {
                                     file ->
                                             CompletableFuture.supplyAsync(
                                                     () ->
-                                                            objectStorageService.exists(
+                                                            checkExistsWithinGlobalLimit(
                                                                     file.objectKey()),
                                                     executor))
                             .toList();
@@ -202,6 +211,15 @@ public class PhotoUploadService {
             if (!allUploaded) {
                 throw new BusinessException(PhotoErrorCode.UPLOAD_NOT_COMPLETED);
             }
+        }
+    }
+
+    private boolean checkExistsWithinGlobalLimit(String objectKey) {
+        objectExistsSemaphore.acquireUninterruptibly();
+        try {
+            return objectStorageService.exists(objectKey);
+        } finally {
+            objectExistsSemaphore.release();
         }
     }
 
