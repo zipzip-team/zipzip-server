@@ -3,15 +3,22 @@ package org.zipzip.zipzipserver.domain.sharedgroup.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +54,7 @@ class SharedGroupPurgeServiceIntegrationTest {
 
     @Autowired private SharedGroupPurgeService sharedGroupPurgeService;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private DataSource dataSource;
 
     @MockitoBean private ObjectStorageService objectStorageService;
 
@@ -81,6 +89,22 @@ class SharedGroupPurgeServiceIntegrationTest {
     }
 
     @Test
+    void 스토리지_정리_중에는_공유_그룹_행_잠금을_유지하지_않는다() {
+        Fixture fixture = insertFixture();
+        doAnswer(
+                        invocation -> {
+                            assertGroupRowCanBeLocked(fixture.sharedGroupId());
+                            return null;
+                        })
+                .when(objectStorageService)
+                .deleteAll(any());
+
+        sharedGroupPurgeService.purge(fixture.sharedGroupId(), PURGE_BEFORE);
+
+        assertThat(count("shared_group", "id", fixture.sharedGroupId())).isZero();
+    }
+
+    @Test
     void 스토리지_삭제_실패_시_그룹과_초대_코드를_유지하고_다음_실행에서_재시도한다() {
         Fixture fixture = insertFixture();
         doThrow(new IllegalStateException("Object Storage unavailable"))
@@ -102,6 +126,42 @@ class SharedGroupPurgeServiceIntegrationTest {
 
         assertThat(count("shared_group", "id", fixture.sharedGroupId())).isZero();
         assertThat(count("photo", "id", fixture.photoId())).isZero();
+        assertThat(count("invite_code_reservation", "invite_code", fixture.inviteCode())).isZero();
+    }
+
+    @Test
+    void 일부_사진_정리_후_실패하면_완료한_사진은_유지하고_남은_사진을_재시도한다() {
+        Fixture fixture = insertFixture();
+        PhotoFixture additionalPhoto = insertAdditionalPhoto(fixture);
+        AtomicInteger storageCallCount = new AtomicInteger();
+        doAnswer(
+                        invocation -> {
+                            if (storageCallCount.incrementAndGet() == 2) {
+                                throw new IllegalStateException("Object Storage unavailable");
+                            }
+                            return null;
+                        })
+                .when(objectStorageService)
+                .deleteAll(any());
+
+        assertThatThrownBy(
+                        () -> sharedGroupPurgeService.purge(fixture.sharedGroupId(), PURGE_BEFORE))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(
+                        count("photo", "id", fixture.photoId())
+                                + count("photo", "id", additionalPhoto.photoId()))
+                .isEqualTo(1);
+        assertThat(count("shared_group", "id", fixture.sharedGroupId())).isEqualTo(1);
+        assertThat(count("invite_code_reservation", "invite_code", fixture.inviteCode()))
+                .isEqualTo(1);
+
+        reset(objectStorageService);
+        sharedGroupPurgeService.purge(fixture.sharedGroupId(), PURGE_BEFORE);
+
+        assertThat(count("photo", "id", fixture.photoId())).isZero();
+        assertThat(count("photo", "id", additionalPhoto.photoId())).isZero();
+        assertThat(count("shared_group", "id", fixture.sharedGroupId())).isZero();
         assertThat(count("invite_code_reservation", "invite_code", fixture.inviteCode())).isZero();
     }
 
@@ -194,12 +254,40 @@ class SharedGroupPurgeServiceIntegrationTest {
                 "정리 대상 댓글");
 
         return new Fixture(
+                appUserId,
                 sharedGroupId,
                 sharedAlbumId,
                 photoId,
                 inviteCode,
                 originalObjectKey,
                 thumbnailObjectKey);
+    }
+
+    private PhotoFixture insertAdditionalPhoto(Fixture fixture) {
+        UUID photoId = UUID.randomUUID();
+        String originalObjectKey = "photos/" + UUID.randomUUID() + "/original.jpg";
+        String thumbnailObjectKey = "photos/" + UUID.randomUUID() + "/thumbnail.jpg";
+        jdbcTemplate.update(
+                """
+                insert into photo (
+                    id, uploaded_by_app_user_id, original_object_key, thumbnail_object_key,
+                    thumbnail_status, is_inferred, deleted_at
+                ) values (?, ?, ?, ?, 'READY', false, ?)
+                """,
+                photoId,
+                fixture.appUserId(),
+                originalObjectKey,
+                thumbnailObjectKey,
+                Timestamp.from(DELETED_AT));
+        jdbcTemplate.update(
+                """
+                insert into shared_album_photo (id, shared_album_id, photo_id)
+                values (?, ?, ?)
+                """,
+                UUID.randomUUID(),
+                fixture.sharedAlbumId(),
+                photoId);
+        return new PhotoFixture(photoId);
     }
 
     private int count(String tableName, String columnName, Object value) {
@@ -209,11 +297,30 @@ class SharedGroupPurgeServiceIntegrationTest {
                 value);
     }
 
+    private void assertGroupRowCanBeLocked(UUID sharedGroupId) throws SQLException {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select id from shared_group where id = ? for update nowait")) {
+                statement.setObject(1, sharedGroupId);
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    assertThat(resultSet.next()).isTrue();
+                }
+            } finally {
+                connection.rollback();
+            }
+        }
+    }
+
     private record Fixture(
+            UUID appUserId,
             UUID sharedGroupId,
             UUID sharedAlbumId,
             UUID photoId,
             String inviteCode,
             String originalObjectKey,
             String thumbnailObjectKey) {}
+
+    private record PhotoFixture(UUID photoId) {}
 }
