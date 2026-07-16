@@ -1,11 +1,13 @@
 package org.zipzip.zipzipserver.global.config;
 
 import java.net.URI;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.http.apache5.Apache5HttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -29,6 +31,10 @@ public class StorageClientConfig {
                 .region(Region.of(storageProperties.getRegion()))
                 .credentialsProvider(credentialsProvider())
                 .serviceConfiguration(serviceConfiguration())
+                .httpClientBuilder(
+                        Apache5HttpClient.builder()
+                                .maxConnections(storageProperties.getHttpMaxConnections())
+                                .connectionAcquisitionTimeout(Duration.ofSeconds(5)))
                 .build();
     }
 

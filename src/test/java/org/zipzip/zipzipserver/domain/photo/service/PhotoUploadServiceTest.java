@@ -16,6 +16,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -526,6 +531,115 @@ class PhotoUploadServiceTest {
 
         assertThat(result.replayed()).isFalse();
         assertThat(result.response().items()).hasSize(20);
+    }
+
+    @Test
+    void 완료등록_동시_요청이_몰려도_ObjectStorage_동시_호출이_전역_상한을_넘지_않는다() throws Exception {
+        int concurrentRequests = 3;
+        int filesPerRequest = 20;
+        int globalConcurrencyLimit = 20; // PhotoUploadService.MAX_CONCURRENT_OBJECT_EXISTS_CHECKS
+
+        UUID albumId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+
+        when(photoAccessGuard.requireActiveSharedAlbum(albumId, userId)).thenReturn(sharedAlbum);
+        when(idempotencyService.parseIdempotencyKey(anyString()))
+                .thenAnswer(invocation -> UUID.fromString(invocation.getArgument(0)));
+        when(idempotencyService.hashCanonicalRequest(any())).thenReturn("hash");
+        when(idempotencyService.start(
+                        anyString(),
+                        any(UUID.class),
+                        anyString(),
+                        anyString(),
+                        anyString(),
+                        eq(PhotoUploadCompleteResponse.class)))
+                .thenAnswer(
+                        invocation -> {
+                            ApiIdempotencyRecord record =
+                                    ApiIdempotencyRecord.processing(
+                                            invocation.getArgument(0),
+                                            invocation.getArgument(1),
+                                            invocation.getArgument(2),
+                                            invocation.getArgument(3),
+                                            invocation.getArgument(4),
+                                            Instant.now().plusSeconds(600));
+                            return new IdempotencyService.IdempotencyStart<>(record, null, false);
+                        });
+        when(appUserRepository.getReferenceById(userId)).thenReturn(uploader);
+        when(photoUploadReservationRepository.findById(anyString()))
+                .thenAnswer(
+                        invocation ->
+                                Optional.of(
+                                        PhotoUploadReservation.create(
+                                                invocation.getArgument(0),
+                                                sharedAlbum,
+                                                uploader,
+                                                Instant.now().plusSeconds(900))));
+        when(photoRepository.save(any(Photo.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(objectStorageService.issueDownloadUrl(anyString(), any(Duration.class)))
+                .thenReturn(
+                        new PresignedDownload(
+                                "https://original-url", Instant.now().plusSeconds(600)));
+
+        AtomicInteger currentConcurrent = new AtomicInteger(0);
+        AtomicInteger maxObservedConcurrent = new AtomicInteger(0);
+        when(objectStorageService.exists(anyString()))
+                .thenAnswer(
+                        invocation -> {
+                            int current = currentConcurrent.incrementAndGet();
+                            maxObservedConcurrent.updateAndGet(max -> Math.max(max, current));
+                            try {
+                                Thread.sleep(30);
+                            } finally {
+                                currentConcurrent.decrementAndGet();
+                            }
+                            return true;
+                        });
+
+        ExecutorService requestPool = Executors.newFixedThreadPool(concurrentRequests);
+        List<Future<?>> futures = new ArrayList<>();
+        for (int i = 0; i < concurrentRequests; i++) {
+            String idempotencyKeyHeader = UUID.randomUUID().toString();
+            List<PhotoUploadCompleteRequest.CompleteFileSpec> files = new ArrayList<>();
+            for (int fileIndex = 0; fileIndex < filesPerRequest; fileIndex++) {
+                files.add(
+                        new PhotoUploadCompleteRequest.CompleteFileSpec(
+                                "object-key-" + UUID.randomUUID(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null));
+            }
+            PhotoUploadCompleteRequest request = new PhotoUploadCompleteRequest(files);
+
+            futures.add(
+                    requestPool.submit(
+                            () -> {
+                                // 각 "요청 스레드"가 실제 HTTP 요청 스레드처럼 자기 트랜잭션 동기화
+                                // 컨텍스트를 갖도록 연다(ThreadLocal이라 워커 스레드별로 필요).
+                                TransactionSynchronizationManager.initSynchronization();
+                                try {
+                                    photoUploadService.completeUpload(
+                                            albumId, userId, idempotencyKeyHeader, request);
+                                } finally {
+                                    TransactionSynchronizationManager.clearSynchronization();
+                                }
+                            }));
+        }
+        for (Future<?> future : futures) {
+            future.get(10, TimeUnit.SECONDS);
+        }
+        requestPool.shutdown();
+
+        assertThat(maxObservedConcurrent.get()).isLessThanOrEqualTo(globalConcurrencyLimit);
+        assertThat(maxObservedConcurrent.get())
+                .as("세마포어 상한(%d)에 근접할 만큼 실제로 동시 실행됐는지 확인", globalConcurrencyLimit)
+                .isGreaterThan(concurrentRequests);
     }
 
     private PhotoUploadCompleteRequest completeRequestFor(String objectKey) {
