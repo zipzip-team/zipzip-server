@@ -23,6 +23,7 @@ import org.zipzip.zipzipserver.domain.album.code.SharedAlbumErrorCode;
 import org.zipzip.zipzipserver.domain.album.dto.request.SharedAlbumIdsRequest;
 import org.zipzip.zipzipserver.domain.album.dto.request.SharedAlbumNameRequest;
 import org.zipzip.zipzipserver.domain.album.dto.response.SharedAlbumBulkDeleteResponse;
+import org.zipzip.zipzipserver.domain.album.dto.response.SharedAlbumListResponse;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
@@ -31,6 +32,8 @@ import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
+import org.zipzip.zipzipserver.domain.storage.ObjectStorageService;
+import org.zipzip.zipzipserver.domain.storage.PresignedDownload;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
@@ -45,6 +48,7 @@ class SharedAlbumServiceTest {
     @Mock private SharedAlbumPhotoRepository sharedAlbumPhotoRepository;
     @Mock private PhotoRepository photoRepository;
     @Mock private AppUserRepository appUserRepository;
+    @Mock private ObjectStorageService objectStorageService;
     @Mock private IdempotencyService idempotencyService;
 
     @InjectMocks private SharedAlbumService sharedAlbumService;
@@ -309,6 +313,92 @@ class SharedAlbumServiceTest {
         verify(sharedAlbumPhotoRepository).deleteBySharedAlbumId(albumB.getId());
     }
 
+    @Test
+    void 공유집_목록_조회시_가장_먼저_저장된_사진_순으로_최대_3장의_썸네일을_반환한다() {
+        AppUser creator = anAppUser();
+        SharedGroup group = aSharedGroup(creator);
+        SharedAlbum album = anAlbum(creator, group);
+        UUID requesterId = creator.getId();
+        Photo oldest = aReadyPhoto(creator, "thumb/oldest.jpg");
+        Photo middle = aReadyPhoto(creator, "thumb/middle.jpg");
+        Photo newest = aReadyPhoto(creator, "thumb/newest.jpg");
+
+        when(sharedAlbumAccessGuard.requireActiveSharedGroup(group.getId(), requesterId))
+                .thenReturn(group);
+        when(sharedAlbumRepository.findPageByActiveSharedGroupId(
+                        eq(group.getId()), any(), any(), any()))
+                .thenReturn(List.of(album));
+        when(sharedAlbumPhotoRepository.countBySharedAlbumIdAndPhotoDeletedAtIsNull(album.getId()))
+                .thenReturn(3L);
+        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(eq(album.getId()), any()))
+                .thenReturn(List.of(oldest, middle, newest));
+        when(objectStorageService.issueDownloadUrl(eq("thumb/oldest.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/oldest", Instant.now()));
+        when(objectStorageService.issueDownloadUrl(eq("thumb/middle.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/middle", Instant.now()));
+        when(objectStorageService.issueDownloadUrl(eq("thumb/newest.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/newest", Instant.now()));
+
+        SharedAlbumListResponse response =
+                sharedAlbumService.listAlbums(group.getId(), requesterId, null, null);
+
+        assertThat(response.items().get(0).thumbnails())
+                .extracting(SharedAlbumListResponse.Thumbnail::url)
+                .containsExactly("https://cdn/oldest", "https://cdn/middle", "https://cdn/newest");
+    }
+
+    @Test
+    void 썸네일이_준비되지_않은_사진은_목록에서_제외된다() {
+        AppUser creator = anAppUser();
+        SharedGroup group = aSharedGroup(creator);
+        SharedAlbum album = anAlbum(creator, group);
+        UUID requesterId = creator.getId();
+        Photo pending = aPhoto(creator);
+        Photo ready = aReadyPhoto(creator, "thumb/ready.jpg");
+
+        when(sharedAlbumAccessGuard.requireActiveSharedGroup(group.getId(), requesterId))
+                .thenReturn(group);
+        when(sharedAlbumRepository.findPageByActiveSharedGroupId(
+                        eq(group.getId()), any(), any(), any()))
+                .thenReturn(List.of(album));
+        when(sharedAlbumPhotoRepository.countBySharedAlbumIdAndPhotoDeletedAtIsNull(album.getId()))
+                .thenReturn(2L);
+        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(eq(album.getId()), any()))
+                .thenReturn(List.of(pending, ready));
+        when(objectStorageService.issueDownloadUrl(eq("thumb/ready.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/ready", Instant.now()));
+
+        SharedAlbumListResponse response =
+                sharedAlbumService.listAlbums(group.getId(), requesterId, null, null);
+
+        assertThat(response.items().get(0).thumbnails())
+                .extracting(SharedAlbumListResponse.Thumbnail::url)
+                .containsExactly("https://cdn/ready");
+    }
+
+    @Test
+    void 사진이_없는_공유집은_빈_썸네일_목록을_반환한다() {
+        AppUser creator = anAppUser();
+        SharedGroup group = aSharedGroup(creator);
+        SharedAlbum album = anAlbum(creator, group);
+        UUID requesterId = creator.getId();
+
+        when(sharedAlbumAccessGuard.requireActiveSharedGroup(group.getId(), requesterId))
+                .thenReturn(group);
+        when(sharedAlbumRepository.findPageByActiveSharedGroupId(
+                        eq(group.getId()), any(), any(), any()))
+                .thenReturn(List.of(album));
+        when(sharedAlbumPhotoRepository.countBySharedAlbumIdAndPhotoDeletedAtIsNull(album.getId()))
+                .thenReturn(0L);
+        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(eq(album.getId()), any()))
+                .thenReturn(List.of());
+
+        SharedAlbumListResponse response =
+                sharedAlbumService.listAlbums(group.getId(), requesterId, null, null);
+
+        assertThat(response.items().get(0).thumbnails()).isEmpty();
+    }
+
     private <T> void stubFreshIdempotency(
             String scopePrefix,
             UUID userId,
@@ -352,5 +442,11 @@ class SharedAlbumServiceTest {
 
     private Photo aPhoto(AppUser uploader) {
         return Photo.create(uploader, "iPhone 15", "photos/original.jpg", null, null, null);
+    }
+
+    private Photo aReadyPhoto(AppUser uploader, String thumbnailObjectKey) {
+        Photo photo = aPhoto(uploader);
+        photo.markThumbnailReady(thumbnailObjectKey);
+        return photo;
     }
 }

@@ -83,4 +83,16 @@ public interface SharedAlbumPhotoRepository extends JpaRepository<SharedAlbumPho
             @Param("cursorDisplayAt") Instant cursorDisplayAt,
             @Param("cursorId") UUID cursorId,
             Pageable pageable);
+
+    @Query(
+            """
+            select photo
+            from SharedAlbumPhoto sap
+            join sap.photo photo
+            where sap.sharedAlbum.id = :sharedAlbumId
+              and photo.deletedAt is null
+            order by sap.createdAt asc, sap.id asc
+            """)
+    List<Photo> findOldestPhotosBySharedAlbumId(
+            @Param("sharedAlbumId") UUID sharedAlbumId, Pageable pageable);
 }

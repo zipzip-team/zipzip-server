@@ -56,6 +56,20 @@
         "id": "59ce0d18-a53e-4197-9c3c-e82331adc097",
         "name": "제주도",
         "photoCount": 42,
+        "thumbnails": [
+          {
+            "url": "https://objectstorage.example.com/signed/oldest-thumb.jpg",
+            "urlExpiresAt": "2026-07-03T10:25:30Z"
+          },
+          {
+            "url": "https://objectstorage.example.com/signed/second-thumb.jpg",
+            "urlExpiresAt": "2026-07-03T10:25:30Z"
+          },
+          {
+            "url": "https://objectstorage.example.com/signed/third-thumb.jpg",
+            "urlExpiresAt": "2026-07-03T10:25:30Z"
+          }
+        ],
         "createdBy": {
           "userId": "018f0c3e-2c77-7d72-a37e-2f5666f25d32",
           "displayName": "집집이"
@@ -70,6 +84,8 @@
   }
 }
 ```
+
+`thumbnails`는 그 공유집(앨범)에 **가장 먼저 저장된 사진 순으로 최대 3장**의 썸네일 presigned GET URL이다. 여기서 "가장 먼저 저장된"은 사진이 찍힌 시각이 아니라 **그 사진을 이 앨범에 추가한 시각** 기준이다 — 기존 사진을 다른 앨범에서 가져와 추가해도(PHOTO-07) 새로 추가한 시점이 기준이 된다. 썸네일이 아직 준비되지 않은(`thumbnailStatus`가 `READY`가 아닌) 사진은 건너뛰므로 0~3개 사이일 수 있고, 채워서 3개를 맞추지 않는다. `originalUrl`/`thumbnailUrl`과 마찬가지로 호출마다 새로 발급하는 presigned URL이라 영구 저장하지 않는다([07-photo-management.md](07-photo-management.md) 참고).
 
 ### Fail Response
 

@@ -17,6 +17,7 @@ import java.lang.reflect.Type;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -263,7 +264,7 @@ public class SwaggerResponseExampleConfig {
                 RESPONSE_DATA_TYPES.getOrDefault(
                         methodKey,
                         responseDataType(handlerMethod.getMethod().getGenericReturnType()));
-        return sampleValue(dataType, 0);
+        return sampleValue(dataType, new HashSet<>());
     }
 
     private static Type responseDataType(Type returnType) {
@@ -279,23 +280,23 @@ public class SwaggerResponseExampleConfig {
         return Void.class;
     }
 
-    private static Object sampleValue(Type type, int depth) {
-        if (depth > 3 || type == Void.class) {
+    private static Object sampleValue(Type type, Set<Type> visiting) {
+        if (type == Void.class) {
             return null;
         }
         if (type instanceof ParameterizedType parameterizedType) {
             Type rawType = parameterizedType.getRawType();
             if (rawType instanceof Class<?> rawClass
                     && Collection.class.isAssignableFrom(rawClass)) {
-                return List.of(
-                        sampleValue(parameterizedType.getActualTypeArguments()[0], depth + 1));
+                Object element =
+                        sampleValue(parameterizedType.getActualTypeArguments()[0], visiting);
+                return element == null ? List.of() : List.of(element);
             }
             if (rawType instanceof Class<?> rawClass && Map.class.isAssignableFrom(rawClass)) {
-                return Map.of(
-                        "key",
-                        sampleValue(parameterizedType.getActualTypeArguments()[1], depth + 1));
+                Object value = sampleValue(parameterizedType.getActualTypeArguments()[1], visiting);
+                return value == null ? Map.of() : Map.of("key", value);
             }
-            return sampleValue(rawType, depth + 1);
+            return sampleValue(rawType, visiting);
         }
         if (!(type instanceof Class<?> typeClass)) {
             return Map.of();
@@ -322,11 +323,19 @@ public class SwaggerResponseExampleConfig {
             return ((Enum<?>) typeClass.getEnumConstants()[0]).name();
         }
         if (typeClass.isRecord()) {
-            Map<String, Object> data = new LinkedHashMap<>();
-            for (RecordComponent component : typeClass.getRecordComponents()) {
-                data.put(component.getName(), sampleValue(component.getGenericType(), depth + 1));
+            if (!visiting.add(typeClass)) {
+                return null;
             }
-            return data;
+            try {
+                Map<String, Object> data = new LinkedHashMap<>();
+                for (RecordComponent component : typeClass.getRecordComponents()) {
+                    data.put(
+                            component.getName(), sampleValue(component.getGenericType(), visiting));
+                }
+                return data;
+            } finally {
+                visiting.remove(typeClass);
+            }
         }
         return Map.of();
     }
