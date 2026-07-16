@@ -99,8 +99,17 @@ public class Photo extends BaseTimeEntity {
     }
 
     public void markThumbnailReady(String thumbnailObjectKey) {
+        if (thumbnailObjectKey == null || thumbnailObjectKey.isBlank()) {
+            throw new IllegalArgumentException("썸네일 객체 키는 비어 있을 수 없습니다.");
+        }
         this.thumbnailObjectKey = thumbnailObjectKey;
         this.thumbnailStatus = PhotoThumbnailStatus.READY;
+    }
+
+    public boolean hasUsableThumbnail() {
+        return thumbnailStatus == PhotoThumbnailStatus.READY
+                && thumbnailObjectKey != null
+                && !thumbnailObjectKey.isBlank();
     }
 
     public void markThumbnailFailed() {

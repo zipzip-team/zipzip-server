@@ -14,7 +14,6 @@ import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
 import org.zipzip.zipzipserver.domain.photo.code.PhotoErrorCode;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
-import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.photo.service.PhotoAccessGuard;
 import org.zipzip.zipzipserver.domain.reaction.code.ReactionErrorCode;
@@ -197,8 +196,7 @@ public class ReactionService {
     }
 
     private PresignedDownload issueThumbnailDownload(Photo photo) {
-        if (photo.getThumbnailStatus() != PhotoThumbnailStatus.READY
-                || photo.getThumbnailObjectKey() == null) {
+        if (!photo.hasUsableThumbnail()) {
             return null;
         }
         return objectStorageService.issueDownloadUrl(

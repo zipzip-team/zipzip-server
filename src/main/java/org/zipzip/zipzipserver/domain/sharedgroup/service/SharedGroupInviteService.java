@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
-import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.request.SharedGroupJoinRequest;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.InviteCodeResponse;
@@ -173,8 +172,7 @@ public class SharedGroupInviteService {
 
     private PresignedDownload issueRepresentativeImageDownload(Photo photo) {
         String objectKey =
-                photo.getThumbnailStatus() == PhotoThumbnailStatus.READY
-                                && photo.getThumbnailObjectKey() != null
+                photo.hasUsableThumbnail()
                         ? photo.getThumbnailObjectKey()
                         : photo.getOriginalObjectKey();
         return objectStorageService.issueDownloadUrl(objectKey, REPRESENTATIVE_IMAGE_URL_TTL);

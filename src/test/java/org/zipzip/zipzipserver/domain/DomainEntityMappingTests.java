@@ -1,6 +1,7 @@
 package org.zipzip.zipzipserver.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import jakarta.persistence.Table;
 import java.lang.reflect.Field;
@@ -99,15 +100,32 @@ class DomainEntityMappingTests {
 
         assertThat(photo.getThumbnailStatus()).isEqualTo(PhotoThumbnailStatus.PENDING);
         assertThat(photo.getThumbnailObjectKey()).isNull();
+        assertThat(photo.hasUsableThumbnail()).isFalse();
 
         photo.markThumbnailReady("photos/385ff765/thumbnail.jpg");
 
         assertThat(photo.getThumbnailStatus()).isEqualTo(PhotoThumbnailStatus.READY);
         assertThat(photo.getThumbnailObjectKey()).isEqualTo("photos/385ff765/thumbnail.jpg");
+        assertThat(photo.hasUsableThumbnail()).isTrue();
 
         photo.markThumbnailFailed();
 
         assertThat(photo.getThumbnailStatus()).isEqualTo(PhotoThumbnailStatus.FAILED);
+        assertThat(photo.hasUsableThumbnail()).isFalse();
+    }
+
+    @Test
+    void photo는_비어있는_썸네일_객체_키로_READY_상태가_될_수_없다() {
+        AppUser user = AppUser.create("apple-subject", "사용자");
+        Photo photo = Photo.create(user, null, "photos/385ff765/original.jpg", null, null, null);
+
+        assertThatThrownBy(() -> photo.markThumbnailReady(null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> photo.markThumbnailReady("  \t\n"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(photo.getThumbnailStatus()).isEqualTo(PhotoThumbnailStatus.PENDING);
+        assertThat(photo.getThumbnailObjectKey()).isNull();
     }
 
     @Test
