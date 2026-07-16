@@ -38,7 +38,7 @@ iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)�
 
 ### 1.5 Presigned URL 캐시 금지
 
-`originalUrl`/`thumbnailUrl`은 호출마다 새로 서명해 발급하는 임시 URL이며 TTL이 짧다(다운로드 10분, 업로드 15분). 서버는 이 URL을 저장하지 않으므로 iOS도 영구 캐시하지 말고, 화면을 다시 열거나 새로고침할 때 목록/상세 API를 다시 호출해 새 URL을 받아야 한다.
+`originalUrl`/`thumbnailUrl`은 호출마다 새로 서명해 발급하는 임시 URL이며 TTL이 짧다(다운로드 10분, 업로드 15분). 서버는 이 URL을 저장하지 않으므로 iOS도 영구 캐시하지 말고, 화면을 다시 열거나 새로고침할 때 목록/상세 API를 다시 호출해 새 URL을 받아야 한다. ALBUM-01 응답의 `items[].thumbnails[].url`도 동일한 presigned GET URL이라 같은 규칙이 적용된다.
 
 ---
 
@@ -52,12 +52,13 @@ iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)�
 1. `sharedGroupId`가 존재하고 요청자가 그 그룹의 활성 멤버인지 확인(`SharedAlbumAccessGuard`) — 아니면 `404 SHARED_GROUP_NOT_FOUND`.
 2. `createdAt` 내림차순 + 동점 시 앨범 ID 내림차순으로 커서 페이지네이션.
 3. 앨범마다 `photoCount`를 그 시점에 실시간 count(비정규화 컬럼 없음 — 저장된 카운터가 아니라 매번 `shared_album_photo` 조인 집계).
+4. 앨범마다 **그 앨범에 사진이 추가된 시각**(사진이 찍힌 시각이 아님) 기준으로 가장 먼저 추가된 순 최대 3장을 뽑아 `thumbnails`로 반환한다. 기존 사진을 다른 앨범에서 가져와 추가해도(PHOTO-07) 새로 추가한 시점이 기준이다. 썸네일이 아직 `READY`가 아닌 사진은 건너뛰므로(뒤 순번으로 채워 넣지 않음) 0~3개 사이일 수 있다.
 
-**응답 필드**: `items[].{id, name, photoCount, createdBy{userId, displayName}, isCreator, createdAt, updatedAt}`, `nextCursor`, `hasNext`.
+**응답 필드**: `items[].{id, name, photoCount, thumbnails[].{url, urlExpiresAt}, createdBy{userId, displayName}, isCreator, createdAt, updatedAt}`, `nextCursor`, `hasNext`.
 
 **에러**: `400 INVALID_CURSOR`, `404 SHARED_GROUP_NOT_FOUND`.
 
-**iOS 행동**: 공유 그룹 화면 진입 시 호출. 무한 스크롤 시 `nextCursor`를 다음 요청의 `cursor`로. `isCreator`는 "내가 만든 앨범" 표시 등 UI 용도의 참고값일 뿐이며, 삭제 권한과는 무관하다 — 삭제(ALBUM-05/06)는 생성자·방장 여부와 상관없이 상위 공유 그룹의 활성 멤버라면 누구나 가능하므로 삭제 버튼 노출을 `isCreator`로 제한하지 않는다.
+**iOS 행동**: 공유 그룹 화면 진입 시 호출. 무한 스크롤 시 `nextCursor`를 다음 요청의 `cursor`로. 앨범 카드의 겹친 사진 3장 썸네일은 `thumbnails` 배열을 순서대로(가장 먼저 저장된 사진이 맨 앞) 그리면 되고, 배열 길이가 3보다 작으면 있는 만큼만 표시한다. `isCreator`는 "내가 만든 앨범" 표시 등 UI 용도의 참고값일 뿐이며, 삭제 권한과는 무관하다 — 삭제(ALBUM-05/06)는 생성자·방장 여부와 상관없이 상위 공유 그룹의 활성 멤버라면 누구나 가능하므로 삭제 버튼 노출을 `isCreator`로 제한하지 않는다.
 
 ### ALBUM-02 — 생성
 

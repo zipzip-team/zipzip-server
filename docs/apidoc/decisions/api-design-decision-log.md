@@ -27,6 +27,7 @@
 | API-12 | 업로드 발급-등록 무결성 | `photo_upload_reservation`으로 PHOTO-02 발급 대상과 PHOTO-03 등록 요청을 연결해 발급 대상 불일치와 재사용을 검증 |
 | API-13 | 촬영 기기 정보 | 기기 CRUD API(DEVICE-01~04)를 폐지하고, 촬영 기기명은 PHOTO-03 요청의 `files[].deviceModel`로 받아 사진 응답의 `deviceModel` 문자열로 노출 |
 | API-14 | 사진 업로드 파일 수·용량 제한 | 요청당 최대 20개, 파일당 최대 20 MiB로 유지(정량적 재검증 완료). 21장 이상은 iOS가 20개 단위 배치로 나눠 반복 호출. 실측으로 발견한 실제 위험(해상도 무제한, exists() 순차 호출, 썸네일 큐 초과 시 응답 실패)은 값 조정이 아니라 별도 이슈(#86, #87, #88)로 대응 |
+| API-15 | 공유집(앨범) 목록 썸네일 | ALBUM-01 응답에 앨범당 가장 먼저 저장된 사진 순 최대 3장의 썸네일 presigned URL(`thumbnails`)을 추가. `READY`가 아닌 썸네일은 건너뛰고 뒤 순번으로 채우지 않음(이슈 #99) |
 
 ## 3. API-01. Notion index 분류
 
@@ -319,7 +320,30 @@ PHOTO-02가 발급 이력을 저장하지 않으면 PHOTO-03이 `objectKey`의 �
 
 이를 막기 위해 `PhotoUploadService`(싱글턴 빈)에 전역 `Semaphore(20)`을 둬 시스템 전체의 동시 `exists()` 호출이 상한을 넘지 않게 했고, `StorageClientConfig`의 S3 HTTP 커넥션 풀 크기(`storage.http-max-connections`, 기본 50)와 커넥션 획득 타임아웃(5초)을 암묵적 기본값 대신 명시적으로 설정했다. 상한을 넘는 동시 요청 시나리오를 검증하는 테스트(`PhotoUploadServiceTest`)도 추가했다. 두 값(풀 50 / 세마포어 20) 모두 실측이 아니라 배포 규모 기준 추정치라, 운영 지표를 보면서 재조정할 여지가 있다.
 
-## 17. 후속 구현 체크리스트
+## 17. API-15. 공유집(앨범) 목록 썸네일
+
+### 결정
+
+- ALBUM-01(`GET /shared-groups/{sharedGroupId}/shared-albums`) 응답의 각 항목에 `thumbnails` 배열을 추가한다.
+- `thumbnails`는 그 공유집(앨범)에 **가장 먼저 저장된 사진 순으로 최대 3장**의 썸네일 presigned GET URL이다(API-06의 기존 이미지 URL 방식을 그대로 재사용). 여기서 "가장 먼저 저장된"은 사진 자체의 촬영·업로드 시각(`photo.takenAt`/`photo.createdAt`)이 아니라 **그 사진이 이 앨범에 추가(매핑)된 시각**(`shared_album_photo.createdAt`) 기준이다 — 기존 사진을 다른 앨범에서 가져와 추가하는 PHOTO-07(추가) 때문에 두 시각이 달라질 수 있어 명확히 구분한다.
+- 썸네일이 아직 `READY`가 아닌(`PENDING`/`FAILED`) 사진은 건너뛴다. 다음 순번 사진으로 채워 넣지 않으므로 배열 길이는 0~3 사이일 수 있다.
+
+### 배경
+
+기획·디자인에는 원래 공유그룹 상세 화면의 앨범 카드에 사진 3장 스택 썸네일이 있었지만, 최초 구현(PR에서 ALBUM-01을 만들 때)에 이 필드가 누락됐다(이슈 #99). iOS가 이미 받은 presigned URL을 로컬 DB에 캐시해 재사용하는 방안도 검토했으나 다음 이유로 기각했다.
+
+- ALBUM-01 응답 자체에는 사진이 없고, 사진은 앨범을 열어야 PHOTO-01로 조회된다. 즉 로컬 캐시는 그 앨범을 한 번이라도 연 뒤에만 존재하므로, 그룹에 처음 들어온 사용자·새 기기·앱 재설치 상태에서는 앨범을 하나도 안 열어봤어도 그룹 상세 화면에 카드가 즉시 보여야 하는데 캐시가 비어 있어 요구사항을 만족하지 못한다.
+- PHOTO-01은 `displayAt` 내림차순(최신순)만 지원하고 오름차순 옵션이 없다. "가장 먼저 저장된 사진"을 얻으려면 커서를 끝까지 넘겨 마지막 페이지를 봐야 하는데, 앨범 하나당 전체 사진을 끝까지 페이지네이션해야 해서 앨범 개수만큼 반복하면 비용이 급격히 커진다.
+- `originalUrl`/`thumbnailUrl`은 호출마다 새로 발급하고 영구 저장하지 않는 계약(API-06)이라, URL 자체를 로컬에 캐시해 재사용하는 것은 기존 계약과도 어긋난다.
+
+### 구현 근거
+
+- 신규 쿼리 `SharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId`는 `shared_album_photo.createdAt`(매핑 자체의 생성 시각) 오름차순 + `LIMIT 3`으로 정렬한다. `shared_album_photo(shared_album_id, created_at)` 인덱스가 필터(`shared_album_id`)와 정렬(`created_at`)을 모두 커버하므로 앨범 전체 사진 수와 무관하게 인덱스 스캔만으로 상위 3건을 뽑는다.
+- (정정) 최초 구현에서는 `coalesce(photo.takenAt, photo.createdAt)`(사진 자체의 촬영·업로드 시각, PHOTO-01 목록과 동일한 정렬 기준을 재사용)로 정렬했었다. 코드 리뷰에서 PHOTO-07로 기존 사진을 다른 앨범에 나중에 추가하면 "앨범에 먼저 저장된 순서"와 "사진이 찍힌 순서"가 어긋난다는 점, 그리고 이 정렬 기준은 어떤 인덱스로도 커버되지 않아 앨범의 활성 사진 전체를 정렬해야 한다는 점이 함께 지적돼 `shared_album_photo.createdAt` 기준으로 수정했다.
+- Presigned URL 발급(`S3Presigner.presignGetObject`)은 네트워크 호출이 아니라 로컬 SigV4 서명 계산이라, 한 페이지에 앨범이 최대 100개(`size` 상한)여도 최대 300회 서명 비용은 무시할 수준이다.
+- 앨범당 추가 조회 1건은 이미 있던 `photoCount` 실시간 count(앨범당 1건)와 같은 모양의 N+1이라 새로운 종류의 비용은 아니다.
+
+## 18. 후속 구현 체크리스트
 
 - [x] PostgreSQL `api_idempotency_record` 마이그레이션과 정리 배치 구현
 - [ ] 인증 응답 snapshot 암호화와 민감 정보 로그 마스킹 적용
@@ -336,3 +360,4 @@ PHOTO-02가 발급 이력을 저장하지 않으면 PHOTO-03이 `objectKey`의 �
 - [ ] 사진 해상도 상한 검증 또는 서브샘플링 디코딩으로 썸네일 생성 메모리 위험 제거(이슈 #87)
 - [x] `completeUpload`의 Object Storage `exists()` 순차 호출 병렬화로 트랜잭션 시간 단축(이슈 #88)
 - [ ] `thumbnailExecutor` 큐 초과 시 응답 실패 대신 안전하게 `PENDING` 처리, 실제 부하 기준 큐 용량 재산정(이슈 #86)
+- [x] ALBUM-01 응답에 앨범당 가장 먼저 저장된 사진 3장 썸네일 추가(이슈 #99)

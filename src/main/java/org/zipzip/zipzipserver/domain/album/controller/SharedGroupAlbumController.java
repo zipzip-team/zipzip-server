@@ -41,7 +41,9 @@ public class SharedGroupAlbumController {
             description =
                     "현재 사용자가 활성 멤버인 공유 그룹의 앨범을 생성 시각 내림차순으로 조회합니다. 다음"
                             + " 페이지에는 이전 응답의 nextCursor를 수정하지 않고 그대로 전달합니다. size를 생략하면"
-                            + " 20이며, 범위를 벗어난 값은 1~100 범위로 보정됩니다.")
+                            + " 20이며, 범위를 벗어난 값은 1~100 범위로 보정됩니다. 각 항목의 thumbnails는 해당"
+                            + " 앨범에 가장 먼저 저장된 사진 순으로 최대 3장을 담으며, 호출마다 새로 발급하는 presigned"
+                            + " GET URL이라 영구 저장하지 않습니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "조회 성공", useReturnTypeSchema = true),
         @ApiResponse(responseCode = "400", description = "INVALID_CURSOR"),

@@ -1,6 +1,7 @@
 package org.zipzip.zipzipserver.domain.album.service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -25,8 +26,11 @@ import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumRepository;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
+import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
+import org.zipzip.zipzipserver.domain.storage.ObjectStorageService;
+import org.zipzip.zipzipserver.domain.storage.PresignedDownload;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
 import org.zipzip.zipzipserver.global.cursor.OpaqueCursor;
@@ -41,6 +45,8 @@ public class SharedAlbumService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_SHARED_ALBUM_IDS_PER_REQUEST = 100;
+    private static final int THUMBNAIL_COUNT = 3;
+    private static final Duration THUMBNAIL_URL_TTL = Duration.ofMinutes(10);
     private static final String CREATE_SCOPE_PREFIX = "SHARED_ALBUM_CREATE:";
     private static final String BULK_DELETE_SCOPE_PREFIX = "SHARED_ALBUM_BULK_DELETE:";
     private static final String HTTP_METHOD_POST = "POST";
@@ -51,6 +57,7 @@ public class SharedAlbumService {
     private final SharedAlbumPhotoRepository sharedAlbumPhotoRepository;
     private final PhotoRepository photoRepository;
     private final AppUserRepository appUserRepository;
+    private final ObjectStorageService objectStorageService;
     private final IdempotencyService idempotencyService;
     private final Clock clock = Clock.systemUTC();
 
@@ -265,15 +272,37 @@ public class SharedAlbumService {
         long photoCount =
                 sharedAlbumPhotoRepository.countBySharedAlbumIdAndPhotoDeletedAtIsNull(
                         album.getId());
+        List<SharedAlbumListResponse.Thumbnail> thumbnails = toThumbnails(album.getId());
         AppUser creator = album.getCreatedByAppUser();
         return new SharedAlbumListResponse.Item(
                 album.getId(),
                 album.getName(),
                 photoCount,
+                thumbnails,
                 new SharedAlbumResponse.Creator(creator.getId(), creator.getDisplayName()),
                 creator.getId().equals(appUserId),
                 album.getCreatedAt(),
                 album.getUpdatedAt());
+    }
+
+    private List<SharedAlbumListResponse.Thumbnail> toThumbnails(UUID albumId) {
+        List<Photo> oldestPhotos =
+                sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(
+                        albumId, PageRequest.of(0, THUMBNAIL_COUNT));
+        return oldestPhotos.stream()
+                .filter(
+                        photo ->
+                                photo.getThumbnailStatus() == PhotoThumbnailStatus.READY
+                                        && photo.getThumbnailObjectKey() != null)
+                .map(
+                        photo -> {
+                            PresignedDownload thumbnail =
+                                    objectStorageService.issueDownloadUrl(
+                                            photo.getThumbnailObjectKey(), THUMBNAIL_URL_TTL);
+                            return new SharedAlbumListResponse.Thumbnail(
+                                    thumbnail.url(), thumbnail.expiresAt());
+                        })
+                .toList();
     }
 
     private SharedAlbumResponse toResponse(SharedAlbum album, UUID appUserId) {

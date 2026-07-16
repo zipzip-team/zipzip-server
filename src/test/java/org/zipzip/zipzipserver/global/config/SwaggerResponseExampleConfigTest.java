@@ -8,6 +8,8 @@ import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springdoc.core.customizers.OperationCustomizer;
 import org.springframework.web.method.HandlerMethod;
@@ -31,6 +33,45 @@ class SwaggerResponseExampleConfigTest {
     @Test
     void 모든_컨트롤러_응답에는_명시적_Swagger_예시가_생성된다() {
         controllers().forEach(this::assertResponseExamples);
+    }
+
+    @Test
+    void 깊이_4단계_이상_중첩된_필드도_빈_배열이_아닌_예시_값을_채운다() throws Exception {
+        Method method =
+                SharedGroupAlbumController.class.getDeclaredMethod(
+                        "listAlbums", UUID.class, UUID.class, String.class, Integer.class);
+        io.swagger.v3.oas.annotations.responses.ApiResponses annotation =
+                method.getAnnotation(io.swagger.v3.oas.annotations.responses.ApiResponses.class);
+        Operation operation = new Operation().responses(new ApiResponses());
+        for (io.swagger.v3.oas.annotations.responses.ApiResponse response : annotation.value()) {
+            operation
+                    .getResponses()
+                    .addApiResponse(
+                            response.responseCode(),
+                            new ApiResponse().description(response.description()));
+        }
+        customizer.customize(
+                operation, new HandlerMethod(SharedGroupAlbumController.class, method));
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> example =
+                (Map<String, Object>)
+                        operation
+                                .getResponses()
+                                .get("200")
+                                .getContent()
+                                .get("application/json")
+                                .getExample();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> data = (Map<String, Object>) example.get("data");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) data.get("items");
+
+        assertThat(items.get(0).get("thumbnails"))
+                .as("SharedAlbumListResponse.Item.thumbnails 예시(depth 4)")
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .as("thumbnails가 depth cap에 걸려 빈 배열로 잘리면 안 됨")
+                .isNotEmpty();
     }
 
     private void assertResponseExamples(Class<?> controllerType) {
