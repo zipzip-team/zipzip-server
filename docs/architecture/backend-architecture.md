@@ -185,6 +185,27 @@ Spring Security `@PreAuthorize` 또는 서비스 레이어 체크로 강제한�
 - **댓글 수정·삭제:** MVP에서는 제공하지 않는다. 후속 범위에서 API와 권한 정책을 함께 확정한다.
 - **사진 삭제:** 사진이 soft delete되면 해당 사진의 댓글도 채팅 타임라인에서 제외한다. 댓글과 사진의 삭제 플레이스홀더는 제공하지 않는다.
 
+### 4.10 DB·웹 서버 커넥션/스레드 풀 — 명시적 사이징
+
+**맥락.** `application.yaml`에 `spring.datasource.hikari`, `server.tomcat` 설정이 전혀 없어 Spring Boot 기본값(HikariCP `maximum-pool-size=10`, `connection-timeout=30000ms`; Tomcat `threads.max=200`)을 그대로 쓰고 있었다. Tomcat 스레드 최대 200개가 커넥션 풀 10개를 동시에 두드릴 수 있는 구조라, 트래픽이 몰리면 요청들이 최대 30초씩 커넥션을 기다리다 한꺼번에 실패하는(레이턴시가 서서히 늘어지다 장애로 번지는) 패턴이 나올 수 있었다. 커넥션을 오래 물고 있는 코드 경로(느린 트랜잭션 등)가 있어도 사후에 로그로 확인할 방법도 없었다.
+
+**결정.**
+
+- HikariCP: `maximum-pool-size=20`, `minimum-idle=5`, `connection-timeout=3000ms`, `validation-timeout=1000ms`, `max-lifetime=1800000ms`(30분), `leak-detection-threshold=5000ms`.
+- Tomcat: `threads.max=50`, `threads.min-spare=10`, `accept-count=50`.
+- 위 값 전부 `application.yaml`에 명시적으로 기록해, 이후 값을 바꿀 때 "숨겨진 기본값"이 아니라 의도적인 조정으로 다루게 한다.
+
+**근거.**
+
+- **maximum-pool-size(20):** 배포 구조([6.2](#62-instance-1-public-subnet), 단일 API 컨테이너, dev·prod가 DB 인스턴스 하나를 공유)를 감안해 대규모 트래픽을 가정한 큰 풀은 불필요하다고 봤다. Postgres 기본 `max_connections`(100)를 dev·prod가 나눠 쓴다는 점도 고려했다.
+- **connection-timeout(3000ms):** 가장 중요한 값이다. 기본 30초짜리 대기는 풀이 고갈됐을 때 요청 스레드가 30초씩 물고 늘어지다가 한꺼번에 터지는 그림을 만든다. 3초로 줄이면 풀이 고갈됐을 때 빠르게 실패하고 끝나서, 장애가 국지적으로 끝나고 전체 스레드 고갈로 번지지 않는다.
+- **validation-timeout(1000ms):** HikariCP 문서가 `validationTimeout`은 `connectionTimeout`보다 짧아야 한다고 명시한다. 둘을 같은 값으로 두면 죽은 커넥션 검증이 획득 제한 시간을 통째로 써버려 새 커넥션을 재시도할 여유가 안 남는다. 1초로 낮춰 나머지 약 2초를 재시도 여유로 남긴다.
+- **leak-detection-threshold(5000ms):** 커넥션을 5초 넘게 물고 있으면 WARN 로그와 스택트레이스를 남긴다. 트랜잭션이 외부 I/O(Object Storage 호출 등)를 감싸며 오래 커넥션을 붙잡는 패턴이 생기면 이 로그로 바로 잡을 수 있다.
+- **Tomcat threads.max(50):** HikariCP 풀(20)의 2.5배 정도로 잡았다. 풀 크기와 완전히 동일하게 맞추면 DB를 안 건드리는 요청(presigned URL 발급, 헬스체크 등)까지 스레드 부족으로 막힐 수 있어 여유를 뒀고, 기존 200처럼 풀 크기의 10배씩 오버부킹하지도 않게 했다.
+- **accept-count(50):** 기본 100은 스레드 풀이 200일 때 기준이라 다소 큰 편이라, 스레드 수를 줄인 것과 비례해서 같이 낮췄다. 감당 못 하는 상황에서 요청이 큐에 쌓여 지연이 늘어지기보다 빠르게 거절되는 쪽을 택했다.
+
+**주의.** 여기 적힌 숫자(풀 20, 스레드 50 등)는 실측이 아니라 배포 규모([6.7](#67-용량--사이징-arm-a1--6gb-기준)) 기준 추정치다. 운영 지표(HikariCP 커넥션 대기 시간, 거부율 등)를 보면서 재조정할 여지가 있다. 현재 actuator에 metrics 노출(`management.endpoints.web.exposure.include`)이 설정돼 있지 않아, 운영 중 이 지표를 직접 뽑을 방법은 아직 없다.
+
 ## 5. 주요 기능 흐름
 
 ### 5.1 인증 (Apple 로그인)
@@ -405,6 +426,7 @@ flowchart LR
 
 - 인스턴스 RAM이 **6GB(A1)** 이므로 극한 절약이 필요 없다.
 - **썸네일 워커 동시성:** CPU 코어 수를 보며 4~6 정도까지 실측 상향 가능. 대량 업로드 썸네일 처리량이 개선된다.
+- **DB 커넥션 풀 / 웹 서버 스레드 풀:** HikariCP 최대 20 / Tomcat 최대 50 스레드로 명시 설정([4.10](#410-db웹-서버-커넥션스레드-풀--명시적-사이징) 참고).
 - **컨테이너 메모리 한도 + JVM 인식(여전히 필수):** 컨테이너에 메모리 한도를 주고 JVM이 이를 인식하도록(`-XX:MaxRAMPercentage`) 설정한다(현재 Dockerfile은 75%로 설정). 6GB이므로 여유 있게 잡되, 썸네일 디코딩용 네이티브 메모리 여유를 남긴다. 이는 메모리 부족 대비가 아니라 JVM이 힙 상한을 오판하지 않게 하는 기본기다.
 - **슬림 이미지:** 멀티스테이지 빌드로 최종 이미지는 JRE 슬림. 메모리와 무관한 빌드 위생·배포 속도 차원이다.
 - **재시작 정책:** `restart: unless-stopped`.
