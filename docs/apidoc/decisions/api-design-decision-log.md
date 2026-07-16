@@ -5,7 +5,7 @@
 이 문서는 데이터 모델을 API 계약으로 변환하면서 확정한 분류, 멱등성, 권한 오류, 응답 DTO, 시간 표현, 이미지 URL, 그룹 채팅, Notion 문서화 규칙을 기록한다. API 명세와 구현이 충돌하면 이 문서의 결정을 기준으로 명세를 먼저 동기화한다.
 
 - 결정 상태: 확정
-- 최종 동기화일: 2026-07-14
+- 최종 동기화일: 2026-07-16
 - API 버전: `v1`
 - 기준 문서: `docs/data-modeling/`, `docs/apidoc/00-api-index.md`, `docs/apidoc/01-common-spec.md`
 
@@ -311,6 +311,14 @@ PHOTO-02가 발급 이력을 저장하지 않으면 PHOTO-03이 `objectKey`의 �
 - 일반적인 HEIC/JPEG 사진은 대부분 20 MiB 이내라 파일당 용량 상한을 올릴 실익도 크지 않다.
 - 배치 분할은 iOS 책임이지만, PHOTO-03의 `Idempotency-Key`는 배치마다 새로 발급해야 한다(같은 키로 다른 배치를 보내면 `409 IDEMPOTENCY_KEY_REUSED`). 배치 실패 시에는 이미 커밋된 이전 배치를 재시도하지 않고 실패한 배치만 재시도해야 한다.
 
+### 후속 조치 현황
+
+**이슈 #88 해결(2026-07-16)**: `completeUpload`의 `exists()` 호출을 예약 검증이 모두 끝난 뒤 가상 스레드로 동시에 확인하도록 바꿔, 동일 벤치마크 기준 20개 배치 완료 등록 소요 시간이 1959ms → 210ms(파일당 평균 98.0ms → 10.5ms)로 줄었다.
+
+다만 요청별 병렬화만으로는 요청마다 독립된 executor를 쓰면 요청 **내부** 동시성(파일 20개)은 제한되지만 요청 **간** 동시성은 제한되지 않아, 동시 요청이 몰리면 `s3Client`가 앱 전체에서 공유하는 HTTP 커넥션 풀(암묵적 기본값 50개)을 오히려 고갈시켜, 파일도 예약도 멀쩡한 정상 요청까지 커넥션 획득 실패로 롤백될 위험이 있었다. `PhotoUploadBatchLoadBenchmarkTest`가 `exists()`를 Mockito `Thread.sleep()`으로 흉내 내는 방식이라 이 경합을 애초에 재현할 수 없었던 것도 원인 중 하나였다.
+
+이를 막기 위해 `PhotoUploadService`(싱글턴 빈)에 전역 `Semaphore(20)`을 둬 시스템 전체의 동시 `exists()` 호출이 상한을 넘지 않게 했고, `StorageClientConfig`의 S3 HTTP 커넥션 풀 크기(`storage.http-max-connections`, 기본 50)와 커넥션 획득 타임아웃(5초)을 암묵적 기본값 대신 명시적으로 설정했다. 상한을 넘는 동시 요청 시나리오를 검증하는 테스트(`PhotoUploadServiceTest`)도 추가했다. 두 값(풀 50 / 세마포어 20) 모두 실측이 아니라 배포 규모 기준 추정치라, 운영 지표를 보면서 재조정할 여지가 있다.
+
 ## 17. 후속 구현 체크리스트
 
 - [x] PostgreSQL `api_idempotency_record` 마이그레이션과 정리 배치 구현
@@ -326,5 +334,5 @@ PHOTO-02가 발급 이력을 저장하지 않으면 PHOTO-03이 `objectKey`의 �
 - [x] 일반 메시지와 사진 댓글을 병합한 그룹 채팅 타임라인의 정렬·cursor·권한 통합 테스트
 - [ ] WebSocket 실시간 전달을 도입할 경우 별도 API 의사결정 작성
 - [ ] 사진 해상도 상한 검증 또는 서브샘플링 디코딩으로 썸네일 생성 메모리 위험 제거(이슈 #87)
-- [ ] `completeUpload`의 Object Storage `exists()` 순차 호출 병렬화로 트랜잭션 시간 단축(이슈 #88)
+- [x] `completeUpload`의 Object Storage `exists()` 순차 호출 병렬화로 트랜잭션 시간 단축(이슈 #88)
 - [ ] `thumbnailExecutor` 큐 초과 시 응답 실패 대신 안전하게 `PENDING` 처리, 실제 부하 기준 큐 용량 재산정(이슈 #86)
