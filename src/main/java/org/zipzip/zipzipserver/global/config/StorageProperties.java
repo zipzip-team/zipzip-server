@@ -23,4 +23,6 @@ public class StorageProperties {
     @NotBlank private String accessKey;
 
     @NotBlank private String secretKey;
+
+    private int httpMaxConnections = 50;
 }
