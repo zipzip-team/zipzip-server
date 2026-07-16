@@ -2,6 +2,7 @@ package org.zipzip.zipzipserver.domain.album.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -215,6 +216,104 @@ class SharedGroupAlbumControllerIntegrationTest {
                 .andExpect(
                         jsonPath("$.data.items[0].thumbnails[2].url")
                                 .value("https://cdn/ready-third"));
+    }
+
+    @Test
+    void 사용할_수_없는_썸네일만_있으면_사진이_있어도_빈_배열을_반환한다() throws Exception {
+        SharedGroup managedGroup = entityManager.find(SharedGroup.class, sharedGroup.getId());
+        AppUser managedCreator = entityManager.find(AppUser.class, creator.getId());
+        SharedAlbum album = persist(SharedAlbum.create(managedGroup, managedCreator, "앨범"));
+
+        Photo pending = aPhoto(managedCreator, Instant.parse("2026-01-01T00:00:00Z"));
+        Photo failed = aPhoto(managedCreator, Instant.parse("2026-01-02T00:00:00Z"));
+        failed.markThumbnailFailed();
+        Photo readyWithoutKey =
+                aReadyPhoto(managedCreator, Instant.parse("2026-01-03T00:00:00Z"), null);
+        Photo readyWithBlankKey =
+                aReadyPhoto(managedCreator, Instant.parse("2026-01-04T00:00:00Z"), "   ");
+        Photo deletedReady =
+                aReadyPhoto(
+                        managedCreator, Instant.parse("2026-01-05T00:00:00Z"), "thumb/deleted.jpg");
+        deletedReady.delete(Instant.parse("2026-02-01T00:00:00Z"));
+        persist(pending);
+        persist(failed);
+        persist(readyWithoutKey);
+        persist(readyWithBlankKey);
+        persist(deletedReady);
+        entityManager.flush();
+
+        persist(SharedAlbumPhoto.create(album, pending));
+        persist(SharedAlbumPhoto.create(album, failed));
+        persist(SharedAlbumPhoto.create(album, readyWithoutKey));
+        persist(SharedAlbumPhoto.create(album, readyWithBlankKey));
+        persist(SharedAlbumPhoto.create(album, deletedReady));
+        entityManager.flush();
+        entityManager.clear();
+
+        mockMvc.perform(
+                        get(
+                                        "/api/v1/shared-groups/{sharedGroupId}/shared-albums",
+                                        sharedGroup.getId())
+                                .header("Authorization", bearerToken(creator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].photoCount").value(4))
+                .andExpect(jsonPath("$.data.items[0].thumbnails.length()").value(0));
+        verifyNoInteractions(objectStorageService);
+    }
+
+    @Test
+    void 준비된_썸네일이_3장보다_적으면_사용할_수_있는_사진만_추가순으로_반환한다() throws Exception {
+        SharedGroup managedGroup = entityManager.find(SharedGroup.class, sharedGroup.getId());
+        AppUser managedCreator = entityManager.find(AppUser.class, creator.getId());
+        SharedAlbum album = persist(SharedAlbum.create(managedGroup, managedCreator, "앨범"));
+
+        Photo pending = aPhoto(managedCreator, Instant.parse("2026-01-01T00:00:00Z"));
+        Photo readyFirst =
+                aReadyPhoto(
+                        managedCreator,
+                        Instant.parse("2026-03-01T00:00:00Z"),
+                        "thumb/ready-first.jpg");
+        Photo failed = aPhoto(managedCreator, Instant.parse("2026-01-02T00:00:00Z"));
+        failed.markThumbnailFailed();
+        Photo readySecond =
+                aReadyPhoto(
+                        managedCreator,
+                        Instant.parse("2026-02-01T00:00:00Z"),
+                        "thumb/ready-second.jpg");
+        persist(pending);
+        persist(readyFirst);
+        persist(failed);
+        persist(readySecond);
+        entityManager.flush();
+
+        persist(SharedAlbumPhoto.create(album, pending));
+        entityManager.flush();
+        persist(SharedAlbumPhoto.create(album, readyFirst));
+        entityManager.flush();
+        persist(SharedAlbumPhoto.create(album, failed));
+        entityManager.flush();
+        persist(SharedAlbumPhoto.create(album, readySecond));
+        entityManager.flush();
+        entityManager.clear();
+
+        when(objectStorageService.issueDownloadUrl(eq("thumb/ready-first.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/ready-first", Instant.now()));
+        when(objectStorageService.issueDownloadUrl(eq("thumb/ready-second.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/ready-second", Instant.now()));
+
+        mockMvc.perform(
+                        get(
+                                        "/api/v1/shared-groups/{sharedGroupId}/shared-albums",
+                                        sharedGroup.getId())
+                                .header("Authorization", bearerToken(creator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].thumbnails.length()").value(2))
+                .andExpect(
+                        jsonPath("$.data.items[0].thumbnails[0].url")
+                                .value("https://cdn/ready-first"))
+                .andExpect(
+                        jsonPath("$.data.items[0].thumbnails[1].url")
+                                .value("https://cdn/ready-second"));
     }
 
     @Test

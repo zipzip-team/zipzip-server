@@ -18,8 +18,8 @@ public record SharedAlbumListResponse(
             @Schema(description = "활성 매핑·활성 사진 기준 실시간 사진 수", example = "42") long photoCount,
             @Schema(
                             description =
-                                    "썸네일이 준비된 사진 중 가장 먼저 저장된 순으로 최대 3장. READY가 아닌 사진은 건너뛰고 뒤의 READY"
-                                            + " 사진으로 채우며, 준비된 사진이 부족하면 3장보다 적을 수 있습니다.")
+                                    "READY 상태이고 유효한 썸네일 오브젝트 키가 있는 사진 중 가장 먼저 저장된 순으로 최대 3장. 사용할 수"
+                                        + " 없는 사진은 건너뛰고 뒤의 준비된 사진으로 채우며, 후보가 부족하면 3장보다 적을 수 있습니다.")
                     List<Thumbnail> thumbnails,
             @Schema(description = "생성자 요약") SharedAlbumResponse.Creator createdBy,
             @Schema(description = "요청자 본인이 생성자인지 여부") boolean isCreator,

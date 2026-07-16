@@ -94,6 +94,7 @@ public interface SharedAlbumPhotoRepository extends JpaRepository<SharedAlbumPho
               and photo.deletedAt is null
               and photo.thumbnailStatus = :thumbnailStatus
               and photo.thumbnailObjectKey is not null
+              and trim(photo.thumbnailObjectKey) <> ''
             order by sap.createdAt asc, sap.id asc
             """)
     List<Photo> findOldestPhotosBySharedAlbumIdAndThumbnailStatus(
