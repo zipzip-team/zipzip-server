@@ -23,11 +23,10 @@ public class SharedGroupPurgeTransactionService {
 
     @Transactional
     public Optional<SharedGroupPurgeTarget> prepare(UUID sharedGroupId, Instant purgeBefore) {
-        if (sharedGroupRepository.lockPurgeCandidateById(sharedGroupId, purgeBefore).isEmpty()) {
-            return Optional.empty();
-        }
-
-        SharedGroup sharedGroup = sharedGroupRepository.findById(sharedGroupId).orElse(null);
+        SharedGroup sharedGroup =
+                sharedGroupRepository
+                        .lockPurgeCandidateById(sharedGroupId, purgeBefore)
+                        .orElse(null);
         if (sharedGroup == null) {
             return Optional.empty();
         }
@@ -40,18 +39,17 @@ public class SharedGroupPurgeTransactionService {
 
     @Transactional
     public void complete(UUID sharedGroupId, Instant purgeBefore, String inviteCode) {
-        if (sharedGroupRepository.lockPurgeCandidateById(sharedGroupId, purgeBefore).isEmpty()) {
+        SharedGroup sharedGroup =
+                sharedGroupRepository
+                        .lockPurgeCandidateById(sharedGroupId, purgeBefore)
+                        .orElse(null);
+        if (sharedGroup == null) {
             return;
         }
 
         if (!sharedAlbumPhotoRepository
                 .findDistinctPhotoIdsBySharedGroupId(sharedGroupId)
                 .isEmpty()) {
-            return;
-        }
-
-        SharedGroup sharedGroup = sharedGroupRepository.findById(sharedGroupId).orElse(null);
-        if (sharedGroup == null) {
             return;
         }
 

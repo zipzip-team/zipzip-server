@@ -46,7 +46,6 @@ class SharedGroupPurgeTransactionServiceTest {
                 transactionService.prepare(sharedGroupId, PURGE_BEFORE);
 
         assertThat(target).isEmpty();
-        verify(sharedGroupRepository, never()).findById(sharedGroupId);
         verifyNoInteractions(sharedAlbumPhotoRepository);
     }
 
@@ -56,8 +55,6 @@ class SharedGroupPurgeTransactionServiceTest {
         UUID firstPhotoId = UUID.randomUUID();
         UUID secondPhotoId = UUID.randomUUID();
         when(sharedGroupRepository.lockPurgeCandidateById(sharedGroup.getId(), PURGE_BEFORE))
-                .thenReturn(Optional.of(sharedGroup.getId()));
-        when(sharedGroupRepository.findById(sharedGroup.getId()))
                 .thenReturn(Optional.of(sharedGroup));
         when(sharedAlbumPhotoRepository.findDistinctPhotoIdsBySharedGroupId(sharedGroup.getId()))
                 .thenReturn(List.of(firstPhotoId, secondPhotoId));
@@ -71,15 +68,14 @@ class SharedGroupPurgeTransactionServiceTest {
 
     @Test
     void 남은_사진_매핑이_있으면_공유_그룹을_삭제하지_않는다() {
-        UUID sharedGroupId = UUID.randomUUID();
-        when(sharedGroupRepository.lockPurgeCandidateById(sharedGroupId, PURGE_BEFORE))
-                .thenReturn(Optional.of(sharedGroupId));
-        when(sharedAlbumPhotoRepository.findDistinctPhotoIdsBySharedGroupId(sharedGroupId))
+        SharedGroup sharedGroup = aSharedGroup();
+        when(sharedGroupRepository.lockPurgeCandidateById(sharedGroup.getId(), PURGE_BEFORE))
+                .thenReturn(Optional.of(sharedGroup));
+        when(sharedAlbumPhotoRepository.findDistinctPhotoIdsBySharedGroupId(sharedGroup.getId()))
                 .thenReturn(List.of(UUID.randomUUID()));
 
-        transactionService.complete(sharedGroupId, PURGE_BEFORE, INVITE_CODE);
+        transactionService.complete(sharedGroup.getId(), PURGE_BEFORE, INVITE_CODE);
 
-        verify(sharedGroupRepository, never()).findById(sharedGroupId);
         verify(sharedGroupRepository, never()).flush();
         verifyNoInteractions(inviteCodeReservationRepository);
     }
@@ -88,12 +84,9 @@ class SharedGroupPurgeTransactionServiceTest {
     void 남은_사진이_없으면_그룹_삭제를_반영한_뒤_초대_코드를_삭제한다() {
         SharedGroup sharedGroup = aSharedGroup();
         when(sharedGroupRepository.lockPurgeCandidateById(sharedGroup.getId(), PURGE_BEFORE))
-                .thenReturn(Optional.of(sharedGroup.getId()));
+                .thenReturn(Optional.of(sharedGroup));
         when(sharedAlbumPhotoRepository.findDistinctPhotoIdsBySharedGroupId(sharedGroup.getId()))
                 .thenReturn(List.of());
-        when(sharedGroupRepository.findById(sharedGroup.getId()))
-                .thenReturn(Optional.of(sharedGroup));
-
         transactionService.complete(sharedGroup.getId(), PURGE_BEFORE, INVITE_CODE);
 
         InOrder inOrder = inOrder(sharedGroupRepository, inviteCodeReservationRepository);
