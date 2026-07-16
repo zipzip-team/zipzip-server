@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,11 +49,8 @@ public class SharedGroupQueryRepository {
                     sgm.role as my_role,
                     sgm.created_at as joined_at,
                     sg.updated_at,
-                    (
-                        select count(*)
-                        from shared_group_membership member_sgm
-                        where member_sgm.shared_group_id = sg.id
-                    ) as member_count,
+                    coalesce(members.member_count, 0) as member_count,
+                    coalesce(members.member_names, array[]::varchar[]) as member_names,
                     (
                         select count(*)
                         from shared_album sa
@@ -70,6 +68,18 @@ public class SharedGroupQueryRepository {
                     ) as photo_count
                 from shared_group_membership sgm
                 join shared_group sg on sg.id = sgm.shared_group_id
+                left join lateral (
+                    select
+                        count(*) as member_count,
+                        array_agg(
+                            member_user.display_name
+                            order by member_sgm.created_at asc, member_sgm.id asc
+                        ) as member_names
+                    from shared_group_membership member_sgm
+                    join app_user member_user on member_user.id = member_sgm.app_user_id
+                    where member_sgm.shared_group_id = sg.id
+                      and member_user.deleted_at is null
+                ) members on true
                 where sgm.app_user_id = :appUserId
                   and sg.deleted_at is null
                 """
@@ -133,6 +143,7 @@ public class SharedGroupQueryRepository {
                 resultSet.getString("name"),
                 SharedGroupRole.valueOf(resultSet.getString("my_role")),
                 resultSet.getLong("member_count"),
+                Arrays.asList((String[]) resultSet.getArray("member_names").getArray()),
                 resultSet.getLong("shared_album_count"),
                 resultSet.getLong("photo_count"),
                 resultSet.getTimestamp("joined_at").toInstant(),
@@ -159,6 +170,7 @@ public class SharedGroupQueryRepository {
             String name,
             SharedGroupRole myRole,
             long memberCount,
+            List<String> memberNames,
             long sharedAlbumCount,
             long photoCount,
             Instant joinedAt,

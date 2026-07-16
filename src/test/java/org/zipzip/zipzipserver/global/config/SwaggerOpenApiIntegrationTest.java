@@ -106,6 +106,43 @@ class SwaggerOpenApiIntegrationTest {
         assertThat(photoOperations.has("delete")).isFalse();
     }
 
+    @Test
+    void 공유_그룹_목록_Swagger_스키마는_멤버_이름_목록을_노출한다() throws Exception {
+        String body =
+                mockMvc.perform(get("/v3/api-docs"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        JsonNode document = objectMapper.readTree(body);
+
+        JsonNode memberNamesSchema =
+                document.path("components")
+                        .path("schemas")
+                        .path("SharedGroupSummaryResponse")
+                        .path("properties")
+                        .path("memberNames");
+        JsonNode memberNamesExample =
+                document.path("paths")
+                        .path("/api/v1/shared-groups")
+                        .path("get")
+                        .path("responses")
+                        .path("200")
+                        .path("content")
+                        .path("application/json")
+                        .path("example")
+                        .path("data")
+                        .path("items")
+                        .path(0)
+                        .path("memberNames");
+
+        assertThat(memberNamesSchema.path("type").asText()).isEqualTo("array");
+        assertThat(memberNamesSchema.path("items").path("type").asText()).isEqualTo("string");
+        assertThat(memberNamesSchema.path("description").asText()).contains("참여일시");
+        assertThat(memberNamesExample.isArray()).isTrue();
+        assertThat(memberNamesExample).isNotEmpty();
+    }
+
     private void assertNoDefaultStatusExample(JsonNode node) {
         if (node.isObject()) {
             Iterator<Entry<String, JsonNode>> fields = node.fields();

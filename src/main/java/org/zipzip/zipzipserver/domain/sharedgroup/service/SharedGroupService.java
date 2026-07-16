@@ -195,6 +195,7 @@ public class SharedGroupService {
                 row.name(),
                 row.myRole(),
                 row.memberCount(),
+                row.memberNames(),
                 row.sharedAlbumCount(),
                 row.photoCount(),
                 row.joinedAt(),

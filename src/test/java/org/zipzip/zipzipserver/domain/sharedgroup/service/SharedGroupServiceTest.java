@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -25,6 +26,7 @@ import org.zipzip.zipzipserver.domain.photo.entity.Photo;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.request.CreateSharedGroupRequest;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.CreateSharedGroupResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupListResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUpdateResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
@@ -56,6 +58,36 @@ class SharedGroupServiceTest {
     @Mock private Clock clock;
 
     @InjectMocks private SharedGroupService sharedGroupService;
+
+    @Test
+    void 공유_그룹_목록에_활성_멤버_이름을_반환한다() {
+        AppUser appUser = AppUser.create("apple-subject", "집집이");
+        UUID sharedGroupId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        Instant joinedAt = Instant.parse("2026-07-10T00:00:00Z");
+        Instant updatedAt = Instant.parse("2026-07-11T00:00:00Z");
+        SharedGroupQueryRepository.SharedGroupListRow row =
+                new SharedGroupQueryRepository.SharedGroupListRow(
+                        sharedGroupId,
+                        "우리 집",
+                        SharedGroupRole.HOST,
+                        2,
+                        List.of("집집이", "홍길동"),
+                        1,
+                        10,
+                        joinedAt,
+                        updatedAt);
+        when(appUserRepository.findByIdAndDeletedAtIsNull(APP_USER_ID))
+                .thenReturn(Optional.of(appUser));
+        when(sharedGroupQueryRepository.findMySharedGroups(APP_USER_ID, null, null, 21))
+                .thenReturn(List.of(row));
+
+        SharedGroupListResponse response =
+                sharedGroupService.findMySharedGroups(APP_USER_ID, null, null);
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).memberNames()).containsExactly("집집이", "홍길동");
+        assertThat(response.items().get(0).memberCount()).isEqualTo(2);
+    }
 
     @Test
     void 공유_그룹_생성_시_초대_코드와_HOST_멤버십을_생성한다() {

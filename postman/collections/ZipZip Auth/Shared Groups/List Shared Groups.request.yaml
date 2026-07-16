@@ -1,6 +1,7 @@
 $kind: http-request
 url: "{{baseUrl}}/api/v1/shared-groups?size={{pageSize}}"
 method: GET
+description: 각 공유 그룹 항목의 memberNames에서 활성 멤버 이름을 참여 순서대로 확인한다.
 headers:
   Authorization: "Bearer {{accessToken}}"
 scripts:
@@ -8,6 +9,20 @@ scripts:
     code: |-
       pm.test('공유 그룹 목록 조회 응답 상태가 200이다', function () {
         pm.response.to.have.status(200);
+      });
+
+      pm.test('각 공유 그룹에 활성 멤버 이름 목록이 포함된다', function () {
+        const response = pm.response.json();
+        const items = response?.data?.items ?? [];
+
+        items.forEach(function (item) {
+          pm.expect(item).to.have.property('memberNames');
+          pm.expect(item.memberNames).to.be.an('array');
+          pm.expect(item.memberNames).to.have.lengthOf(item.memberCount);
+          item.memberNames.forEach(function (memberName) {
+            pm.expect(memberName).to.be.a('string').and.not.empty;
+          });
+        });
       });
     language: text/javascript
 order: 1000
