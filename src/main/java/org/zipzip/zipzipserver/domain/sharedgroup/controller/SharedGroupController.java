@@ -63,8 +63,9 @@ public class SharedGroupController {
     @Operation(
             summary = "내 공유 그룹 목록 조회",
             description =
-                    "현재 사용자의 활성 멤버십만 참여일시 내림차순으로 조회합니다. 다음 페이지 요청에는 이전"
-                            + " 응답의 nextCursor를 수정하지 않고 그대로 전달합니다.")
+                    "현재 사용자의 활성 멤버십만 참여일시 내림차순으로 조회합니다. 각 항목의 memberNames에는"
+                            + " 삭제되지 않은 멤버의 이름을 참여일시·멤버십 ID 오름차순으로 반환합니다. 다음 페이지"
+                            + " 요청에는 이전 응답의 nextCursor를 수정하지 않고 그대로 전달합니다.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "조회 성공"),
         @ApiResponse(responseCode = "400", description = "유효하지 않은 커서 또는 size"),

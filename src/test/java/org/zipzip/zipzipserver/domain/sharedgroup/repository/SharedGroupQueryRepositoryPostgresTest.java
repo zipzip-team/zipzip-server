@@ -53,6 +53,8 @@ class SharedGroupQueryRepositoryPostgresTest {
             UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static final UUID DELETED_GROUP_MEMBERSHIP_ID =
             UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+    private static final UUID OTHER_MEMBERSHIP_ID =
+            UUID.fromString("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee");
     private static final UUID FIRST_ALBUM_PHOTO_ID =
             UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
     private static final UUID SECOND_ALBUM_PHOTO_ID =
@@ -84,6 +86,8 @@ class SharedGroupQueryRepositoryPostgresTest {
         assertThat(rows)
                 .extracting(SharedGroupQueryRepository.SharedGroupListRow::id)
                 .containsExactly(FIRST_GROUP_ID, SECOND_GROUP_ID);
+        assertThat(rows.get(0).memberNames()).containsExactly("집집이", "다른 사용자");
+        assertThat(rows.get(0).memberCount()).isEqualTo(2);
     }
 
     @Test
@@ -93,7 +97,7 @@ class SharedGroupQueryRepositoryPostgresTest {
         SharedGroupQueryRepository.SharedGroupDetailRow row =
                 sharedGroupQueryRepository.findDetail(APP_USER_ID, FIRST_GROUP_ID).orElseThrow();
 
-        assertThat(row.memberCount()).isEqualTo(1);
+        assertThat(row.memberCount()).isEqualTo(2);
         assertThat(row.sharedAlbumCount()).isEqualTo(2);
         assertThat(row.photoCount()).isEqualTo(1);
     }
@@ -140,6 +144,7 @@ class SharedGroupQueryRepositoryPostgresTest {
                 values
                     (?, ?, ?, 'HOST', ?, now()),
                     (?, ?, ?, 'MEMBER', ?, now()),
+                    (?, ?, ?, 'MEMBER', ?, now()),
                     (?, ?, ?, 'MEMBER', ?, now())
                 on conflict (shared_group_id, app_user_id) do nothing
                 """,
@@ -150,6 +155,10 @@ class SharedGroupQueryRepositoryPostgresTest {
                 FIRST_MEMBERSHIP_ID,
                 FIRST_GROUP_ID,
                 APP_USER_ID,
+                Timestamp.from(Instant.parse("2026-07-10T00:00:00Z")),
+                OTHER_MEMBERSHIP_ID,
+                FIRST_GROUP_ID,
+                OTHER_USER_ID,
                 Timestamp.from(Instant.parse("2026-07-10T00:00:00Z")),
                 DELETED_GROUP_MEMBERSHIP_ID,
                 DELETED_GROUP_ID,

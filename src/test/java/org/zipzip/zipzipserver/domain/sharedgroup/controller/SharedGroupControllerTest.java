@@ -28,6 +28,7 @@ import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupErrorCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.code.SharedGroupSuccessCode;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.CreateSharedGroupResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupListResponse;
+import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupSummaryResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.dto.response.SharedGroupUpdateResponse;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.service.SharedGroupService;
@@ -62,12 +63,29 @@ class SharedGroupControllerTest {
     @Test
     void 내_공유_그룹_목록을_조회한다() throws Exception {
         givenAuthenticatedUser();
+        UUID sharedGroupId = UUID.fromString("22222222-2222-2222-2222-222222222222");
         when(sharedGroupService.findMySharedGroups(APP_USER_ID, null, null))
-                .thenReturn(new SharedGroupListResponse(List.of(), null, false));
+                .thenReturn(
+                        new SharedGroupListResponse(
+                                List.of(
+                                        new SharedGroupSummaryResponse(
+                                                sharedGroupId,
+                                                "우리 집",
+                                                SharedGroupRole.HOST,
+                                                2,
+                                                List.of("집집이", "홍길동"),
+                                                1,
+                                                10,
+                                                Instant.parse("2026-07-10T00:00:00Z"),
+                                                Instant.parse("2026-07-11T00:00:00Z"))),
+                                null,
+                                false));
 
         mockMvc.perform(get("/api/v1/shared-groups").header("Authorization", bearerToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("SHARED_GROUP_LIST_FOUND"))
+                .andExpect(jsonPath("$.data.items[0].memberNames[0]").value("집집이"))
+                .andExpect(jsonPath("$.data.items[0].memberNames[1]").value("홍길동"))
                 .andExpect(jsonPath("$.data.hasNext").value(false));
     }
 
