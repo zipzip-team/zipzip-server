@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
+import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 
 public interface SharedAlbumPhotoRepository extends JpaRepository<SharedAlbumPhoto, UUID> {
 
@@ -91,8 +92,12 @@ public interface SharedAlbumPhotoRepository extends JpaRepository<SharedAlbumPho
             join sap.photo photo
             where sap.sharedAlbum.id = :sharedAlbumId
               and photo.deletedAt is null
+              and photo.thumbnailStatus = :thumbnailStatus
+              and photo.thumbnailObjectKey is not null
             order by sap.createdAt asc, sap.id asc
             """)
-    List<Photo> findOldestPhotosBySharedAlbumId(
-            @Param("sharedAlbumId") UUID sharedAlbumId, Pageable pageable);
+    List<Photo> findOldestPhotosBySharedAlbumIdAndThumbnailStatus(
+            @Param("sharedAlbumId") UUID sharedAlbumId,
+            @Param("thumbnailStatus") PhotoThumbnailStatus thumbnailStatus,
+            Pageable pageable);
 }

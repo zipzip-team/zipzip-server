@@ -145,6 +145,79 @@ class SharedGroupAlbumControllerIntegrationTest {
     }
 
     @Test
+    void 먼저_추가된_사진의_썸네일이_준비되지_않으면_뒤의_준비된_사진으로_최대_3장을_채운다() throws Exception {
+        SharedGroup managedGroup = entityManager.find(SharedGroup.class, sharedGroup.getId());
+        AppUser managedCreator = entityManager.find(AppUser.class, creator.getId());
+        SharedAlbum album = persist(SharedAlbum.create(managedGroup, managedCreator, "앨범"));
+
+        Photo pending = aPhoto(managedCreator, Instant.parse("2026-01-01T00:00:00Z"));
+        Photo failed = aPhoto(managedCreator, Instant.parse("2026-01-02T00:00:00Z"));
+        failed.markThumbnailFailed();
+        Photo anotherFailed = aPhoto(managedCreator, Instant.parse("2026-01-03T00:00:00Z"));
+        anotherFailed.markThumbnailFailed();
+        Photo readyFirst =
+                aReadyPhoto(
+                        managedCreator,
+                        Instant.parse("2026-01-04T00:00:00Z"),
+                        "thumb/ready-first.jpg");
+        Photo readySecond =
+                aReadyPhoto(
+                        managedCreator,
+                        Instant.parse("2026-01-05T00:00:00Z"),
+                        "thumb/ready-second.jpg");
+        Photo readyThird =
+                aReadyPhoto(
+                        managedCreator,
+                        Instant.parse("2026-01-06T00:00:00Z"),
+                        "thumb/ready-third.jpg");
+        persist(pending);
+        persist(failed);
+        persist(anotherFailed);
+        persist(readyFirst);
+        persist(readySecond);
+        persist(readyThird);
+        entityManager.flush();
+
+        persist(SharedAlbumPhoto.create(album, pending));
+        entityManager.flush();
+        persist(SharedAlbumPhoto.create(album, failed));
+        entityManager.flush();
+        persist(SharedAlbumPhoto.create(album, anotherFailed));
+        entityManager.flush();
+        persist(SharedAlbumPhoto.create(album, readyFirst));
+        entityManager.flush();
+        persist(SharedAlbumPhoto.create(album, readySecond));
+        entityManager.flush();
+        persist(SharedAlbumPhoto.create(album, readyThird));
+        entityManager.flush();
+        entityManager.clear();
+
+        when(objectStorageService.issueDownloadUrl(eq("thumb/ready-first.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/ready-first", Instant.now()));
+        when(objectStorageService.issueDownloadUrl(eq("thumb/ready-second.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/ready-second", Instant.now()));
+        when(objectStorageService.issueDownloadUrl(eq("thumb/ready-third.jpg"), any()))
+                .thenReturn(new PresignedDownload("https://cdn/ready-third", Instant.now()));
+
+        mockMvc.perform(
+                        get(
+                                        "/api/v1/shared-groups/{sharedGroupId}/shared-albums",
+                                        sharedGroup.getId())
+                                .header("Authorization", bearerToken(creator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].thumbnails.length()").value(3))
+                .andExpect(
+                        jsonPath("$.data.items[0].thumbnails[0].url")
+                                .value("https://cdn/ready-first"))
+                .andExpect(
+                        jsonPath("$.data.items[0].thumbnails[1].url")
+                                .value("https://cdn/ready-second"))
+                .andExpect(
+                        jsonPath("$.data.items[0].thumbnails[2].url")
+                                .value("https://cdn/ready-third"));
+    }
+
+    @Test
     void 사진이_없는_앨범은_빈_썸네일_배열을_반환한다() throws Exception {
         SharedGroup managedGroup = entityManager.find(SharedGroup.class, sharedGroup.getId());
         AppUser managedCreator = entityManager.find(AppUser.class, creator.getId());
@@ -162,16 +235,19 @@ class SharedGroupAlbumControllerIntegrationTest {
     }
 
     private Photo aReadyPhoto(AppUser uploader, Instant takenAt, String thumbnailObjectKey) {
-        Photo photo =
-                Photo.create(
-                        uploader,
-                        "iPhone 15",
-                        "photos/" + UUID.randomUUID() + "/original.jpg",
-                        takenAt,
-                        4032,
-                        3024);
+        Photo photo = aPhoto(uploader, takenAt);
         photo.markThumbnailReady(thumbnailObjectKey);
         return photo;
+    }
+
+    private Photo aPhoto(AppUser uploader, Instant takenAt) {
+        return Photo.create(
+                uploader,
+                "iPhone 15",
+                "photos/" + UUID.randomUUID() + "/original.jpg",
+                takenAt,
+                4032,
+                3024);
     }
 
     private String bearerToken(AppUser appUser) {

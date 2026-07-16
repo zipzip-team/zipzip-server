@@ -287,13 +287,9 @@ public class SharedAlbumService {
 
     private List<SharedAlbumListResponse.Thumbnail> toThumbnails(UUID albumId) {
         List<Photo> oldestPhotos =
-                sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(
-                        albumId, PageRequest.of(0, THUMBNAIL_COUNT));
+                sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumIdAndThumbnailStatus(
+                        albumId, PhotoThumbnailStatus.READY, PageRequest.of(0, THUMBNAIL_COUNT));
         return oldestPhotos.stream()
-                .filter(
-                        photo ->
-                                photo.getThumbnailStatus() == PhotoThumbnailStatus.READY
-                                        && photo.getThumbnailObjectKey() != null)
                 .map(
                         photo -> {
                             PresignedDownload thumbnail =

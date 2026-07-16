@@ -29,6 +29,7 @@ import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumRepository;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
+import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
@@ -330,7 +331,8 @@ class SharedAlbumServiceTest {
                 .thenReturn(List.of(album));
         when(sharedAlbumPhotoRepository.countBySharedAlbumIdAndPhotoDeletedAtIsNull(album.getId()))
                 .thenReturn(3L);
-        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(eq(album.getId()), any()))
+        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumIdAndThumbnailStatus(
+                        eq(album.getId()), eq(PhotoThumbnailStatus.READY), any()))
                 .thenReturn(List.of(oldest, middle, newest));
         when(objectStorageService.issueDownloadUrl(eq("thumb/oldest.jpg"), any()))
                 .thenReturn(new PresignedDownload("https://cdn/oldest", Instant.now()));
@@ -348,12 +350,11 @@ class SharedAlbumServiceTest {
     }
 
     @Test
-    void 썸네일이_준비되지_않은_사진은_목록에서_제외된다() {
+    void 준비된_썸네일_사진만_조회해_목록에_반환한다() {
         AppUser creator = anAppUser();
         SharedGroup group = aSharedGroup(creator);
         SharedAlbum album = anAlbum(creator, group);
         UUID requesterId = creator.getId();
-        Photo pending = aPhoto(creator);
         Photo ready = aReadyPhoto(creator, "thumb/ready.jpg");
 
         when(sharedAlbumAccessGuard.requireActiveSharedGroup(group.getId(), requesterId))
@@ -363,8 +364,9 @@ class SharedAlbumServiceTest {
                 .thenReturn(List.of(album));
         when(sharedAlbumPhotoRepository.countBySharedAlbumIdAndPhotoDeletedAtIsNull(album.getId()))
                 .thenReturn(2L);
-        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(eq(album.getId()), any()))
-                .thenReturn(List.of(pending, ready));
+        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumIdAndThumbnailStatus(
+                        eq(album.getId()), eq(PhotoThumbnailStatus.READY), any()))
+                .thenReturn(List.of(ready));
         when(objectStorageService.issueDownloadUrl(eq("thumb/ready.jpg"), any()))
                 .thenReturn(new PresignedDownload("https://cdn/ready", Instant.now()));
 
@@ -390,7 +392,8 @@ class SharedAlbumServiceTest {
                 .thenReturn(List.of(album));
         when(sharedAlbumPhotoRepository.countBySharedAlbumIdAndPhotoDeletedAtIsNull(album.getId()))
                 .thenReturn(0L);
-        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(eq(album.getId()), any()))
+        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumIdAndThumbnailStatus(
+                        eq(album.getId()), eq(PhotoThumbnailStatus.READY), any()))
                 .thenReturn(List.of());
 
         SharedAlbumListResponse response =

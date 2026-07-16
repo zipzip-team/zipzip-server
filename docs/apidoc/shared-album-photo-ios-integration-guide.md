@@ -52,7 +52,7 @@ iOS 구현 규칙: **하나의 논리적 요청(사용자의 한 번의 액션)�
 1. `sharedGroupId`가 존재하고 요청자가 그 그룹의 활성 멤버인지 확인(`SharedAlbumAccessGuard`) — 아니면 `404 SHARED_GROUP_NOT_FOUND`.
 2. `createdAt` 내림차순 + 동점 시 앨범 ID 내림차순으로 커서 페이지네이션.
 3. 앨범마다 `photoCount`를 그 시점에 실시간 count(비정규화 컬럼 없음 — 저장된 카운터가 아니라 매번 `shared_album_photo` 조인 집계).
-4. 앨범마다 **그 앨범에 사진이 추가된 시각**(사진이 찍힌 시각이 아님) 기준으로 가장 먼저 추가된 순 최대 3장을 뽑아 `thumbnails`로 반환한다. 기존 사진을 다른 앨범에서 가져와 추가해도(PHOTO-07) 새로 추가한 시점이 기준이다. 썸네일이 아직 `READY`가 아닌 사진은 건너뛰므로(뒤 순번으로 채워 넣지 않음) 0~3개 사이일 수 있다.
+4. 앨범마다 썸네일이 `READY`인 사진을 대상으로 **그 앨범에 사진이 추가된 시각**(사진이 찍힌 시각이 아님) 기준 가장 먼저 추가된 순 최대 3장을 `thumbnails`로 반환한다. 기존 사진을 다른 앨범에서 가져와 추가해도(PHOTO-07) 새로 추가한 시점이 기준이다. `READY`가 아닌 사진은 건너뛰고 뒤의 `READY` 사진으로 최대 3장을 채우며, 준비된 사진 자체가 부족하면 0~2개일 수 있다.
 
 **응답 필드**: `items[].{id, name, photoCount, thumbnails[].{url, urlExpiresAt}, createdBy{userId, displayName}, isCreator, createdAt, updatedAt}`, `nextCursor`, `hasNext`.
 

@@ -85,7 +85,7 @@
 }
 ```
 
-`thumbnails`는 그 공유집(앨범)에 **가장 먼저 저장된 사진 순으로 최대 3장**의 썸네일 presigned GET URL이다. 여기서 "가장 먼저 저장된"은 사진이 찍힌 시각이 아니라 **그 사진을 이 앨범에 추가한 시각** 기준이다 — 기존 사진을 다른 앨범에서 가져와 추가해도(PHOTO-07) 새로 추가한 시점이 기준이 된다. 썸네일이 아직 준비되지 않은(`thumbnailStatus`가 `READY`가 아닌) 사진은 건너뛰므로 0~3개 사이일 수 있고, 채워서 3개를 맞추지 않는다. `originalUrl`/`thumbnailUrl`과 마찬가지로 호출마다 새로 발급하는 presigned URL이라 영구 저장하지 않는다([07-photo-management.md](07-photo-management.md) 참고).
+`thumbnails`는 그 공유집(앨범)에서 **썸네일이 준비된 사진 중 가장 먼저 저장된 순으로 최대 3장**의 썸네일 presigned GET URL이다. 여기서 "가장 먼저 저장된"은 사진이 찍힌 시각이 아니라 **그 사진을 이 앨범에 추가한 시각** 기준이다 — 기존 사진을 다른 앨범에서 가져와 추가해도(PHOTO-07) 새로 추가한 시점이 기준이 된다. 썸네일이 아직 준비되지 않은(`thumbnailStatus`가 `READY`가 아닌) 사진은 건너뛰고 뒤의 `READY` 사진으로 최대 3장을 채운다. 준비된 사진 자체가 3장보다 적으면 0~2개일 수 있다. `originalUrl`/`thumbnailUrl`과 마찬가지로 호출마다 새로 발급하는 presigned URL이라 영구 저장하지 않는다([07-photo-management.md](07-photo-management.md) 참고).
 
 ### Fail Response
 
