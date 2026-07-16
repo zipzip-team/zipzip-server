@@ -60,13 +60,13 @@ public interface SharedGroupRepository extends JpaRepository<SharedGroup, UUID> 
     @Query(
             value =
                     """
-                    select id
+                    select shared_group.*
                     from shared_group
                     where id = :sharedGroupId
                       and deleted_at <= :purgeBefore
                     for update skip locked
                     """,
             nativeQuery = true)
-    Optional<UUID> lockPurgeCandidateById(
+    Optional<SharedGroup> lockPurgeCandidateById(
             @Param("sharedGroupId") UUID sharedGroupId, @Param("purgeBefore") Instant purgeBefore);
 }
