@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
@@ -27,13 +28,16 @@ import org.zipzip.zipzipserver.domain.photo.code.PhotoErrorCode;
 import org.zipzip.zipzipserver.domain.photo.dto.request.PhotoIdsRequest;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoAttachResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoDetachResponse;
+import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoListResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoMetadataUpdateResponse;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
+import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
 import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMembershipRepository;
 import org.zipzip.zipzipserver.domain.storage.ObjectStorageService;
+import org.zipzip.zipzipserver.domain.storage.PresignedDownload;
 import org.zipzip.zipzipserver.domain.user.entity.AppUser;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 import org.zipzip.zipzipserver.global.idempotency.ApiIdempotencyRecord;
@@ -83,6 +87,27 @@ class PhotoServiceTest {
                         exception ->
                                 assertThat(((BusinessException) exception).getErrorCode())
                                         .isEqualTo(PhotoErrorCode.NOT_PHOTO_UPLOADER));
+    }
+
+    @Test
+    void 공백_키를_가진_기존_READY_썸네일에는_URL을_발급하지_않는다() {
+        Photo photo = aPhoto(uploader);
+        ReflectionTestUtils.setField(photo, "thumbnailStatus", PhotoThumbnailStatus.READY);
+        ReflectionTestUtils.setField(photo, "thumbnailObjectKey", " \t");
+        when(photoAccessGuard.requireActiveSharedAlbum(sharedAlbum.getId(), uploader.getId()))
+                .thenReturn(sharedAlbum);
+        when(sharedAlbumPhotoRepository.findPageByActiveSharedAlbumId(
+                        eq(sharedAlbum.getId()), any(), any(), any()))
+                .thenReturn(List.of(photo));
+        when(objectStorageService.issueDownloadUrl(eq(photo.getOriginalObjectKey()), any()))
+                .thenReturn(
+                        new PresignedDownload("https://storage.example/original", Instant.now()));
+
+        PhotoListResponse response =
+                photoService.listPhotos(sharedAlbum.getId(), uploader.getId(), null, null);
+
+        assertThat(response.items().getFirst().thumbnailUrl()).isNull();
+        verify(objectStorageService, never()).issueDownloadUrl(eq(" \t"), any());
     }
 
     @Test

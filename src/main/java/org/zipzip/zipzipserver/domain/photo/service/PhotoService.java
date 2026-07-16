@@ -25,7 +25,6 @@ import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoDetachResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoListResponse;
 import org.zipzip.zipzipserver.domain.photo.dto.response.PhotoMetadataUpdateResponse;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
-import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroupRole;
 import org.zipzip.zipzipserver.domain.sharedgroup.repository.SharedGroupMembershipRepository;
@@ -319,8 +318,7 @@ public class PhotoService {
             Photo photo, SharedAlbum sharedAlbum, UUID appUserId) {
         String thumbnailUrl = null;
         Instant thumbnailUrlExpiresAt = null;
-        if (photo.getThumbnailStatus() == PhotoThumbnailStatus.READY
-                && photo.getThumbnailObjectKey() != null) {
+        if (photo.hasUsableThumbnail()) {
             PresignedDownload thumbnail =
                     objectStorageService.issueDownloadUrl(
                             photo.getThumbnailObjectKey(), DOWNLOAD_URL_TTL);

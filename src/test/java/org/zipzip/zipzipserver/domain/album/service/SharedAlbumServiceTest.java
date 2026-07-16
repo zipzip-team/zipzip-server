@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.zipzip.zipzipserver.domain.album.code.SharedAlbumErrorCode;
 import org.zipzip.zipzipserver.domain.album.dto.request.SharedAlbumIdsRequest;
 import org.zipzip.zipzipserver.domain.album.dto.request.SharedAlbumNameRequest;
@@ -29,6 +30,7 @@ import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumRepository;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
+import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.InviteCodeReservation;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
@@ -374,6 +376,32 @@ class SharedAlbumServiceTest {
         assertThat(response.items().get(0).thumbnails())
                 .extracting(SharedAlbumListResponse.Thumbnail::url)
                 .containsExactly("https://cdn/ready");
+    }
+
+    @Test
+    void 공백_키를_가진_기존_READY_썸네일은_목록에서_제외된다() {
+        AppUser creator = anAppUser();
+        SharedGroup group = aSharedGroup(creator);
+        SharedAlbum album = anAlbum(creator, group);
+        Photo malformed = aPhoto(creator);
+        ReflectionTestUtils.setField(malformed, "thumbnailStatus", PhotoThumbnailStatus.READY);
+        ReflectionTestUtils.setField(malformed, "thumbnailObjectKey", " \t");
+
+        when(sharedAlbumAccessGuard.requireActiveSharedGroup(group.getId(), creator.getId()))
+                .thenReturn(group);
+        when(sharedAlbumRepository.findPageByActiveSharedGroupId(
+                        eq(group.getId()), any(), any(), any()))
+                .thenReturn(List.of(album));
+        when(sharedAlbumPhotoRepository.countBySharedAlbumIdAndPhotoDeletedAtIsNull(album.getId()))
+                .thenReturn(1L);
+        when(sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(eq(album.getId()), any()))
+                .thenReturn(List.of(malformed));
+
+        SharedAlbumListResponse response =
+                sharedAlbumService.listAlbums(group.getId(), creator.getId(), null, null);
+
+        assertThat(response.items().getFirst().thumbnails()).isEmpty();
+        verify(objectStorageService, never()).issueDownloadUrl(eq(" \t"), any());
     }
 
     @Test

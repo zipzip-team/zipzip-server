@@ -27,6 +27,7 @@ import org.zipzip.zipzipserver.domain.album.entity.SharedAlbumPhoto;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
 import org.zipzip.zipzipserver.domain.photo.code.PhotoErrorCode;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
+import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.photo.service.PhotoAccessGuard;
 import org.zipzip.zipzipserver.domain.reaction.code.ReactionErrorCode;
@@ -104,6 +105,27 @@ class ReactionServiceTest {
         assertThat(response.likeCount()).isEqualTo(3);
         assertThat(response.commentCount()).isEqualTo(2);
         assertThat(response.isLikedByMe()).isTrue();
+    }
+
+    @Test
+    void 공백_키를_가진_기존_READY_썸네일에는_URL을_발급하지_않는다() {
+        ReflectionTestUtils.setField(photo, "thumbnailStatus", PhotoThumbnailStatus.READY);
+        ReflectionTestUtils.setField(photo, "thumbnailObjectKey", " \t");
+        givenAccessiblePhoto();
+        when(sharedAlbumPhotoRepository.findByPhotoId(photo.getId()))
+                .thenReturn(List.of(SharedAlbumPhoto.create(sharedAlbum, photo)));
+        when(objectStorageService.issueDownloadUrl(eq("photos/original.jpg"), any()))
+                .thenReturn(
+                        new PresignedDownload(
+                                "https://storage.example/original",
+                                Instant.parse("2026-07-10T01:10:00Z")));
+
+        PhotoDetailResponse response =
+                reactionService.getPhotoDetail(photo.getId(), requester.getId());
+
+        assertThat(response.thumbnailUrl()).isNull();
+        verify(objectStorageService, org.mockito.Mockito.never())
+                .issueDownloadUrl(eq(" \t"), any());
     }
 
     @Test

@@ -26,7 +26,6 @@ import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumRepository;
 import org.zipzip.zipzipserver.domain.photo.entity.Photo;
-import org.zipzip.zipzipserver.domain.photo.entity.PhotoThumbnailStatus;
 import org.zipzip.zipzipserver.domain.photo.repository.PhotoRepository;
 import org.zipzip.zipzipserver.domain.sharedgroup.entity.SharedGroup;
 import org.zipzip.zipzipserver.domain.storage.ObjectStorageService;
@@ -290,10 +289,7 @@ public class SharedAlbumService {
                 sharedAlbumPhotoRepository.findOldestPhotosBySharedAlbumId(
                         albumId, PageRequest.of(0, THUMBNAIL_COUNT));
         return oldestPhotos.stream()
-                .filter(
-                        photo ->
-                                photo.getThumbnailStatus() == PhotoThumbnailStatus.READY
-                                        && photo.getThumbnailObjectKey() != null)
+                .filter(Photo::hasUsableThumbnail)
                 .map(
                         photo -> {
                             PresignedDownload thumbnail =
