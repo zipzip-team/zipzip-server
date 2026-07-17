@@ -8,6 +8,20 @@
 
 서브폰·카메라 등 여러 기기로 촬영한 사진이 한 라이브러리에 섞여 있으면 원하는 사진을 다시 찾기 어렵습니다. **zipzip**은 사용자의 사진 라이브러리를 분석해 **촬영 기기·날짜·장소 기준으로 사진을 자동 인덱싱**하고, 이를 바탕으로 필터링·앨범 정리·그룹 공유까지 이어지는 정리 경험을 제공하는 iOS 앱입니다.
 
+## 📱 미리보기
+
+<img width="1920" height="1080" alt="Image" src="https://github.com/user-attachments/assets/307980c8-f786-4a6e-acd3-5ff7e2c36575" />
+
+<img width="1920" height="1080" alt="Image" src="https://github.com/user-attachments/assets/b3bd2625-b827-479f-a143-0ef51a87a2d8" />
+
+<img width="1920" height="1080" alt="Image" src="https://github.com/user-attachments/assets/7851f351-cb0d-4c7b-8016-34c3f1b5c506" />
+
+| 공유 | 공유 채팅 |
+| :---: | :---: |
+| <img src="https://github.com/user-attachments/assets/ff943f61-263b-4a2d-b637-aefd27266ebd" width="200"/> | <img src="https://github.com/user-attachments/assets/11cbe0ae-d52e-445d-b84a-6be762cc1b2a" width="200"/> |
+
+
+
 ## ✨ 주요 기능
 
 | 기능 | 설명 |
