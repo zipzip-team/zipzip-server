@@ -442,6 +442,7 @@ PostgreSQL 보완 인덱스:
 - [x] 사진 원본·썸네일을 URL이 아닌 Object Storage 객체 키(`original_object_key`, `thumbnail_object_key`)로 저장하도록 반영했다.
 - [x] `photo.original_object_key`에 unique 제약을 적용했다.
 - [x] 비동기 썸네일 생성 진행 상태를 `photo.thumbnail_status`(`PENDING`/`READY`/`FAILED`)로 반영했다.
+- [x] `photo.thumbnail_status`가 `READY`이면 공백이 아닌 `thumbnail_object_key`를 갖도록 DB 제약을 적용했다.
 - [x] `photo_upload_reservation`을 추가해 업로드 URL 발급 대상(사용자·공유집(앨범))과 재사용 여부를 완료 등록에서 검증할 수 있도록 했다.
 - [x] 사진 댓글과 그룹 채팅 메시지를 soft delete에서 즉시 물리 삭제로 전환하고 `deleted_at` 컬럼을 제거했다.
 - [x] 사진·공유집(앨범)의 개별 삭제 후 30일 정리를 위한 기준을 정의했다.
@@ -449,6 +450,7 @@ PostgreSQL 보완 인덱스:
 - [x] 탈퇴한 생성자·업로더의 공유집(앨범)·사진 삭제 권한을 공유 그룹 방장에게 위임했다.
 - [x] 사용자 탈퇴 시 사진 좋아요 물리 삭제 정책을 정의했다.
 - [x] 활성 멤버십 기준에 사용자 soft delete 상태를 포함했다.
+- [x] API 멱등성 처리 기록(`api_idempotency_record`)의 상태·완료 응답·만료 정리 모델을 반영했다.
 - [x] 공유 그룹 삭제 시 하위 공유집(앨범)·사진을 함께 soft delete하고, Object Storage 우선 정리 뒤 그룹·초대 코드 예약을 물리 삭제하는 30일 배치를 반영했다.
 
 ## 15. 남은 구현 과제

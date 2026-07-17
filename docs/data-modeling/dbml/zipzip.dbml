@@ -23,6 +23,33 @@ Table app_user {
   Note: 'Apple 로그인 후 서버에 등록된 사용자. 탈퇴 시 deleted_at을 기록하고 display_name을 탈퇴한 사용자로 갱신한다. 공유 콘텐츠의 작성자·생성자·업로더 표시는 탈퇴한 사용자로 대체한다. 재가입 복구를 위해 app_user 행은 물리 삭제하지 않는다. 동일한 Apple 계정으로 재가입하면 기존 행을 복구하되 과거 공유 그룹 멤버십은 자동 복구하지 않는다.'
 }
 
+Table api_idempotency_record {
+  id uuid [pk, not null, note: '애플리케이션에서 생성하는 멱등성 처리 기록 식별자']
+  scope varchar(100) [not null, note: '멱등성 키의 업무 범위. 사용자·그룹 등 요청을 구분하는 기준']
+  idempotency_key uuid [not null, note: '클라이언트가 전달한 멱등성 키']
+  http_method varchar(10) [not null, note: '요청 HTTP 메서드']
+  api_path varchar(255) [not null, note: '멱등성 적용 API 경로']
+  request_hash varchar(64) [not null, note: '동일 멱등성 키의 요청 본문 충돌을 판별하는 SHA-256 해시']
+  status varchar(20) [not null, note: '처리 상태. PROCESSING 또는 COMPLETED']
+  response_http_status int [note: '완료된 요청의 HTTP 응답 상태 코드. 처리 중이면 null']
+  encrypted_response_body text [note: '완료된 요청의 암호화된 응답 본문. 처리 중이면 null']
+  expires_at timestamptz [not null, note: '멱등성 기록 만료 시각. 만료 후 정리 배치가 삭제한다']
+  created_at timestamptz [not null, default: `now()`, note: '처리 기록 생성 시각']
+  updated_at timestamptz [not null, default: `now()`, note: '처리 상태 마지막 갱신 시각']
+
+  indexes {
+    (scope, idempotency_key, http_method, api_path) [unique, name: 'uk_api_idempotency_record__scope_key_method_path']
+    expires_at [name: 'idx_api_idempotency_record__expires_at']
+  }
+
+  checks {
+    `status in ('PROCESSING', 'COMPLETED')` [name: 'chk_api_idempotency_record__status']
+    `(status = 'PROCESSING' and response_http_status is null and encrypted_response_body is null) or (status = 'COMPLETED' and response_http_status is not null and encrypted_response_body is not null)` [name: 'chk_api_idempotency_record__completed_response']
+  }
+
+  Note: '멱등성 헤더가 필요한 API의 처리 상태와 완료 응답을 보관한다. 동일한 scope, idempotency_key, HTTP 메서드, API 경로 조합은 하나만 존재할 수 있으며, 만료된 행은 정기적으로 물리 삭제한다.'
+}
+
 Table refresh_token {
   id uuid [pk, not null, note: '애플리케이션에서 생성하는 Refresh Token 행 식별자']
   app_user_id uuid [not null, note: 'Refresh Token을 소유한 사용자 식별자']
@@ -182,6 +209,7 @@ Table photo {
 
   checks {
     `thumbnail_status in ('PENDING', 'READY', 'FAILED')` [name: 'chk_photo__thumbnail_status']
+    `thumbnail_status <> 'READY' or (thumbnail_object_key is not null and thumbnail_object_key !~ '^[[:space:]]*$')` [name: 'chk_photo__thumbnail_ready_object_key']
   }
 
   Note: '사진 원본 파일 참조 정보. 공유 그룹에 직접 속하지 않고 shared_album_photo를 통해서만 하나 이상의 공유집(앨범)에 속한다(공유 위계는 공유 그룹 > 공유집(앨범) > 사진이다). 원칙적으로 업로더가 수정·삭제하며, 업로더가 탈퇴한 경우 삭제는 공유 그룹 방장이 할 수 있다. 클라이언트는 presigned PUT URL로 원본을 Object Storage에 직접 업로드하고, 서버는 업로드 완료 등록 시점에 이 행을 생성한다. iOS가 이미지 EXIF에서 촬영일시와 위치정보를 추출해 전달하면 그대로 저장하며, 위치정보가 추론된 값이면 is_inferred를 true로 전달받는다. 썸네일은 등록 직후 서버가 비동기로 생성한다. 촬영일 우선 정렬용 coalesce 표현식 partial index는 postgresql-overrides.sql에 정의한다.'
