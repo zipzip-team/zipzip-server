@@ -10,6 +10,7 @@
 | 테이블 | 한글명 | 설명 |
 |---|---|---|
 | `app_user` | 사용자 | Apple 로그인 후 서버에 등록된 사용자 |
+| `api_idempotency_record` | API 멱등성 처리 기록 | 멱등성 요청의 처리 상태와 완료 응답을 보관하는 기록 |
 | `refresh_token` | Refresh Token | Refresh Token 해시와 회전 상태 |
 | `invite_code_reservation` | 초대 코드 예약 원장 | 발급된 초대 코드의 점유 예약 테이블 |
 | `shared_group` | 공유 그룹 | 초대 코드, 멤버십, 채팅, 공유집(앨범)을 묶는 최상위 공유 공간 |
@@ -221,6 +222,7 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 
 - `original_object_key` unique
 - `thumbnail_status`는 `PENDING`, `READY`, `FAILED`만 허용(`chk_photo__thumbnail_status`)
+- `thumbnail_status`가 `READY`이면 `thumbnail_object_key`는 공백이 아닌 값이어야 함(`chk_photo__thumbnail_ready_object_key`)
 - 원본 수정과 삭제는 원칙적으로 업로더만 가능
 - 업로더가 탈퇴한 경우 삭제는 공유 그룹 방장이 가능
 - 항상 1개 이상의 `shared_album_photo` 매핑을 가져야 한다(서비스 계층에서 강제)
@@ -279,6 +281,32 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 - `content` 공백 불가
 - 댓글 작성과 조회는 활성 공유 그룹 멤버십 필요
 
+### 3.13 `api_idempotency_record`
+
+멱등성 헤더를 사용하는 API 요청의 처리 상태와 완료 응답을 보관한다.
+동일한 멱등성 키로 서로 다른 요청을 재사용하는 것을 방지하며, 만료된 기록은 정기 배치가 물리 삭제한다.
+
+| 컬럼 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `id` | `uuid` | O | 멱등성 처리 기록 식별자 |
+| `scope` | `varchar(100)` | O | 멱등성 키 업무 범위 |
+| `idempotency_key` | `uuid` | O | 클라이언트가 전달한 멱등성 키 |
+| `http_method` | `varchar(10)` | O | 요청 HTTP 메서드 |
+| `api_path` | `varchar(255)` | O | 멱등성 적용 API 경로 |
+| `request_hash` | `varchar(64)` | O | 요청 본문 충돌 판별용 SHA-256 해시 |
+| `status` | `varchar(20)` | O | `PROCESSING` 또는 `COMPLETED` |
+| `response_http_status` | `integer` | X | 완료된 요청의 HTTP 응답 상태 코드 |
+| `encrypted_response_body` | `text` | X | 완료된 요청의 암호화된 응답 본문 |
+| `expires_at` | `timestamptz` | O | 기록 만료 시각 |
+| `created_at` | `timestamptz` | O | 생성 시각 |
+| `updated_at` | `timestamptz` | O | 상태 마지막 갱신 시각 |
+
+주요 제약:
+
+- `scope`, `idempotency_key`, `http_method`, `api_path` unique
+- `status`는 `PROCESSING`, `COMPLETED`만 허용
+- `PROCESSING`이면 응답 상태 코드와 암호화된 응답 본문은 모두 `null`, `COMPLETED`이면 둘 다 필수
+
 ## 4. 외래 키
 
 | 제약명 | 관계 | 삭제 규칙 |
@@ -319,6 +347,8 @@ PHOTO-03 완료 등록은 이 테이블에서 요청 사용자·요청 경로 �
 | `photo_upload_reservation` | `idx_photo_upload_reservation__shared_album_id` | 공유집(앨범)별 예약 조회 |
 | `photo_upload_reservation` | `idx_photo_upload_reservation__requested_by_app_user_id` | 사용자별 예약 조회 |
 | `photo_upload_reservation` | `idx_photo_upload_reservation__expires_at` | 만료된 미완료 예약 스윕 |
+| `api_idempotency_record` | `uk_api_idempotency_record__scope_key_method_path` | 동일 요청의 중복 처리 방지 |
+| `api_idempotency_record` | `idx_api_idempotency_record__expires_at` | 만료된 멱등성 처리 기록 정리 |
 
 ## 6. 권한 기준
 
