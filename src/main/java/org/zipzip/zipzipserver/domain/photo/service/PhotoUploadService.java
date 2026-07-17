@@ -13,8 +13,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -43,6 +45,7 @@ import org.zipzip.zipzipserver.domain.user.repository.AppUserRepository;
 import org.zipzip.zipzipserver.global.exception.BusinessException;
 import org.zipzip.zipzipserver.global.idempotency.IdempotencyService;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PhotoUploadService {
@@ -228,9 +231,21 @@ public class PhotoUploadService {
                 new TransactionSynchronization() {
                     @Override
                     public void afterCommit() {
-                        photoIds.forEach(thumbnailProcessingService::process);
+                        photoIds.forEach(PhotoUploadService.this::submitThumbnailJob);
                     }
                 });
+    }
+
+    // afterCommit() 콜백에서 던진 예외는 이미 커밋된 트랜잭션의 호출자(컨트롤러)에게까지 그대로 전파된다(Spring
+    // TransactionSynchronization 명세). thumbnailExecutor 큐가 가득 차면 여기서 RejectedExecutionException이
+    // 나는데, 이미 사진은 정상 커밋된 상태라 응답만 500으로 깨지면 상태 불일치가 된다. 제출 실패 시 사진은 기본값인
+    // PENDING에 머물러 있으므로 로그만 남기고 넘기면 PhotoSweepScheduler가 나중에 재수거한다.
+    private void submitThumbnailJob(UUID photoId) {
+        try {
+            thumbnailProcessingService.process(photoId);
+        } catch (RejectedExecutionException exception) {
+            log.warn("[PhotoUpload] 썸네일 작업 큐가 가득 차 제출에 실패했습니다. photoId={}", photoId, exception);
+        }
     }
 
     private List<PhotoUploadUrlRequest.UploadUrlFileSpec> validateFileSpecs(

@@ -1,11 +1,13 @@
 package org.zipzip.zipzipserver.domain.photo.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +30,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.task.TaskRejectedException;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.zipzip.zipzipserver.domain.album.entity.SharedAlbum;
 import org.zipzip.zipzipserver.domain.album.repository.SharedAlbumPhotoRepository;
@@ -398,6 +402,41 @@ class PhotoUploadServiceTest {
         verify(photoUploadReservationRepository).delete(usableReservation);
         verify(idempotencyService)
                 .complete(any(ApiIdempotencyRecord.class), any(), eq(result.response()));
+    }
+
+    @Test
+    void 완료등록_썸네일_큐가_가득_차도_커밋_후_콜백에서_예외가_전파되지_않는다() {
+        UUID albumId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        String idempotencyKeyHeader = UUID.randomUUID().toString();
+        PhotoUploadCompleteRequest request = completeRequestFor("object-key");
+
+        givenFreshIdempotencyStart(albumId, userId, idempotencyKeyHeader, request);
+        when(appUserRepository.getReferenceById(userId)).thenReturn(uploader);
+        PhotoUploadReservation usableReservation =
+                PhotoUploadReservation.create(
+                        "object-key", sharedAlbum, uploader, Instant.now().plusSeconds(900));
+        when(photoUploadReservationRepository.findById("object-key"))
+                .thenReturn(Optional.of(usableReservation));
+        when(objectStorageService.exists("object-key")).thenReturn(true);
+        when(photoRepository.save(any(Photo.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(objectStorageService.issueDownloadUrl(eq("object-key"), any(Duration.class)))
+                .thenReturn(
+                        new PresignedDownload(
+                                "https://original-url", Instant.now().plusSeconds(600)));
+        doThrow(new TaskRejectedException("thumbnailExecutor 큐가 가득 찼습니다"))
+                .when(thumbnailProcessingService)
+                .process(any(UUID.class));
+
+        photoUploadService.completeUpload(albumId, userId, idempotencyKeyHeader, request);
+
+        List<TransactionSynchronization> synchronizations =
+                TransactionSynchronizationManager.getSynchronizations();
+        assertThat(synchronizations).isNotEmpty();
+        assertThatCode(() -> synchronizations.forEach(TransactionSynchronization::afterCommit))
+                .doesNotThrowAnyException();
+        verify(thumbnailProcessingService).process(any(UUID.class));
     }
 
     @Test
