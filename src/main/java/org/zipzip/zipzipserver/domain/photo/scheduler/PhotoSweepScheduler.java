@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -64,7 +65,20 @@ public class PhotoSweepScheduler {
                 photoRepository.findByDeletedAtIsNullAndThumbnailStatusInAndUpdatedAtLessThanEqual(
                         List.of(PhotoThumbnailStatus.PENDING, PhotoThumbnailStatus.FAILED),
                         staleBefore);
-        staleJobs.forEach(photo -> thumbnailProcessingService.process(photo.getId()));
+
+        // thumbnailExecutor 큐가 가득 차면 여기서도 RejectedExecutionException이 날 수 있다. 한 사진에서
+        // 터진다고 나머지를 포기하면 이번 스윕 사이클에서 재수거하려던 사진들이 통째로 다음 사이클로 밀리므로,
+        // 사진 단위로 잡고 넘어가 나머지는 계속 재제출한다(다음 사이클에도 여전히 stale하면 다시 시도된다).
+        for (Photo photo : staleJobs) {
+            try {
+                thumbnailProcessingService.process(photo.getId());
+            } catch (RejectedExecutionException exception) {
+                log.warn(
+                        "[PhotoSweep] 썸네일 작업 큐가 가득 차 재제출에 실패했습니다. photoId={}",
+                        photo.getId(),
+                        exception);
+            }
+        }
     }
 
     @Scheduled(fixedDelayString = "${photo.sweep.photo-purge-interval:PT1H}")
